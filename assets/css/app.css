@@ -1,0 +1,267 @@
+/* See the Tailwind configuration guide for advanced usage
+   https://tailwindcss.com/docs/configuration */
+
+@import "tailwindcss" source(none);
+@source "../css";
+@source "../js";
+@source "../../lib/pronotex_web";
+
+/* A Tailwind plugin that makes "hero-#{ICON}" classes available.
+   The heroicons installation itself is managed by your mix.exs */
+@plugin "../vendor/heroicons";
+
+/* daisyUI Tailwind Plugin. You can update this file by fetching the latest version with:
+   curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui.js
+   Make sure to look at the daisyUI changelog: https://daisyui.com/docs/changelog/ */
+@plugin "../vendor/daisyui" {
+  themes: false;
+}
+
+/* daisyUI theme plugin. You can update this file by fetching the latest version with:
+  curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui-theme.js
+  We ship with two themes, a light one inspired on Phoenix colors and a dark one inspired
+  on Elixir colors. Build your own at: https://daisyui.com/theme-generator/ */
+@plugin "../vendor/daisyui-theme" {
+  name: "dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: "dark";
+  --color-base-100: oklch(30.33% 0.016 252.42);
+  --color-base-200: oklch(25.26% 0.014 253.1);
+  --color-base-300: oklch(20.15% 0.012 254.09);
+  --color-base-content: oklch(97.807% 0.029 256.847);
+  --color-primary: oklch(58% 0.233 277.117);
+  --color-primary-content: oklch(96% 0.018 272.314);
+  --color-secondary: oklch(58% 0.233 277.117);
+  --color-secondary-content: oklch(96% 0.018 272.314);
+  --color-accent: oklch(60% 0.25 292.717);
+  --color-accent-content: oklch(96% 0.016 293.756);
+  --color-neutral: oklch(37% 0.044 257.287);
+  --color-neutral-content: oklch(98% 0.003 247.858);
+  --color-info: oklch(58% 0.158 241.966);
+  --color-info-content: oklch(97% 0.013 236.62);
+  --color-success: oklch(60% 0.118 184.704);
+  --color-success-content: oklch(98% 0.014 180.72);
+  --color-warning: oklch(66% 0.179 58.318);
+  --color-warning-content: oklch(98% 0.022 95.277);
+  --color-error: oklch(58% 0.253 17.585);
+  --color-error-content: oklch(96% 0.015 12.422);
+  --radius-selector: 0.25rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.21875rem;
+  --size-field: 0.21875rem;
+  --border: 1.5px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin "../vendor/daisyui-theme" {
+  name: "light";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(98% 0 0);
+  --color-base-200: oklch(96% 0.001 286.375);
+  --color-base-300: oklch(92% 0.004 286.32);
+  --color-base-content: oklch(21% 0.006 285.885);
+  --color-primary: oklch(70% 0.213 47.604);
+  --color-primary-content: oklch(98% 0.016 73.684);
+  --color-secondary: oklch(55% 0.027 264.364);
+  --color-secondary-content: oklch(98% 0.002 247.839);
+  --color-accent: oklch(0% 0 0);
+  --color-accent-content: oklch(100% 0 0);
+  --color-neutral: oklch(44% 0.017 285.786);
+  --color-neutral-content: oklch(98% 0 0);
+  --color-info: oklch(62% 0.214 259.815);
+  --color-info-content: oklch(97% 0.014 254.604);
+  --color-success: oklch(70% 0.14 182.503);
+  --color-success-content: oklch(98% 0.014 180.72);
+  --color-warning: oklch(66% 0.179 58.318);
+  --color-warning-content: oklch(98% 0.022 95.277);
+  --color-error: oklch(58% 0.253 17.585);
+  --color-error-content: oklch(96% 0.015 12.422);
+  --radius-selector: 0.25rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.21875rem;
+  --size-field: 0.21875rem;
+  --border: 1.5px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* Add variants based on LiveView classes */
+@custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
+@custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
+@custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
+
+/* Use the data attribute for dark mode  */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Make LiveView wrapper divs transparent for layout */
+[data-phx-session], [data-phx-teleported-src] { display: contents }
+
+/* This file is for your main application CSS */
+
+/* Day headings inherit the selected child’s colour palette. */
+.day-group {
+  overflow: hidden;
+  border: 1px solid var(--day-line);
+  border-radius: 0.6rem;
+  background: #fff;
+}
+.day-heading {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  background: var(--day-tint);
+  color: var(--day-ink);
+  border-bottom: 1px solid var(--day-line);
+}
+
+/* Child-specific accents on a shared neutral background. */
+.page-shell {
+  --day-tint: #e5effb;
+  --day-ink: #365985;
+  --day-line: #d1e0f2;
+  background-color: #fdfdfd;
+}
+.page-shell[data-child-theme="green"] {
+  --day-tint: #e4f2e7;
+  --day-ink: #3f6b4c;
+  --day-line: #cfe3d4;
+}
+.page-shell #child-name,
+.page-shell .card-title { color: var(--day-ink); }
+
+/* Keep controls aligned with the selected child’s palette. */
+.page-shell .btn[aria-pressed="true"] {
+  background-color: var(--day-tint);
+  color: var(--day-ink);
+  border-color: var(--day-line);
+}
+@media (hover: hover) {
+  .page-shell .btn:not(:disabled):hover {
+    background-color: var(--day-tint);
+    color: var(--day-ink);
+    border-color: var(--day-ink);
+  }
+}
+.page-shell .btn:focus-visible {
+  outline-color: var(--day-ink);
+}
+
+/* Match the period selector to the compact navigation buttons. */
+#grade-period-form .fieldset { padding: 0; margin: 0; gap: 0; }
+
+#grade-period-form label { display: flex; align-items: center; }
+
+/* Underlined section navigation, distinct from date controls. */
+.navigation-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 4rem;
+  flex-shrink: 0;
+  padding: 0.75rem 0.5rem;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: #64748b;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.navigation-tab[aria-current="page"] {
+  color: var(--day-ink);
+  border-bottom-color: var(--day-ink);
+}
+@media (hover: hover) {
+  .navigation-tab:not(:disabled):hover { color: var(--day-ink); }
+}
+.navigation-tab:focus-visible {
+  outline: 2px solid var(--day-ink);
+  outline-offset: -5px;
+  border-radius: 0.25rem;
+}
+.navigation-tab:disabled { cursor: wait; }
+
+/* Mobile identity and date controls share the top row. */
+@media (max-width: 639px) {
+  .page-shell > main { padding-top: 1rem; }
+  #responsive-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 0.5rem; row-gap: 1.25rem; margin-bottom: 1.5rem; }
+  #child-header { grid-column: 1; grid-row: 1; display: grid; grid-template-columns: auto minmax(0, auto) auto; align-items: center; justify-content: start; gap: 0.25rem; padding: 0; min-width: 0; }
+  #child-header > div { display: contents; }
+  #child-header .avatar > div { width: 2rem; height: 2rem; }
+  #child-name { font-size: 1.125rem; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #switch-child { align-self: center; display: inline-flex; align-items: center; justify-content: center; margin: 0; flex-shrink: 0; width: 2rem; height: 2rem; min-height: 2rem; padding: 0; gap: 0; border: 0; background: transparent; box-shadow: none; }
+  #dashboard-navigation { display: contents; }
+  #section-navigation { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; width: 100%; border-bottom: 1px solid var(--color-base-300); }
+  .navigation-tab { min-height: 2.75rem; padding: 0.5rem 0.25rem; font-size: 0.875rem; }
+  #date-navigation { grid-column: 2; grid-row: 1; margin: 0; padding: 0; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 0.25rem; }
+  #week-label { font-size: 0.75rem; white-space: nowrap; }
+  #date-navigation .btn { width: 2rem; height: 2rem; min-height: 2rem; padding: 0; }
+  #grade-period-form { grid-column: 2; grid-row: 1; margin: 0; padding: 0; min-width: 0; max-width: 8rem; }
+  #grade-period { width: 100%; height: 1.875rem; min-height: 1.875rem; padding-left: 0.5rem; padding-right: 1.5rem; font-size: 0.75rem; }
+}
+
+@media (max-width: 359px) {
+  #responsive-header { column-gap: 0.25rem; }
+  #child-header .avatar > div { width: 1.5rem; height: 1.5rem; }
+  #child-name { font-size: 1rem; }
+  #switch-child, #date-navigation .btn { width: 1.75rem; height: 1.75rem; min-height: 1.75rem; }
+  #week-label { max-width: 6rem; overflow: hidden; text-overflow: ellipsis; font-size: 0.6875rem; }
+}
+
+.lesson-entry[data-state="current"] {
+  background: var(--day-tint);
+  box-shadow: inset 0 0 0 1px var(--day-line);
+  border-radius: 0.5rem;
+  padding-inline: 0.75rem;
+}
+.lesson-entry[data-state="past"] { opacity: 0.55; }
+
+/* Homework status colors stay independent of the child's theme. */
+#homework .btn[data-homework-status="done"] {
+  --status-ink: #15803d;
+  --status-tint: #f0fdf4;
+  --status-line: #bbf7d0;
+}
+#homework .btn[data-homework-status="due"] {
+  --status-ink: #b91c1c;
+  --status-tint: #fef2f2;
+  --status-line: #fecaca;
+}
+#homework .btn[data-homework-status="future"] {
+  --status-ink: #64748b;
+  --status-tint: #f8fafc;
+  --status-line: #e2e8f0;
+}
+#homework .btn[data-homework-status] {
+  color: var(--status-ink);
+  background-color: var(--status-tint);
+  border-color: transparent;
+}
+@media (hover: hover) {
+  #homework .btn[data-homework-status]:not(:disabled):hover {
+    color: var(--status-ink);
+    background-color: var(--status-tint);
+    border-color: var(--status-line);
+  }
+}
+#homework .btn[data-homework-status]:focus-visible {
+  outline-color: var(--status-ink);
+}
+
+/* Compact week navigation on intermediate widths as well as mobile. */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .navigation-tab { font-size: 0.875rem; }
+  #date-navigation { flex-wrap: nowrap; gap: 0.25rem; }
+  #week-label { font-size: 0.75rem; white-space: nowrap; }
+  #date-navigation .btn { width: 2rem; height: 2rem; min-height: 2rem; padding: 0; }
+}
+
+.homework-day-count[data-status="done"] { color: #15803d; background-color: #f0fdf4; }
+.homework-day-count[data-status="due"] { color: #b91c1c; background-color: #fef2f2; }
+.homework-day-count[data-status="future"] { color: #64748b; background-color: #f8fafc; }

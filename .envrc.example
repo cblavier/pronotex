@@ -1,0 +1,11 @@
+export PRONOTE_URL="https://mon-college.index-education.net/pronote/parent.html"
+export PRONOTE_USERNAME=""
+export PRONOTE_PASSWORD=""
+
+# Facultatif : prénom exact renvoyé par Pronote (sans dépendre de son ordre).
+# Ajouter CHILD_2, CHILD_3, etc. pour les autres enfants.
+export PRONOTE_CHILD_1_FIRST_NAME="Alice"
+export PRONOTE_CHILD_1_THEME="blue" # blue ou green
+export PRONOTE_CHILD_1_AVATAR="" # /images/avatars/alice.png, sinon initiale
+export PRONOTE_CHILD_1_USERNAME=""
+export PRONOTE_CHILD_1_PASSWORD=""

@@ -1,0 +1,565 @@
+<Layouts.app flash={@flash} child_theme={child_theme(@children, @child)}>
+  <div id="responsive-header">
+    <header id="child-header" class="flex flex-wrap items-center justify-between gap-4 pb-8">
+      <div class="flex items-center gap-4">
+        <div :if={@child} class="avatar shrink-0">
+          <div class="size-16 rounded-full border-2 border-[var(--day-ink)] sm:size-20 flex items-center justify-center text-[var(--day-ink)]">
+            <span :if={!avatar_src(@child)} id="child-initials" class="text-xl font-semibold">
+              {String.first(first_name(@child))}
+            </span>
+            <img
+              :if={avatar_src(@child)}
+              id="child-avatar"
+              src={avatar_src(@child)}
+              alt=""
+              width="80"
+              height="80"
+            />
+          </div>
+        </div>
+        <h1
+          id="child-name"
+          class="text-3xl font-semibold tracking-tight sm:text-4xl"
+          aria-live="polite"
+        >
+          {if @child, do: first_name(@child), else: ""}
+        </h1>
+      </div>
+      <button
+        :if={@child && length(@children) > 1}
+        id="switch-child"
+        aria-label={"Passer à #{first_name(next_child(@children, @child))}"}
+        title={"Passer à #{first_name(next_child(@children, @child))}"}
+        phx-click="switch-child"
+        disabled={@loading}
+        class="btn btn-outline border-slate-200 bg-white gap-2 text-base font-medium text-slate-600"
+      >
+        <.icon name="hero-arrows-right-left" class="size-4" />
+        <span class="hidden sm:inline">{first_name(next_child(@children, @child))}</span>
+      </button>
+    </header>
+
+    <div
+      id="dashboard-navigation"
+      class="mb-6 flex flex-wrap items-center justify-between gap-x-3 border-b border-base-300 text-slate-600"
+    >
+      <nav
+        id="section-navigation"
+        aria-label="Rubriques"
+        class="flex max-w-full items-center gap-3 overflow-x-auto sm:gap-6"
+      >
+        <button
+          :for={
+            {section, label, icon} <- [
+              {"agenda", "Agenda", "hero-calendar-days"},
+              {"devoirs", "Devoirs", "hero-pencil-square"},
+              {"notes", "Notes", "hero-academic-cap"},
+              {"cantine", "Menu", "utensils"}
+            ]
+          }
+          id={"nav-#{section}"}
+          phx-click="section"
+          phx-value-section={section}
+          disabled={@loading}
+          aria-current={if @section == section, do: "page"}
+          class="navigation-tab"
+        >
+          <.icon name={icon} class="hidden size-4 sm:inline-block" />
+          {label}
+          <span
+            :if={section == "devoirs" && !@loading && @homework_badge_count > 0}
+            id="homework-nav-badge"
+            class="rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-semibold leading-none text-red-700 tabular-nums"
+            aria-label={"#{@homework_badge_count} devoirs à faire pour aujourd’hui et demain"}
+          >
+            {@homework_badge_count}
+          </span>
+        </button>
+      </nav>
+      <nav
+        :if={@section != "notes"}
+        id="date-navigation"
+        aria-label="Choisir la période"
+        class="my-4 ml-auto flex flex-wrap items-center justify-end gap-3"
+      >
+        <p id="week-label" class="text-sm font-medium">
+          <span class="lg:hidden">
+            {if @mode == :today, do: "Aujourd’hui", else: compact_week(@week)}
+          </span>
+          <span class="hidden lg:inline">
+            <%= if @mode == :today do %>
+              à partir d’aujourd’hui
+            <% else %>
+              du {Calendar.strftime(@week, "%d/%m")} au {Calendar.strftime(
+                Date.add(@week, 6),
+                "%d/%m/%Y"
+              )}
+            <% end %>
+          </span>
+        </p>
+        <div class="flex shrink-0 items-center gap-1">
+          <div class="join">
+            <button
+              id="previous-week"
+              phx-click="week"
+              phx-value-direction="previous"
+              disabled={@loading}
+              class="btn btn-sm btn-ghost join-item"
+              aria-label="Semaine précédente"
+            >
+              <.icon name="hero-chevron-left" class="size-4" />
+            </button>
+            <button
+              id="next-week"
+              phx-click="week"
+              phx-value-direction="next"
+              disabled={@loading}
+              class="btn btn-sm btn-ghost join-item"
+              aria-label="Semaine suivante"
+            >
+              <.icon name="hero-chevron-right" class="size-4" />
+            </button>
+          </div>
+          <button
+            id="today-view"
+            phx-click="today"
+            disabled={@loading}
+            aria-label="Aujourd’hui"
+            title="Revenir à aujourd’hui"
+            aria-pressed={to_string(@mode == :today)}
+            class={["btn btn-sm", if(@mode == :today, do: "btn-soft", else: "btn-ghost")]}
+          >
+            <.icon name="hero-calendar-days" class="size-4" />
+          </button>
+        </div>
+      </nav>
+      <form
+        :if={@section == "notes" && @grade_periods != []}
+        class="my-4 ml-auto"
+        id="grade-period-form"
+        phx-change="grade-period"
+      >
+        <.input
+          type="select"
+          name="period"
+          id="grade-period"
+          class="select select-sm w-auto text-base text-slate-600"
+          aria-label="Période"
+          value={@grade_period}
+          options={@grade_periods}
+          disabled={@loading}
+        />
+      </form>
+    </div>
+  </div>
+
+  <div id="page-content" hidden={@loading} aria-busy={to_string(@loading)}>
+    <section
+      id="grades-content"
+      aria-labelledby="nav-notes"
+      hidden={@section != "notes"}
+      class="space-y-6"
+    >
+      <div :if={@grades_error || @error} id="grades-error" role="alert" class="alert alert-soft">
+        {@grades_error || @error}
+        <button id="retry-grades" phx-click="refresh" class="btn btn-sm btn-ghost">
+          Réessayer
+        </button>
+      </div>
+      <div class="grid items-stretch gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <div
+          :if={!@loading && !@grades_error && !@error}
+          class="card min-w-0 border border-base-300 bg-base-100"
+        >
+          <div class="card-body gap-5 p-5 sm:p-6">
+            <h3 class="card-title text-lg font-semibold">Moyenne générale</h3>
+            <div class="space-y-3">
+              <p id="overall-average" class="text-3xl font-semibold text-[var(--day-ink)]">
+                {mark(@overall, @overall_out_of)}
+              </p>
+              <p id="class-overall-average" class="text-sm text-base-content/60">
+                Moyenne de classe : {mark(@class_overall, @overall_out_of)}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="card min-w-0 border border-base-300 bg-base-100">
+          <div class="card-body gap-5 p-5 sm:p-6">
+            <h3 class="card-title text-lg font-semibold">Moyennes par matière</h3>
+            <p
+              :if={!@loading && !@grades_error && !@error && @average_count == 0}
+              id="no-averages"
+              class="text-sm text-base-content/60"
+            >
+              Aucune moyenne publiée pour cette période.
+            </p>
+            <div class="overflow-x-auto">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Matière</th>
+                    <th>Moyenne</th>
+                    <th>Classe</th>
+                    <th>Min. classe</th>
+                    <th>Max. classe</th>
+                  </tr>
+                </thead>
+                <tbody id="subject-averages" phx-update="stream">
+                  <tr :for={{dom_id, average} <- @streams.averages} id={dom_id}>
+                    <th scope="row" class="font-normal text-slate-600">{average.subject}</th>
+                    <td class="font-semibold text-[var(--day-ink)]">
+                      {mark(average.score, average.out_of)}
+                    </td>
+                    <td>{average.average || "—"}</td>
+                    <td>{average.min || "—"}</td>
+                    <td>{average.max || "—"}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card border border-base-300 bg-base-100">
+        <div class="card-body gap-5 p-5 sm:p-6">
+          <h3 class="card-title text-lg font-semibold">Dernières notes</h3>
+          <p
+            :if={!@loading && !@grades_error && !@error && @grade_count == 0}
+            id="no-grades"
+            class="text-sm text-base-content/60"
+          >
+            Aucune note publiée pour cette période.
+          </p>
+          <div id="grade-list" phx-update="stream" class="space-y-4">
+            <article :for={{dom_id, grade} <- @streams.grades} id={dom_id} class="day-group">
+              <div class="day-heading flex flex-wrap items-center justify-between gap-2">
+                <h4 class="text-sm font-semibold">{grade.subject}</h4>
+                <time class="text-xs" datetime={Date.to_iso8601(grade.date)}>
+                  {Calendar.strftime(grade.date, "%d/%m/%Y")}
+                </time>
+              </div>
+              <div class="space-y-3 p-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <p class="text-xl font-semibold text-[var(--day-ink)]">
+                    {mark(grade.score, grade.out_of)}
+                  </p>
+                  <span :if={grade.coefficient} class="text-xs text-base-content/60">
+                    Coefficient {grade.coefficient}
+                  </span>
+                </div>
+                <p :if={grade.comment && grade.comment != ""} class="text-sm">{grade.comment}</p>
+                <div class="flex flex-wrap gap-x-5 gap-y-2 text-xs text-base-content/60">
+                  <span>Moy. classe : {grade.average || "—"}</span><span>Min. : {grade.min || "—"}</span><span>Max. : {grade.max || "—"}</span>
+                  <span :if={grade.bonus} class="badge badge-soft badge-xs">Bonus</span>
+                  <span :if={grade.optional} class="badge badge-soft badge-xs">Facultatif</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      id="canteen-content"
+      aria-labelledby="nav-cantine"
+      hidden={@section != "cantine"}
+      class="min-w-0"
+    >
+      <div class="space-y-5">
+        <div :if={@menu_error || @error} id="menu-error" role="alert" class="text-sm text-error">
+          {@menu_error || @error}
+          <button id="retry-menus" phx-click="refresh" class="btn btn-sm btn-ghost">
+            Réessayer
+          </button>
+        </div>
+        <p
+          :if={!@loading && !@error && !@menu_error && @menu_count == 0}
+          id="no-menus"
+          class="py-8 text-sm text-base-content/60"
+        >
+          Aucun menu publié pour cette période.
+        </p>
+        <div id="menu-days" phx-update="stream" class="space-y-6">
+          <section :for={{dom_id, day} <- @streams.menu_days} id={dom_id} class="day-group">
+            <h3 class="day-heading text-sm font-semibold">
+              {if @mode == :today, do: relative_day(day.date, @today), else: day_label(day.date)}
+            </h3>
+            <article :for={menu <- day.entries} class="space-y-3 p-4">
+              <p :if={menu.courses == []} class="text-sm text-base-content/60">
+                Menu non détaillé.
+              </p>
+              <dl class="space-y-3">
+                <div :for={course <- menu.courses}>
+                  <dt class="text-xs font-medium text-base-content/50">{course.label}</dt>
+                  <dd class="text-sm">{Enum.join(course.foods, " · ")}</dd>
+                </div>
+              </dl>
+            </article>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <div id="school-content" hidden={@section not in ["agenda", "devoirs"]}>
+      <div
+        :if={@error}
+        id="page-error"
+        role="alert"
+        class="alert alert-soft mb-6 flex flex-wrap justify-between border border-base-300"
+      >
+        <span>{@error}</span>
+        <button id="retry" phx-click="refresh" class="btn btn-sm btn-outline">Réessayer</button>
+      </div>
+      <div
+        id="agenda-content"
+        class="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+        hidden={@section != "agenda"}
+        aria-labelledby="nav-agenda"
+        aria-busy={to_string(@loading)}
+      >
+        <section id="timetable" aria-label="Emploi du temps" class="min-w-0">
+          <div class="space-y-5">
+            <p :if={@lesson_error} id="timetable-error" role="alert" class="text-sm text-error">
+              {@lesson_error}
+            </p>
+            <p
+              :if={!@loading && !@error && !@lesson_error && @lesson_count == 0 && @mode == :week}
+              id="no-lessons"
+              class="py-12 text-center text-sm text-base-content/50"
+            >
+              Aucun cours cette semaine.
+            </p>
+            <div id="lesson-days" phx-update="stream" class="space-y-6">
+              <section
+                :for={{dom_id, day} <- @streams.lesson_days}
+                id={dom_id}
+                class="day-group"
+                data-day={Date.day_of_week(day.date)}
+              >
+                <h3 class="day-heading flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+                  {if @mode == :today,
+                    do: relative_day(day.date, @today),
+                    else: day_label(day.date)}
+                  <span
+                    :if={day.date == @today && @mode == :week}
+                    class="badge badge-ghost badge-xs normal-case"
+                  >
+                    Aujourd’hui
+                  </span>
+                </h3>
+                <p
+                  :if={day.entries == []}
+                  id="no-lessons-today"
+                  class="px-4 py-5 text-sm text-base-content/55"
+                >
+                  Aucun cours aujourd’hui.
+                </p>
+                <div class="divide-y divide-base-200 px-4">
+                  <article
+                    :for={lesson <- day.entries}
+                    class="lesson-entry flex gap-4 py-3"
+                    data-state={lesson_state(lesson, @now)}
+                  >
+                    <div class="w-12 shrink-0 text-sm tabular-nums">
+                      <p>{clock(lesson.start)}</p>
+                      <p class="mt-1 text-xs text-base-content/45">{clock(lesson.end)}</p>
+                    </div>
+                    <div class="min-w-0 flex-1 border-l-2 border-base-300 pl-4">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <h4 class={[
+                          "text-sm font-medium",
+                          lesson.canceled && "text-base-content/45 line-through"
+                        ]}>
+                          {lesson.subject || "Cours"}
+                        </h4>
+                        <span
+                          :if={lesson_state(lesson, @now) == "current"}
+                          class="badge badge-sm border-[var(--day-line)] bg-[var(--day-tint)] text-[var(--day-ink)]"
+                        >
+                          En cours
+                        </span>
+                        <span :if={lesson.canceled} class="badge badge-soft badge-error badge-xs">
+                          Annulé
+                        </span>
+                      </div>
+                      <p :if={lesson.teachers != []} class="mt-1 text-xs text-base-content/55">
+                        {Enum.join(lesson.teachers, ", ")}
+                      </p>
+                      <p :if={lesson.classrooms != []} class="mt-1 text-xs text-base-content/55">
+                        {Enum.join(lesson.classrooms, ", ")}
+                      </p>
+                      <p
+                        :if={lesson.status && !lesson.canceled}
+                        class="mt-1 text-xs text-base-content/60"
+                      >
+                        {lesson.status}
+                      </p>
+                      <p
+                        :if={lesson.memo}
+                        class="mt-2 whitespace-pre-line text-xs text-base-content/60"
+                      >
+                        {lesson.memo}
+                      </p>
+                    </div>
+                  </article>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+        <aside
+          id="upcoming"
+          aria-labelledby="upcoming-title"
+          class="day-group min-w-0"
+        >
+          <h2
+            id="upcoming-title"
+            class="day-heading text-xs font-semibold uppercase tracking-wide"
+          >
+            À venir
+          </h2>
+          <div class="space-y-4 p-4">
+            <div :if={@event_error} id="events-error" role="alert" class="text-sm text-error">
+              {@event_error}
+              <button id="retry-events" phx-click="refresh" class="btn btn-sm btn-ghost">
+                Réessayer
+              </button>
+            </div>
+            <p
+              :if={!@loading && !@error && !@event_error && @event_count == 0}
+              id="no-events"
+              class="text-sm text-base-content/60"
+            >
+              Aucun événement à venir.
+            </p>
+            <div id="upcoming-events" phx-update="stream" class="divide-y divide-base-200">
+              <article
+                :for={{dom_id, event} <- @streams.events}
+                id={dom_id}
+                class="space-y-2 py-4 first:pt-0 last:pb-0"
+              >
+                <h3 class="text-base font-semibold text-[var(--day-ink)]">{event.title}</h3>
+                <div class="space-y-2">
+                  <p class="text-xs font-medium text-[var(--day-ink)]">{event_schedule(event)}</p>
+                  <p
+                    :if={event.description != ""}
+                    class="whitespace-pre-line break-words text-sm text-base-content/70"
+                  >
+                    {event.description}
+                  </p>
+                </div>
+              </article>
+            </div>
+          </div>
+        </aside>
+      </div>
+      <div
+        id="homework-content"
+        hidden={@section != "devoirs"}
+        aria-labelledby="nav-devoirs"
+        aria-busy={to_string(@loading)}
+      >
+        <section id="homework" aria-label="Devoirs" class="min-w-0">
+          <div class="space-y-5">
+            <button
+              :if={@homework_save_error}
+              id="reload-homework"
+              phx-click="refresh"
+              class="btn btn-sm btn-ghost"
+            >
+              Recharger les devoirs
+            </button>
+            <p :if={@homework_error} id="homework-error" role="alert" class="text-sm text-error">
+              {@homework_error}
+            </p>
+            <p
+              :if={!@loading && !@error && !@homework_error && @homework_count == 0}
+              id="no-homework"
+              class="py-12 text-center text-sm text-base-content/50"
+            >
+              {if @mode == :today,
+                do: "Aucun devoir pour les sept prochains jours.",
+                else: "Aucun devoir pour cette semaine."}
+            </p>
+            <div id="homework-days" phx-update="stream" class="space-y-6">
+              <section
+                :for={{dom_id, day} <- @streams.homework_days}
+                id={dom_id}
+                class="day-group"
+                data-day={Date.day_of_week(day.date)}
+              >
+                <h3 class="day-heading flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-wide">
+                  <span>
+                    {if @mode == :today,
+                      do: due_label(day.date, @today),
+                      else: "Pour " <> String.downcase(day_label(day.date))}
+                  </span>
+                  <span
+                    id={"homework-count-#{day.date}"}
+                    class="homework-day-count shrink-0 rounded-full px-2 py-0.5 normal-case tracking-normal tabular-nums"
+                    data-status={
+                      cond do
+                        Enum.all?(day.entries, & &1.done) -> "done"
+                        Date.compare(day.date, Date.add(@today, 1)) != :gt -> "due"
+                        true -> "future"
+                      end
+                    }
+                    aria-label={"#{Enum.count(day.entries, & &1.done)} devoirs faits sur #{length(day.entries)}"}
+                  >
+                    {Enum.count(day.entries, & &1.done)} / {length(day.entries)}
+                  </span>
+                </h3>
+                <div class="divide-y divide-base-200 px-4">
+                  <article :for={homework <- day.entries} class="py-3">
+                    <div class="mb-2 flex items-center justify-between gap-2">
+                      <h4 class="text-sm font-medium">{homework.subject || "Devoir"}</h4>
+                      <button
+                        :if={@homework_writable}
+                        id={"homework-toggle-#{homework.id}"}
+                        phx-click="toggle-homework"
+                        phx-value-id={homework.id}
+                        disabled={@homework_saving != nil || @homework_save_error != nil}
+                        data-homework-status={
+                          cond do
+                            homework.done -> "done"
+                            Date.compare(homework.date, Date.add(@today, 1)) != :gt -> "due"
+                            true -> "future"
+                          end
+                        }
+                        aria-pressed={to_string(homework.done)}
+                        aria-label={
+                          if homework.done,
+                            do: "Marquer ce devoir non fait",
+                            else: "Marquer ce devoir fait"
+                        }
+                        class="btn btn-sm btn-ghost gap-2 shrink-0"
+                      >
+                        <.icon
+                          name={
+                            if homework.done, do: "hero-check-circle", else: "hero-minus-circle"
+                          }
+                          class="size-5"
+                        />
+                        <%= if @homework_saving == homework.id do %>
+                          <span class="loading loading-spinner loading-xs" role="status">
+                            <span class="sr-only">Enregistrement en cours</span>
+                          </span>
+                        <% else %>
+                          {if homework.done, do: "Fait", else: "À faire"}
+                        <% end %>
+                      </button>
+                    </div>
+                    <p class="whitespace-pre-line break-words text-sm leading-relaxed text-base-content/70">
+                      {homework.description}
+                    </p>
+                  </article>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</Layouts.app>
