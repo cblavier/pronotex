@@ -391,6 +391,7 @@
                   <%= for lesson <- day.entries do %>
                     <div
                       :for={pause <- lesson.pauses_before}
+                      data-state={agenda_state(pause, @now)}
                       class="agenda-pause flex items-center gap-4 py-3 text-base-content/55"
                     >
                       <div class="w-12 shrink-0 text-sm tabular-nums">
@@ -399,12 +400,15 @@
                       </div>
                       <p class="flex min-w-0 flex-1 items-center gap-1.5 pl-4 text-sm italic">
                         {pause.label}
+                        <span :if={agenda_state(pause, @now) == "current"} class="sr-only">
+                          En cours
+                        </span>
                         <.icon :if={pause.label == "Repas"} name="utensils" class="size-4" />
                       </p>
                     </div>
                     <article
                       class="lesson-entry flex gap-4 py-3"
-                      data-state={lesson_state(lesson, @now)}
+                      data-state={agenda_state(lesson, @now)}
                     >
                       <div class="w-12 shrink-0 text-sm tabular-nums">
                         <p>{clock(lesson.start)}</p>
@@ -422,7 +426,7 @@
                             {lesson.subject || "Cours"}
                           </h4>
                           <span
-                            :if={lesson_state(lesson, @now) == "current"}
+                            :if={agenda_state(lesson, @now) == "current"}
                             class="sr-only"
                           >
                             En cours

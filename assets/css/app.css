@@ -108,7 +108,7 @@
   --login-primary: #3c987f;
   min-height: 100svh;
   background-color: #3c987f;
-  background-image: url("/images/brand/login-background.svg");
+  background-image: url("/images/brand/login-background.svg?v=facets-small-75");
   background-position: center;
   background-size: cover;
 }
@@ -246,10 +246,13 @@
   #week-label { max-width: 6rem; overflow: hidden; text-overflow: ellipsis; font-size: 0.6875rem; }
 }
 
-.lesson-entry[data-state="current"] {
+.lesson-entry[data-state="current"],
+.agenda-pause[data-state="current"] {
   background-color: color-mix(in srgb, var(--day-ink) 5%, transparent);
+  border-left: 3px solid var(--day-ink);
   margin-inline: -1rem;
   padding-inline: 1rem;
+  padding-left: calc(1rem - 3px);
 }
 .lesson-entry[data-state="past"] { opacity: 0.55; }
 

@@ -171,11 +171,13 @@ Les images sont décodées en mémoire et servies par `/avatars/:index`, sans
 Ces URL nécessitent une session authentifiée par PIN, comme les pages de l’application. Les valeurs personnelles restent dans
 `.envrc`, exclu de Git.
 
-## Déploiement sur Synology DS918+ — DSM 7.1.1
+## Déploiement sur Synology DS918+ — DSM 7.4.1
 
 Le DS918+ utilise une image Linux **amd64**, même si elle est construite sur
-un Mac Apple Silicon. DSM 7.1.1 utilise le paquet **Docker**, pas l'interface
-« Projets » de Container Manager apparue avec DSM 7.2.
+un Mac Apple Silicon. Cette procédure cible le NAS mis à jour en DSM 7.4.1
+avec le paquet **Container Manager**, qui remplace l'ancien paquet Docker.
+Vérifier dans le Centre de paquets que Container Manager est installé et démarré
+après la mise à jour de DSM. Le fichier `docker-compose.yml` reste utilisable.
 
 La construction et le déploiement sont déclenchés manuellement avec les commandes
 ci-dessous, uniquement lorsque vous souhaitez publier une nouvelle version.
@@ -200,7 +202,7 @@ La construction en émulation sur Apple Silicon peut prendre plusieurs minutes.
 
 ### 2. Préparer les fichiers du NAS
 
-Installer le paquet Docker depuis le Centre de paquets. Créer, par exemple,
+Installer ou mettre à jour **Container Manager** depuis le Centre de paquets. Créer, par exemple,
 `/volume1/docker/pronotex` et y transférer via File Station :
 
 - `pronotex-image.tar` ;
@@ -222,20 +224,49 @@ les variables Base64 pour ce déploiement.
 
 ### 3. Démarrer sur le NAS
 
-Activer SSH dans DSM et se connecter avec un compte administrateur :
+La procédure SSH ci-dessous sert au premier déploiement et aux mises à jour.
+Activer SSH dans DSM et se connecter avec un compte administrateur.
+À chaque nouvelle session SSH, se placer dans le dossier du projet et définir
+ce raccourci, qui sélectionne la commande Compose disponible sur le NAS :
 
 ```sh
 cd /volume1/docker/pronotex
-chmod 600 .env
-sudo docker load -i pronotex-image.tar
-sudo docker-compose up -d
-sudo docker-compose ps
+compose() {
+  if sudo docker compose version >/dev/null 2>&1; then
+    sudo docker compose "$@"
+  elif sudo docker-compose version >/dev/null 2>&1; then
+    sudo docker-compose "$@"
+  elif [ -x /var/packages/ContainerManager/target/usr/bin/docker-compose ]; then
+    sudo /var/packages/ContainerManager/target/usr/bin/docker-compose "$@"
+  else
+    echo "Compose introuvable : vérifier l’installation de Container Manager." >&2
+    return 1
+  fi
+}
 ```
 
-Ces commandes utilisent Compose v1 (`docker-compose`), adapté au paquet Docker
-de DSM 7.1.1. Si la commande est introuvable, vérifier
-`/var/packages/Docker/target/usr/bin/docker-compose` et utiliser ce chemin.
-Le conteneur apparaît ensuite dans l'interface Docker de DSM.
+Puis importer l'image et démarrer :
+
+```sh
+chmod 600 .env
+sudo docker load -i pronotex-image.tar
+compose up -d
+compose ps
+```
+
+Le conteneur est visible dans **Container Manager → Conteneur**.
+Le nom de la commande Compose dépend de la version du paquet installé ;
+le raccourci accepte `docker compose` et `docker-compose`.
+
+Il est également possible de faire le premier démarrage depuis l'interface DSM :
+importer `pronotex-image.tar` dans **Container Manager → Image → Ajouter → Ajouter
+à partir d'un fichier**, puis créer un **Projet** nommé `pronotex`, avec le chemin
+`/volume1/docker/pronotex` et le fichier `docker-compose.yml` fourni. Garder `.env`
+dans ce même dossier et démarrer le projet. Choisir une seule méthode pour le
+premier démarrage, afin de ne pas créer deux instances concurrentes.
+
+Documentation Synology : [images](https://kb.synology.com/en-global/DSM/help/ContainerManager/docker_image)
+et [projets Compose](https://kb.synology.com/en-global/DSM/help/ContainerManager/docker_project).
 
 Le port est lié à `127.0.0.1:4000` **sur le NAS**, accessible au reverse proxy
 DSM uniquement. `http://IP_DU_NAS:4000` n'est donc pas une URL d'accès.
@@ -263,20 +294,24 @@ le changement d'enfant et de rubrique, puis les heures et les avatars.
 
 ### Diagnostic et mises à jour
 
+Sur le NAS, depuis `/volume1/docker/pronotex`, avec le raccourci `compose`
+défini à l’étape 3 :
+
 ```sh
-sudo docker-compose logs --tail=100 pronotex
-sudo docker-compose ps
+compose logs --tail=100 pronotex
+compose ps
 ```
 
 Le contrôle de santé vérifie le serveur web, pas la connexion à Pronote.
 Le fuseau du conteneur est `Europe/Paris` pour les horaires et les dates relatives.
 
 Pour mettre à jour, reconstruire et exporter l'image sur le Mac, transférer
-le nouveau fichier, puis sur le NAS :
+le nouveau fichier, puis sur le NAS, dans le même dossier et avec le même
+raccourci `compose` :
 
 ```sh
 sudo docker load -i pronotex-image.tar
-sudo docker-compose up -d --force-recreate
+compose up -d --force-recreate
 ```
 
 Conserver `.env` ; le rechargement de l'image n'y touche pas. Après une modification
@@ -291,7 +326,8 @@ Définir `PINCODE` dans `.envrc` (développement) ou `.env` (Docker) avec exacte
 Aucun PIN par défaut n'est prévu. Sans variable ou avec une valeur vide, l'accès
 est libre, sans écran de connexion. Une valeur non vide au format invalide bloque
 l'accès. L'ancien nom `PIN_CODE` reste accepté ; `PINCODE` est prioritaire si défini. Recharger `.envrc` et redémarrer Phoenix ; pour Docker,
-utiliser `sudo docker-compose up -d --force-recreate` après modification de `.env`.
+utiliser `compose up -d --force-recreate` après modification de `.env`
+(depuis le dossier du déploiement, avec le raccourci de l’étape 3).
 
 Une connexion est valable **12 heures à partir de la saisie réussie**, sans
 prolongation automatique à l'utilisation. Les pages ouvertes reviennent à la

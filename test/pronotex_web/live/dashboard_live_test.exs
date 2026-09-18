@@ -40,20 +40,37 @@ defmodule PronotexWeb.DashboardLiveTest do
           do: Date.add(from, 3),
           else: from
 
-      if Application.get_env(:pronotex, :dashboard_test_mode) == :empty do
-        {:ok, []}
-      else
+      if Application.get_env(:pronotex, :dashboard_test_mode) == :pauses do
         {:ok,
-         [
+         Enum.map([{~T[10:20:00], ~T[11:15:00]}, {~T[12:55:00], ~T[13:50:00]}], fn {start, ending} ->
            %Pronotex.Pronote.Lesson{
-             id: "course",
+             id: Time.to_string(start),
              child_id: id,
              subject: "Maths #{id}",
-             canceled: Application.get_env(:pronotex, :dashboard_test_mode) == :canceled,
-             start: NaiveDateTime.new!(from, ~T[08:00:00]),
-             end: NaiveDateTime.new!(from, ~T[09:00:00])
+             start: NaiveDateTime.new!(from, start),
+             end: NaiveDateTime.new!(from, ending),
+             lunch_window: %{
+               start: NaiveDateTime.new!(from, ~T[12:10:00]),
+               end: NaiveDateTime.new!(from, ~T[13:50:00])
+             }
            }
-         ]}
+         end)}
+      else
+        if Application.get_env(:pronotex, :dashboard_test_mode) == :empty do
+          {:ok, []}
+        else
+          {:ok,
+           [
+             %Pronotex.Pronote.Lesson{
+               id: "course",
+               child_id: id,
+               subject: "Maths #{id}",
+               canceled: Application.get_env(:pronotex, :dashboard_test_mode) == :canceled,
+               start: NaiveDateTime.new!(from, ~T[08:00:00]),
+               end: NaiveDateTime.new!(from, ~T[09:00:00])
+             }
+           ]}
+        end
       end
     end
 
@@ -709,6 +726,39 @@ defmodule PronotexWeb.DashboardLiveTest do
     render_async(view)
     refute has_element?(view, "#lesson-days article[data-state=current]")
     assert has_element?(view, "#lesson-days", "Annulé")
+  end
+
+  test "highlight moves from lesson to pause to lunch and back without refetching", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :pauses)
+    Application.put_env(:pronotex, :now, fn -> ~N[2026-09-18 11:14:59] end)
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    assert_receive {:lessons, "a", _, _}
+    assert has_element?(view, "#lesson-days article[data-state=current]")
+    refute has_element?(view, ".agenda-pause[data-state=current]")
+
+    for {time, label} <- [{~N[2026-09-18 11:15:00], "Pause"}, {~N[2026-09-18 12:10:00], "Repas"}] do
+      Application.put_env(:pronotex, :now, fn -> time end)
+      send(view.pid, :update_lesson_clock)
+      assert has_element?(view, ".agenda-pause[data-state=current]", label)
+      assert has_element?(view, ".agenda-pause[data-state=current]", "En cours")
+
+      assert length(
+               view
+               |> element("#lesson-days")
+               |> render()
+               |> Floki.parse_fragment!()
+               |> Floki.find("[data-state=current]")
+             ) == 1
+
+      refute has_element?(view, "#lesson-days article[data-state=current]")
+    end
+
+    Application.put_env(:pronotex, :now, fn -> ~N[2026-09-18 12:55:00] end)
+    send(view.pid, :update_lesson_clock)
+    refute has_element?(view, ".agenda-pause[data-state=current]")
+    assert has_element?(view, "#lesson-days article[data-state=current]")
+    refute_received {:lessons, _, _, _}
   end
 
   test "homework toggle checks and unchecks only the selected child's task", %{conn: conn} do

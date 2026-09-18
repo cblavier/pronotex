@@ -384,11 +384,16 @@ defmodule PronotexWeb.DashboardLive do
     end).()
   end
 
-  defp lesson_state(lesson, now) do
+  defp agenda_state(entry, now) do
     cond do
-      NaiveDateTime.compare(now, lesson.end) != :lt -> "past"
-      !lesson.canceled and NaiveDateTime.compare(now, lesson.start) != :lt -> "current"
-      true -> "upcoming"
+      NaiveDateTime.compare(now, entry.end) != :lt ->
+        "past"
+
+      !Map.get(entry, :canceled, false) and NaiveDateTime.compare(now, entry.start) != :lt ->
+        "current"
+
+      true ->
+        "upcoming"
     end
   end
 
