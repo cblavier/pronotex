@@ -15,6 +15,53 @@ defmodule PronotexWeb.LoginControllerTest do
     assert build_conn() |> get("/login") |> html_response(200) =~ "Code PIN"
   end
 
+  test "stale login form renews the session without checking the PIN, then accepts a fresh form" do
+    conn =
+      build_conn()
+      |> Plug.Conn.put_private(:plug_skip_csrf_protection, false)
+      |> get("/login")
+
+    rejected =
+      ExUnit.CaptureLog.capture_log(fn ->
+        rejected =
+          conn
+          |> recycle()
+          |> Plug.Conn.put_private(:plug_skip_csrf_protection, false)
+          |> post("/login", %{"pin" => "01234567", "_csrf_token" => "stale"})
+
+        assert redirected_to(rejected, 303) == "/login?session_expired=1"
+        refute Pronotex.Auth.valid?(get_session(rejected))
+        assert :sys.get_state(Pronotex.Auth).failures == 0
+
+        fresh =
+          rejected
+          |> recycle()
+          |> Plug.Conn.put_private(:plug_skip_csrf_protection, false)
+          |> get("/login?session_expired=1")
+
+        html = html_response(fresh, 200)
+        assert html =~ "Veuillez saisir votre code à nouveau"
+
+        token =
+          html
+          |> Floki.parse_document!()
+          |> Floki.find("input[name=_csrf_token]")
+          |> Floki.attribute("value")
+          |> hd()
+
+        success =
+          fresh
+          |> recycle()
+          |> Plug.Conn.put_private(:plug_skip_csrf_protection, false)
+          |> post("/login", %{"pin" => "01234567", "_csrf_token" => token})
+
+        assert redirected_to(success) == "/"
+        assert Pronotex.Auth.valid?(get_session(success))
+      end)
+
+    assert rejected =~ "CSRF rejected:"
+  end
+
   test "logout clears the session and disconnects its live pages" do
     conn = build_conn() |> post("/login", %{"pin" => "01234567"})
     socket_id = get_session(conn, "live_socket_id")

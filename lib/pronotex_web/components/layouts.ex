@@ -41,6 +41,14 @@ defmodule PronotexWeb.Layouts do
       <main class="mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-12">
         {render_slot(@inner_block)}
       </main>
+      <footer class="app-brand-footer">
+        <img
+          src={~p"/images/brand/captain-notes-skull-login.png"}
+          alt="Captain Notes"
+          width="104"
+          height="40"
+        />
+      </footer>
     </div>
 
     <.flash_group flash={@flash} />

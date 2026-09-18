@@ -4,9 +4,19 @@
     <meta charset="utf-8" />
     <meta name="color-scheme" content="light dark" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="apple-mobile-web-app-title" content="Captain Notes" />
     <meta name="theme-color" content="#439682" />
-    <link rel="icon" type="image/png" sizes="32x32" href={~p"/images/brand/captain-notes-notebook-32.png"} />
-    <link rel="apple-touch-icon" sizes="180x180" href={~p"/images/brand/captain-notes-notebook-180.png"} />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href={~p"/images/brand/captain-notes-skull-32.png"}
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href={~p"/images/brand/captain-notes-skull-180.png"}
+    />
     <link rel="manifest" href={~p"/manifest.webmanifest"} />
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title default="Captain Notes">{assigns[:page_title]}</.live_title>

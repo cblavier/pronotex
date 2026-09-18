@@ -154,15 +154,11 @@ defmodule PronotexWeb.DashboardLive do
     {:noreply, push_patch(socket, to: selection_url(socket, section: section))}
   end
 
-  def handle_event("switch-child", _, %{assigns: %{children: children}} = socket)
-      when length(children) < 2, do: {:noreply, socket}
-
-  def handle_event("switch-child", _, socket) do
-    children = socket.assigns.children
-    index = Enum.find_index(children, &(&1.id == socket.assigns.child.id)) || 0
-    child = Enum.at(children, rem(index + 1, length(children)))
-
-    {:noreply, push_patch(socket, to: selection_url(socket, child: child))}
+  def handle_event("select-child", %{"id" => id}, socket) do
+    case Enum.find(socket.assigns.children, &(&1.id == id)) do
+      nil -> {:noreply, socket}
+      child -> {:noreply, push_patch(socket, to: selection_url(socket, child: child))}
+    end
   end
 
   def handle_event("week", %{"direction" => direction}, socket)
@@ -637,8 +633,4 @@ defmodule PronotexWeb.DashboardLive do
   defp first_name(child), do: Pronotex.Family.first_name(child)
 
   defp clock(time), do: Calendar.strftime(time, "%H:%M")
-
-  defp next_child(children, child) do
-    Enum.find(children, &(&1.id != child.id))
-  end
 end

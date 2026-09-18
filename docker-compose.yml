@@ -6,13 +6,13 @@ services:
     restart: unless-stopped
     init: true
     env_file:
-      - .env
+      - env
     environment:
       PHX_SERVER: "true"
-      PORT: "4000"
+      PORT: "4123"
       TZ: Europe/Paris
     ports:
-      - "127.0.0.1:4000:4000"
+      - "127.0.0.1:4123:4123"
     logging:
       driver: json-file
       options:

@@ -200,6 +200,15 @@ La construction compile les assets et une release de production. Les secrets,
 `.envrc` et les photos locales sont exclus du contexte de construction.
 La construction en émulation sur Apple Silicon peut prendre plusieurs minutes.
 
+Si la construction échoue dès `mix local.hex` avec `prim_tty:isatty`,
+`erlang:nif_error` et `nouser`, cela correspond à un problème connu du JIT Erlang
+sous émulation amd64 sur Apple Silicon. Le Dockerfile définit
+`ERL_FLAGS="+JMsingle true"` dans l'étape de construction pour le contourner,
+selon la [recommandation des mainteneurs Erlang](https://github.com/erlang/otp/issues/10355#issuecomment-3510018425).
+Ce réglage n'est pas transmis au conteneur final qui tourne nativement sur le NAS.
+Après récupération de ce correctif, relancer la même commande de construction ;
+il n'est pas nécessaire de supprimer le cache Docker.
+
 ### 2. Préparer les fichiers du NAS
 
 Installer ou mettre à jour **Container Manager** depuis le Centre de paquets. Créer, par exemple,
@@ -348,7 +357,7 @@ des journaux de paramètres et n'est pas stocké dans le cookie.
 
 ## Identité visuelle
 
-Captain Notes utilise le vert `#439682`, un carnet à coin replié et une
+Captain Notes utilise le vert `#439682`, un crâne arrondi coiffé d’un chapeau de diplômé et une
 signature « captain / notes » sur deux lignes. Les icônes sont dans
 `priv/static/images/brand/` ; le manifeste déclare les formats de lancement
 192 et 512 px, avec une icône Apple 180 px et un favicon 32 px.

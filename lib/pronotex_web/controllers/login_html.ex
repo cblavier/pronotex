@@ -5,21 +5,15 @@ defmodule PronotexWeb.LoginHTML do
     ~H"""
     <main id="login-screen" class="flex min-h-screen items-center justify-center px-6 py-6">
       <section class="login-card w-full max-w-[21rem] rounded-xl border border-base-300 bg-base-100 p-6">
-        <div class="flex items-center gap-3">
+        <h1 class="login-title" aria-label="Captain Notes">
           <img
-            src={~p"/images/brand/captain-notes-notebook-192.png"}
+            src={~p"/images/brand/captain-notes-skull-login.png"}
             alt=""
-            width="72"
-            height="72"
-            class="rounded-xl"
+            width="260"
+            height="100"
+            class="h-auto max-w-full"
           />
-          <h1
-            class="login-title text-2xl font-extrabold leading-none tracking-tight"
-            aria-label="Captain Notes"
-          >
-            <span class="block">captain</span><span class="block">notes</span>
-          </h1>
-        </div>
+        </h1>
         <p class="mt-6 text-sm text-base-content/70">
           Saisissez votre code PIN pour accéder à l’application.
         </p>
@@ -61,7 +55,6 @@ defmodule PronotexWeb.LoginHTML do
             </button>
           </div>
           <button class="btn login-submit w-full" type="submit">Se connecter</button>
-          <p class="text-xs text-base-content/60">Connexion valable 12 heures.</p>
         </.form>
       </section>
     </main>

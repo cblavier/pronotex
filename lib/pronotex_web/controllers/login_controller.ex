@@ -2,8 +2,12 @@ defmodule PronotexWeb.LoginController do
   use PronotexWeb, :controller
   alias Pronotex.Auth
 
-  def index(conn, _) do
-    if Auth.valid?(get_session(conn)), do: redirect(conn, to: "/"), else: page(conn)
+  def index(conn, params) do
+    error =
+      if params["session_expired"] == "1",
+        do: "Le formulaire de connexion a expiré. Veuillez saisir votre code à nouveau."
+
+    if Auth.valid?(get_session(conn)), do: redirect(conn, to: "/"), else: page(conn, error)
   end
 
   def delete(conn, _) do
@@ -21,6 +25,7 @@ defmodule PronotexWeb.LoginController do
   def create(conn, params) do
     case Auth.attempt(params["pin"]) do
       :ok ->
+        Plug.CSRFProtection.delete_csrf_token()
         conn = conn |> configure_session(renew: true) |> clear_session()
 
         conn =

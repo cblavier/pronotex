@@ -4,7 +4,9 @@ FROM ${ELIXIR_IMAGE} AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-ENV MIX_ENV=prod
+# Work around Erlang JIT memory mappings under amd64 emulation on Apple Silicon.
+# Build-only: the native amd64 runtime on the NAS keeps the default JIT settings.
+ENV MIX_ENV=prod ERL_FLAGS="+JMsingle true"
 RUN mix local.hex --force && mix local.rebar --force
 COPY mix.exs mix.lock ./
 RUN mix deps.get --only prod

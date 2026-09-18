@@ -43,6 +43,7 @@ npm-debug.log
 # Local credentials and direnv state
 /.envrc
 /.env
+/env
 /pronotex-image.tar
 /.direnv/
 

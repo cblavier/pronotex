@@ -275,7 +275,7 @@ defmodule PronotexWeb.DashboardLiveTest do
   test "switching child replaces timetable and reloads on return", %{conn: conn} do
     {:ok, view, _} = live(conn, ~p"/")
     render_async(view)
-    view |> element("#switch-child") |> render_click()
+    view |> element(".child-picker-option[data-child-id]:not([aria-current])") |> render_click()
     render_async(view)
     assert has_element?(view, "#child-name", "Basile")
     assert has_element?(view, "#lesson-days", "Maths b")
@@ -283,7 +283,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     refute has_element?(view, "#lesson-days", "Maths a")
     refute has_element?(view, "#homework-days", "Français a")
     assert_receive {:lessons, "b", _, _}
-    view |> element("#switch-child") |> render_click()
+    view |> element(".child-picker-option[data-child-id]:not([aria-current])") |> render_click()
     render_async(view)
     assert has_element?(view, "#child-name", "Alice")
     assert_receive {:lessons, "a", _, _}
@@ -361,7 +361,7 @@ defmodule PronotexWeb.DashboardLiveTest do
   test "child and week controls update the URL while retaining the other selection", %{conn: conn} do
     {:ok, view, _} = live(conn, "/alice?week=2026-09-14")
     render_async(view)
-    view |> element("#switch-child") |> render_click()
+    view |> element(".child-picker-option[data-child-id]:not([aria-current])") |> render_click()
     assert_patch(view, "/basile?week=2026-09-14")
     render_async(view)
     view |> element("#next-week") |> render_click()
@@ -409,7 +409,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     render_patch(view, "/basile")
     render_async(view)
     assert has_element?(view, "#today-view[aria-pressed=true]")
-    view |> element("#switch-child") |> render_click()
+    view |> element(".child-picker-option[data-child-id]:not([aria-current])") |> render_click()
     assert_patch(view, "/alice")
     render_async(view)
     assert_receive {:lessons, "a", ~D[2026-09-18], ~D[2026-09-24]}
@@ -494,7 +494,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     render_async(view)
     assert_receive {:menus, "a", ~D[2026-09-21], ~D[2026-09-27]}
     Application.put_env(:pronotex, :dashboard_test_mode, :empty)
-    view |> element("#switch-child") |> render_click()
+    view |> element(".child-picker-option[data-child-id]:not([aria-current])") |> render_click()
     render_async(view)
     assert_receive {:menus, "b", ~D[2026-09-21], ~D[2026-09-27]}
     assert has_element?(view, "#no-menus")
@@ -523,7 +523,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     view |> form("#grade-period-form", %{"period" => "semester2"}) |> render_change()
     render_async(view)
     assert_receive {:grades, "a", "semester2"}
-    view |> element("#switch-child") |> render_click()
+    view |> element(".child-picker-option[data-child-id]:not([aria-current])") |> render_click()
     render_async(view)
     assert_receive {:grades, "b", "semester2"}
     assert has_element?(view, "#grade-list", "Maths b")
@@ -600,7 +600,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     view |> form("#grade-period-form", %{"period" => "semester2"}) |> render_change()
     assert_patch(view, "/alice/notes?period=semester2")
     render_async(view)
-    view |> element("#switch-child") |> render_click()
+    view |> element(".child-picker-option[data-child-id]:not([aria-current])") |> render_click()
     assert_patch(view, "/basile/notes?period=semester2")
     render_async(view)
     assert_receive {:grades, "b", "semester2"}
@@ -623,7 +623,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert_patch(view, "/alice/devoirs?week=2026-09-28&period=semester2")
     render_async(view)
     assert_receive {:homework, "a", ~D[2026-09-28], ~D[2026-10-04]}
-    view |> element("#switch-child") |> render_click()
+    view |> element(".child-picker-option[data-child-id]:not([aria-current])") |> render_click()
     assert_patch(view, "/basile/devoirs?week=2026-09-28&period=semester2")
     render_async(view)
     assert has_element?(view, "#homework-days", "Français b")
@@ -648,7 +648,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     view |> element("#nav-notes") |> render_click()
     render_async(view)
     assert page_title(view) == "Alice - Notes"
-    view |> element("#switch-child") |> render_click()
+    view |> element(".child-picker-option[data-child-id]:not([aria-current])") |> render_click()
     render_async(view)
     assert page_title(view) == "Basile - Notes"
     view |> element("#nav-cantine") |> render_click()
@@ -667,7 +667,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     refute has_element?(view, "#upcoming-events script")
     assert_receive {:events, "a"}
     refute_received {:events, _}
-    view |> element("#switch-child") |> render_click()
+    view |> element(".child-picker-option[data-child-id]:not([aria-current])") |> render_click()
     render_async(view)
     assert has_element?(view, "#upcoming-events", "Réunion b")
     refute has_element?(view, "#upcoming-events", "Réunion a")

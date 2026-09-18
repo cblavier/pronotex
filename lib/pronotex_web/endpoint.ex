@@ -29,6 +29,8 @@ defmodule PronotexWeb.Endpoint do
     from: :pronotex,
     gzip: not code_reloading?,
     only: PronotexWeb.static_paths(),
+    # Production asset URLs include a digest before the extension.
+    only_matching: ~w(manifest-),
     raise_on_missing_only: code_reloading?
 
   # Code reloading can be explicitly enabled under the

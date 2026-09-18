@@ -1,69 +1,79 @@
 <Layouts.app flash={@flash} child_theme={child_theme(@children, @child)}>
   <div id="responsive-header">
-    <header id="child-header" class="flex flex-wrap items-center justify-between gap-4 pb-8">
-      <div class="flex items-center gap-4">
-        <div :if={@child} class="avatar shrink-0">
-          <div class="size-16 rounded-full border-2 border-[var(--day-ink)] sm:size-20 flex items-center justify-center text-[var(--day-ink)]">
-            <span :if={!avatar_src(@child)} id="child-initials" class="text-xl font-semibold">
+    <header id="child-header" class="pb-8">
+      <details
+        :if={@child}
+        id="child-picker"
+        phx-click-away={JS.remove_attribute("open", to: "#child-picker")}
+        phx-window-keydown={JS.remove_attribute("open", to: "#child-picker")}
+        phx-key="Escape"
+      >
+        <summary id="child-picker-toggle" aria-label="Choisir un enfant ou se déconnecter">
+          <span class="child-picker-avatar">
+            <img :if={avatar_src(@child)} id="child-avatar" src={avatar_src(@child)} alt="" />
+            <span :if={!avatar_src(@child)} id="child-initials">
               {String.first(first_name(@child))}
             </span>
-            <img
-              :if={avatar_src(@child)}
-              id="child-avatar"
-              src={avatar_src(@child)}
-              alt=""
-              width="80"
-              height="80"
-            />
+          </span>
+          <div id="child-identity">
+            <p
+              :if={@child && Map.get(@child, :school_name) not in [nil, ""]}
+              id="school-name"
+              class="mb-1 text-xs font-medium text-[var(--muted-ink)] sm:text-sm"
+            >
+              {Map.get(@child, :school_name)}
+            </p>
+            <div class="child-picker-name-row">
+              <h1 id="child-name" class="font-semibold tracking-tight">{first_name(@child)}</h1>
+              <svg
+                class="child-picker-chevron"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </div>
           </div>
+        </summary>
+        <div id="child-picker-panel">
+          <ul aria-label="Enfants">
+            <li :for={child <- @children} :if={child.id != @child.id}>
+              <button
+                type="button"
+                class="child-picker-option"
+                data-child-id={child.id}
+                phx-click={
+                  JS.push("select-child", value: %{id: child.id})
+                  |> JS.remove_attribute("open", to: "#child-picker")
+                }
+                disabled={@loading}
+              >
+                <span class="child-option-avatar">
+                  <img :if={avatar_src(child)} src={avatar_src(child)} alt="" />
+                  <span :if={!avatar_src(child)}>{String.first(first_name(child))}</span>
+                </span>
+                <span>{first_name(child)}</span>
+              </button>
+            </li>
+          </ul>
+          <.form
+            :if={Pronotex.Auth.enabled?()}
+            for={%{}}
+            action={~p"/logout"}
+            class="child-picker-logout"
+          >
+            <button id="logout" type="submit" class="child-picker-option">
+              <.icon name="hero-arrow-right-on-rectangle" class="size-6" />
+              <span>Se déconnecter</span>
+            </button>
+          </.form>
         </div>
-        <div id="child-identity" class="min-w-0">
-          <p
-            :if={@child && Map.get(@child, :school_name) not in [nil, ""]}
-            id="school-name"
-            class="mb-1 text-xs font-medium text-[var(--muted-ink)] sm:text-sm"
-          >
-            {Map.get(@child, :school_name)}
-          </p>
-          <h1
-            id="child-name"
-            class="text-3xl font-semibold tracking-tight sm:text-4xl"
-            aria-live="polite"
-          >
-            {if @child, do: first_name(@child), else: ""}
-          </h1>
-        </div>
-      </div>
-      <div id="child-actions" class="flex shrink-0 items-center gap-2">
-        <button
-          :if={@child && length(@children) > 1}
-          id="switch-child"
-          aria-label={"Passer à #{first_name(next_child(@children, @child))}"}
-          title={"Passer à #{first_name(next_child(@children, @child))}"}
-          phx-click="switch-child"
-          disabled={@loading}
-          class="btn btn-outline border-base-300 bg-[var(--surface-background)] gap-2 text-base font-medium text-[var(--muted-ink)]"
-        >
-          <.icon name="hero-arrows-right-left" class="size-4" />
-          <span class="hidden sm:inline">{first_name(next_child(@children, @child))}</span>
-        </button>
-        <.form
-          :if={Pronotex.Auth.enabled?()}
-          for={%{}}
-          action={~p"/logout"}
-          class="flex items-center"
-        >
-          <button
-            id="logout"
-            type="submit"
-            aria-label="Se déconnecter"
-            title="Se déconnecter"
-            class="btn btn-square btn-outline border-base-300 bg-[var(--surface-background)] text-[var(--muted-ink)]"
-          >
-            <.icon name="hero-arrow-right-on-rectangle" class="size-4" />
-          </button>
-        </.form>
-      </div>
+      </details>
     </header>
 
     <div
@@ -437,18 +447,20 @@
                           >
                             Annulé
                           </span>
+                          <span
+                            :if={lesson.status && lesson.status != "" && !lesson.canceled}
+                            class="badge badge-soft badge-info badge-xs"
+                          >
+                            {if lesson.status == "Cours modifié",
+                              do: "Modifié",
+                              else: lesson.status}
+                          </span>
                         </div>
                         <p :if={lesson.teachers != []} class="mt-1 text-xs text-base-content/55">
                           {Enum.join(lesson.teachers, ", ")}
                         </p>
                         <p :if={lesson.classrooms != []} class="mt-1 text-xs text-base-content/55">
                           {Enum.join(lesson.classrooms, ", ")}
-                        </p>
-                        <p
-                          :if={lesson.status && !lesson.canceled}
-                          class="mt-1 text-xs text-base-content/60"
-                        >
-                          {lesson.status}
                         </p>
                         <p
                           :if={lesson.memo}
@@ -497,7 +509,7 @@
                 data-imminent={to_string(Pronotex.Pronote.Event.imminent?(event, @today))}
               >
                 <h3 class="text-base font-semibold text-[var(--day-ink)]">{event.title}</h3>
-                <div class="space-y-2">
+                <div>
                   <p class="text-xs font-medium text-[var(--day-ink)]">{event_schedule(event)}</p>
                   <p
                     :if={event.description != ""}
