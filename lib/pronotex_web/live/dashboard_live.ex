@@ -329,12 +329,12 @@ defmodule PronotexWeb.DashboardLive do
            child when not is_nil(child) <-
              Enum.find(children, &(child_slug(&1) == selected_slug)) || List.first(children) do
         urgent_homework =
-          case api.homework(child.id, today, Date.add(today, 1)) do
+          case api.homework(child.id, today, Pronotex.Pronote.Homework.urgent_until(today)) do
             {:ok, tasks} ->
               Enum.filter(
                 tasks,
                 &(Date.compare(&1.date, today) != :lt and
-                    Date.compare(&1.date, Date.add(today, 1)) != :gt)
+                    Date.compare(&1.date, Pronotex.Pronote.Homework.urgent_until(today)) != :gt)
               )
 
             _ ->
@@ -514,7 +514,10 @@ defmodule PronotexWeb.DashboardLive do
     do: assign(socket, :menu_error, message(error))
 
   defp apply_result(socket, :lessons, {:ok, lessons}) do
-    days = grouped(lessons, &NaiveDateTime.to_date(&1.start))
+    days =
+      lessons
+      |> grouped(&NaiveDateTime.to_date(&1.start))
+      |> Enum.map(fn day -> %{day | entries: Pronotex.Agenda.entries(day.entries)} end)
 
     days =
       if socket.assigns.mode == :today and not Enum.any?(days, &(&1.date == socket.assigns.today)) do

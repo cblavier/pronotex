@@ -54,6 +54,34 @@ defmodule Pronotex.Family do
   end
 
   def avatar(child) do
+    prefix = prefix(child)
+
+    if prefix &&
+         match?({:ok, _, _}, avatar_data(String.replace_prefix(prefix, "PRONOTE_CHILD_", ""))) do
+      "/avatars/" <> String.replace_prefix(prefix, "PRONOTE_CHILD_", "")
+    else
+      local_avatar(child)
+    end
+  end
+
+  def avatar_data(index) when is_binary(index) do
+    with true <- Regex.match?(~r/^[1-9][0-9]{0,5}$/, index),
+         encoded when is_binary(encoded) <- System.get_env("PRONOTE_CHILD_#{index}_AVATAR_BASE64"),
+         true <- byte_size(encoded) <= 262_144,
+         {:ok, bytes} <- Base.decode64(encoded, ignore: :whitespace),
+         type when not is_nil(type) <- image_type(bytes) do
+      {:ok, type, bytes}
+    else
+      _ -> :error
+    end
+  end
+
+  defp image_type(<<137, 80, 78, 71, 13, 10, 26, 10, _::binary>>), do: "image/png"
+  defp image_type(<<255, 216, 255, _::binary>>), do: "image/jpeg"
+  defp image_type(<<"RIFF", _::binary-size(4), "WEBP", _::binary>>), do: "image/webp"
+  defp image_type(_), do: nil
+
+  defp local_avatar(child) do
     case value(child, "AVATAR") do
       "/images/avatars/" <> file = path ->
         if file != "" and not String.contains?(file, ["..", "\\", "?", "#"]), do: path

@@ -1,4 +1,4 @@
-# Pronotex
+# Captain Notes
 
 Client parent PRONOTE en Elixir avec Phoenix, LiveView et Req, sans base de données.
 La navigation propose quatre pages : Agenda, Devoirs, Notes et Menu.
@@ -156,3 +156,164 @@ L’onglet Notes utilise `Pronotex.Pronote.grades(child_id, period_name)` pour l
 La rubrique est conservée dans le chemin : `/alice` (agenda), `/alice/devoirs`, `/alice/notes` et `/alice/menu`. Les paramètres `week` et `period` sont conservés lors des changements de rubrique et d’enfant, par exemple `/alice/notes?week=2026-09-21&period=semester1`. Les périodes utilisent des clés stables (`semester1`, `trimester1`, etc.), indépendantes des identifiants de session Pronote. Une période indisponible pour l’enfant revient à sa période par défaut.
 
 La page Agenda affiche l’emploi du temps (2/3) et les événements « À venir » (1/3), empilés sur mobile. `Pronotex.Pronote.events(child_id)` lit `PageAgenda` (onglet 9) avec les événements passés exclus. Pronote renvoyant les événements de la famille, les destinataires `listeEleves` sont comparés au prénom ou au nom complet de l’enfant ; les événements sans destinataire explicite restent visibles pour les deux enfants. Les échéances à venir restent indépendantes de la semaine de l’emploi du temps. Titres, dates, horaires et commentaires sont affichés en texte échappé, sans stockage en base.
+
+## Avatars sans fichier sur le serveur
+
+Définir `PRONOTE_CHILD_1_AVATAR_BASE64`, `PRONOTE_CHILD_2_AVATAR_BASE64`, etc.
+dans `.envrc` ou dans les variables du PaaS. La valeur contient uniquement le
+Base64 brut d’une image PNG, JPEG ou WebP, sans préfixe `data:`. Préférer une
+image de 160 × 160 pixels et vérifier la limite des variables de l’hébergeur.
+L’application accepte au maximum 256 Kio de Base64 par avatar.
+
+Les images sont décodées en mémoire et servies par `/avatars/:index`, sans
+écriture sur disque ni base de données. Le Base64 valide est prioritaire sur
+`PRONOTE_CHILD_n_AVATAR` ; sinon le chemin local ou l’initiale est utilisé.
+Ces URL nécessitent une session authentifiée par PIN, comme les pages de l’application. Les valeurs personnelles restent dans
+`.envrc`, exclu de Git.
+
+## Déploiement sur Synology DS918+ — DSM 7.1.1
+
+Le DS918+ utilise une image Linux **amd64**, même si elle est construite sur
+un Mac Apple Silicon. DSM 7.1.1 utilise le paquet **Docker**, pas l'interface
+« Projets » de Container Manager apparue avec DSM 7.2.
+
+La construction et le déploiement sont déclenchés manuellement avec les commandes
+ci-dessous, uniquement lorsque vous souhaitez publier une nouvelle version.
+Modifier le code ne construit ni ne déploie automatiquement une image.
+
+Un conteneur suffit. Aucun volume de base de données n'est nécessaire.
+L'accès est protégé par le PIN décrit ci-dessous. Pour cette installation, limiter l'accès
+au réseau local, sans redirection de port Internet sur la box.
+
+### 1. Construire l'image sur le Mac
+
+Démarrer Docker Desktop, puis depuis le dossier du projet :
+
+```sh
+docker buildx build --platform linux/amd64 --load -t pronotex:local .
+docker save -o pronotex-image.tar pronotex:local
+```
+
+La construction compile les assets et une release de production. Les secrets,
+`.envrc` et les photos locales sont exclus du contexte de construction.
+La construction en émulation sur Apple Silicon peut prendre plusieurs minutes.
+
+### 2. Préparer les fichiers du NAS
+
+Installer le paquet Docker depuis le Centre de paquets. Créer, par exemple,
+`/volume1/docker/pronotex` et y transférer via File Station :
+
+- `pronotex-image.tar` ;
+- `docker-compose.yml` ;
+- `.env.docker.example`, renommé en `.env`.
+
+Compléter `.env` avec les valeurs de `.envrc`, **sans le mot `export`**.
+Ce fichier est au format Compose : entourer les valeurs sensibles de quotes
+simples si elles contiennent notamment `$` ou `#`, et échapper une apostrophe
+dans une valeur ainsi : `PASSWORD='exemple\'suite'`.
+Ne pas simplement copier la syntaxe shell de `.envrc`.
+
+Générer `SECRET_KEY_BASE` sur le Mac avec `mix phx.gen.secret`, puis copier
+le résultat dans `.env`. Conserver cette clé lors des mises à jour.
+Définir `PHX_HOST` avec le nom DNS choisi pour l'application, sans protocole
+ni chemin. Les avatars Base64 existants peuvent être recopiés dans `.env`.
+Les avatars utilisant un chemin local nécessitent un montage séparé ; préférer
+les variables Base64 pour ce déploiement.
+
+### 3. Démarrer sur le NAS
+
+Activer SSH dans DSM et se connecter avec un compte administrateur :
+
+```sh
+cd /volume1/docker/pronotex
+chmod 600 .env
+sudo docker load -i pronotex-image.tar
+sudo docker-compose up -d
+sudo docker-compose ps
+```
+
+Ces commandes utilisent Compose v1 (`docker-compose`), adapté au paquet Docker
+de DSM 7.1.1. Si la commande est introuvable, vérifier
+`/var/packages/Docker/target/usr/bin/docker-compose` et utiliser ce chemin.
+Le conteneur apparaît ensuite dans l'interface Docker de DSM.
+
+Le port est lié à `127.0.0.1:4000` **sur le NAS**, accessible au reverse proxy
+DSM uniquement. `http://IP_DU_NAS:4000` n'est donc pas une URL d'accès.
+
+### 4. Configurer le reverse proxy HTTPS de DSM
+
+Dans **Panneau de configuration → Portail de connexion → Avancé → Proxy inversé**,
+créer une règle :
+
+| Paramètre | Valeur |
+| --- | --- |
+| Source | HTTPS, nom identique à `PHX_HOST`, port 443 |
+| Destination | HTTP, `127.0.0.1`, port 4000 |
+| En-têtes personnalisés | Ajouter les en-têtes WebSocket via « Créer → WebSocket » |
+| `X-Forwarded-Proto` | `https` |
+
+Associer un certificat valide pour ce nom dans **Sécurité → Certificat**.
+Faire résoudre ce nom vers l'adresse locale du NAS via le DNS local.
+Ne pas ouvrir de port Internet pour cette première installation.
+La configuration de production impose HTTPS : le proxy doit transmettre
+`X-Forwarded-Proto: https` pour éviter une boucle de redirections.
+
+Ouvrir `https://<PHX_HOST>` depuis le réseau local. Vérifier l'affichage de l'agenda,
+le changement d'enfant et de rubrique, puis les heures et les avatars.
+
+### Diagnostic et mises à jour
+
+```sh
+sudo docker-compose logs --tail=100 pronotex
+sudo docker-compose ps
+```
+
+Le contrôle de santé vérifie le serveur web, pas la connexion à Pronote.
+Le fuseau du conteneur est `Europe/Paris` pour les horaires et les dates relatives.
+
+Pour mettre à jour, reconstruire et exporter l'image sur le Mac, transférer
+le nouveau fichier, puis sur le NAS :
+
+```sh
+sudo docker load -i pronotex-image.tar
+sudo docker-compose up -d --force-recreate
+```
+
+Conserver `.env` ; le rechargement de l'image n'y touche pas. Après une modification
+de `.env`, exécuter aussi `up -d --force-recreate` (un simple redémarrage ne relit
+pas les variables). Aucun paramètre de connexion personnel n'est intégré à l'image.
+
+
+## Authentification par PIN
+
+Définir `PINCODE` dans `.envrc` (développement) ou `.env` (Docker) avec exactement
+8 chiffres. Garder la valeur comme une chaîne pour conserver les zéros initiaux.
+Aucun PIN par défaut n'est prévu. Sans variable ou avec une valeur vide, l'accès
+est libre, sans écran de connexion. Une valeur non vide au format invalide bloque
+l'accès. L'ancien nom `PIN_CODE` reste accepté ; `PINCODE` est prioritaire si défini. Recharger `.envrc` et redémarrer Phoenix ; pour Docker,
+utiliser `sudo docker-compose up -d --force-recreate` après modification de `.env`.
+
+Une connexion est valable **12 heures à partir de la saisie réussie**, sans
+prolongation automatique à l'utilisation. Les pages ouvertes reviennent à la
+connexion à l'expiration. Changer le PIN et redémarrer invalide les sessions existantes.
+Les pages, les avatars Base64 et les avatars locaux sont protégés.
+En production, le cookie est réservé à HTTPS ; utiliser le reverse proxy décrit plus haut.
+
+Après 3 erreurs, la 4e tentative doit attendre 1 minute. Si elle échoue, la 5e
+attend 2 minutes, puis 3 minutes avant la 6e, etc. Les tentatives pendant l'attente
+sont refusées, même avec le bon PIN, sans augmenter le compteur ni prolonger le délai.
+Une connexion réussie remet le compteur à zéro.
+
+Le compteur est partagé entre tous les navigateurs de cette instance : supprimer
+les cookies ou changer d'adresse IP ne contourne pas l'attente. Il est conservé
+en mémoire et se réinitialise au redémarrage de l'application. Le PIN est filtré
+des journaux de paramètres et n'est pas stocké dans le cookie.
+
+
+## Identité visuelle
+
+Captain Notes utilise le vert `#439682`, un carnet à coin replié et une
+signature « captain / notes » sur deux lignes. Les icônes sont dans
+`priv/static/images/brand/` ; le manifeste déclare les formats de lancement
+192 et 512 px, avec une icône Apple 180 px et un favicon 32 px.
+Les noms techniques Elixir et Docker restent `pronotex`.

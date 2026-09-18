@@ -17,31 +17,58 @@
             />
           </div>
         </div>
-        <h1
-          id="child-name"
-          class="text-3xl font-semibold tracking-tight sm:text-4xl"
-          aria-live="polite"
-        >
-          {if @child, do: first_name(@child), else: ""}
-        </h1>
+        <div id="child-identity" class="min-w-0">
+          <p
+            :if={@child && Map.get(@child, :school_name) not in [nil, ""]}
+            id="school-name"
+            class="mb-1 text-xs font-medium text-[var(--muted-ink)] sm:text-sm"
+          >
+            {Map.get(@child, :school_name)}
+          </p>
+          <h1
+            id="child-name"
+            class="text-3xl font-semibold tracking-tight sm:text-4xl"
+            aria-live="polite"
+          >
+            {if @child, do: first_name(@child), else: ""}
+          </h1>
+        </div>
       </div>
-      <button
-        :if={@child && length(@children) > 1}
-        id="switch-child"
-        aria-label={"Passer à #{first_name(next_child(@children, @child))}"}
-        title={"Passer à #{first_name(next_child(@children, @child))}"}
-        phx-click="switch-child"
-        disabled={@loading}
-        class="btn btn-outline border-slate-200 bg-white gap-2 text-base font-medium text-slate-600"
-      >
-        <.icon name="hero-arrows-right-left" class="size-4" />
-        <span class="hidden sm:inline">{first_name(next_child(@children, @child))}</span>
-      </button>
+      <div id="child-actions" class="flex shrink-0 items-center gap-2">
+        <button
+          :if={@child && length(@children) > 1}
+          id="switch-child"
+          aria-label={"Passer à #{first_name(next_child(@children, @child))}"}
+          title={"Passer à #{first_name(next_child(@children, @child))}"}
+          phx-click="switch-child"
+          disabled={@loading}
+          class="btn btn-outline border-base-300 bg-[var(--surface-background)] gap-2 text-base font-medium text-[var(--muted-ink)]"
+        >
+          <.icon name="hero-arrows-right-left" class="size-4" />
+          <span class="hidden sm:inline">{first_name(next_child(@children, @child))}</span>
+        </button>
+        <.form
+          :if={Pronotex.Auth.enabled?()}
+          for={%{}}
+          action={~p"/logout"}
+          class="flex items-center"
+        >
+          <button
+            id="logout"
+            type="submit"
+            aria-label="Se déconnecter"
+            title="Se déconnecter"
+            class="btn btn-square btn-outline border-base-300 bg-[var(--surface-background)] text-[var(--muted-ink)]"
+          >
+            <.icon name="hero-arrow-right-on-rectangle" class="size-4" />
+          </button>
+        </.form>
+      </div>
     </header>
 
     <div
       id="dashboard-navigation"
-      class="mb-6 flex flex-wrap items-center justify-between gap-x-3 border-b border-base-300 text-slate-600"
+      class="mb-6 flex flex-wrap items-center justify-between gap-x-3 border-b border-base-300 text-[var(--muted-ink)]"
     >
       <nav
         id="section-navigation"
@@ -69,8 +96,11 @@
           <span
             :if={section == "devoirs" && !@loading && @homework_badge_count > 0}
             id="homework-nav-badge"
-            class="rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-semibold leading-none text-red-700 tabular-nums"
-            aria-label={"#{@homework_badge_count} devoirs à faire pour aujourd’hui et demain"}
+            class="rounded-full bg-[var(--due-tint)] px-1.5 py-0.5 text-xs font-semibold leading-none text-[var(--due-ink)] tabular-nums"
+            aria-label={
+              "#{@homework_badge_count} devoirs à faire " <>
+                if(Date.day_of_week(@today) == 6, do: "d’ici lundi", else: "pour aujourd’hui et demain")
+            }
           >
             {@homework_badge_count}
           </span>
@@ -143,7 +173,7 @@
           type="select"
           name="period"
           id="grade-period"
-          class="select select-sm w-auto text-base text-slate-600"
+          class="select select-sm w-auto text-base text-[var(--muted-ink)]"
           aria-label="Période"
           value={@grade_period}
           options={@grade_periods}
@@ -206,7 +236,9 @@
                 </thead>
                 <tbody id="subject-averages" phx-update="stream">
                   <tr :for={{dom_id, average} <- @streams.averages} id={dom_id}>
-                    <th scope="row" class="font-normal text-slate-600">{average.subject}</th>
+                    <th scope="row" class="font-normal text-[var(--muted-ink)]">
+                      {average.subject}
+                    </th>
                     <td class="font-semibold text-[var(--day-ink)]">
                       {mark(average.score, average.out_of)}
                     </td>
@@ -356,53 +388,73 @@
                   Aucun cours aujourd’hui.
                 </p>
                 <div class="divide-y divide-base-200 px-4">
-                  <article
-                    :for={lesson <- day.entries}
-                    class="lesson-entry flex gap-4 py-3"
-                    data-state={lesson_state(lesson, @now)}
-                  >
-                    <div class="w-12 shrink-0 text-sm tabular-nums">
-                      <p>{clock(lesson.start)}</p>
-                      <p class="mt-1 text-xs text-base-content/45">{clock(lesson.end)}</p>
-                    </div>
-                    <div class="min-w-0 flex-1 border-l-2 border-base-300 pl-4">
-                      <div class="flex flex-wrap items-center gap-2">
-                        <h4 class={[
-                          "text-sm font-medium",
-                          lesson.canceled && "text-base-content/45 line-through"
-                        ]}>
-                          {lesson.subject || "Cours"}
-                        </h4>
-                        <span
-                          :if={lesson_state(lesson, @now) == "current"}
-                          class="badge badge-sm border-[var(--day-line)] bg-[var(--day-tint)] text-[var(--day-ink)]"
-                        >
-                          En cours
-                        </span>
-                        <span :if={lesson.canceled} class="badge badge-soft badge-error badge-xs">
-                          Annulé
-                        </span>
+                  <%= for lesson <- day.entries do %>
+                    <div
+                      :for={pause <- lesson.pauses_before}
+                      class="agenda-pause flex items-center gap-4 py-3 text-base-content/55"
+                    >
+                      <div class="w-12 shrink-0 text-sm tabular-nums">
+                        <p>{clock(pause.start)}</p>
+                        <p class="mt-1 text-xs">{clock(pause.end)}</p>
                       </div>
-                      <p :if={lesson.teachers != []} class="mt-1 text-xs text-base-content/55">
-                        {Enum.join(lesson.teachers, ", ")}
-                      </p>
-                      <p :if={lesson.classrooms != []} class="mt-1 text-xs text-base-content/55">
-                        {Enum.join(lesson.classrooms, ", ")}
-                      </p>
-                      <p
-                        :if={lesson.status && !lesson.canceled}
-                        class="mt-1 text-xs text-base-content/60"
-                      >
-                        {lesson.status}
-                      </p>
-                      <p
-                        :if={lesson.memo}
-                        class="mt-2 whitespace-pre-line text-xs text-base-content/60"
-                      >
-                        {lesson.memo}
+                      <p class="flex min-w-0 flex-1 items-center gap-1.5 pl-4 text-sm italic">
+                        {pause.label}
+                        <.icon :if={pause.label == "Repas"} name="utensils" class="size-4" />
                       </p>
                     </div>
-                  </article>
+                    <article
+                      class="lesson-entry flex gap-4 py-3"
+                      data-state={lesson_state(lesson, @now)}
+                    >
+                      <div class="w-12 shrink-0 text-sm tabular-nums">
+                        <p>{clock(lesson.start)}</p>
+                        <p class="mt-1 text-xs text-base-content/45">{clock(lesson.end)}</p>
+                      </div>
+                      <div
+                        class="min-w-0 flex-1 border-l-2 border-base-300 pl-4"
+                        style={if lesson.color, do: "border-left-color: #{lesson.color}"}
+                      >
+                        <div class="flex flex-wrap items-center gap-2">
+                          <h4 class={[
+                            "text-sm font-medium",
+                            lesson.canceled && "text-base-content/45 line-through"
+                          ]}>
+                            {lesson.subject || "Cours"}
+                          </h4>
+                          <span
+                            :if={lesson_state(lesson, @now) == "current"}
+                            class="sr-only"
+                          >
+                            En cours
+                          </span>
+                          <span
+                            :if={lesson.canceled}
+                            class="badge badge-soft badge-error badge-xs"
+                          >
+                            Annulé
+                          </span>
+                        </div>
+                        <p :if={lesson.teachers != []} class="mt-1 text-xs text-base-content/55">
+                          {Enum.join(lesson.teachers, ", ")}
+                        </p>
+                        <p :if={lesson.classrooms != []} class="mt-1 text-xs text-base-content/55">
+                          {Enum.join(lesson.classrooms, ", ")}
+                        </p>
+                        <p
+                          :if={lesson.status && !lesson.canceled}
+                          class="mt-1 text-xs text-base-content/60"
+                        >
+                          {lesson.status}
+                        </p>
+                        <p
+                          :if={lesson.memo}
+                          class="mt-2 whitespace-pre-line text-xs text-base-content/60"
+                        >
+                          {lesson.memo}
+                        </p>
+                      </div>
+                    </article>
+                  <% end %>
                 </div>
               </section>
             </div>
@@ -419,8 +471,8 @@
           >
             À venir
           </h2>
-          <div class="space-y-4 p-4">
-            <div :if={@event_error} id="events-error" role="alert" class="text-sm text-error">
+          <div class="space-y-4 px-4 pb-4">
+            <div :if={@event_error} id="events-error" role="alert" class="pt-4 text-sm text-error">
               {@event_error}
               <button id="retry-events" phx-click="refresh" class="btn btn-sm btn-ghost">
                 Réessayer
@@ -429,7 +481,7 @@
             <p
               :if={!@loading && !@error && !@event_error && @event_count == 0}
               id="no-events"
-              class="text-sm text-base-content/60"
+              class="pt-4 text-sm text-base-content/60"
             >
               Aucun événement à venir.
             </p>
@@ -437,7 +489,8 @@
               <article
                 :for={{dom_id, event} <- @streams.events}
                 id={dom_id}
-                class="space-y-2 py-4 first:pt-0 last:pb-0"
+                class="space-y-2 py-4 last:pb-0"
+                data-imminent={to_string(Pronotex.Pronote.Event.imminent?(event, @today))}
               >
                 <h3 class="text-base font-semibold text-[var(--day-ink)]">{event.title}</h3>
                 <div class="space-y-2">
@@ -500,9 +553,15 @@
                     class="homework-day-count shrink-0 rounded-full px-2 py-0.5 normal-case tracking-normal tabular-nums"
                     data-status={
                       cond do
-                        Enum.all?(day.entries, & &1.done) -> "done"
-                        Date.compare(day.date, Date.add(@today, 1)) != :gt -> "due"
-                        true -> "future"
+                        Enum.all?(day.entries, & &1.done) ->
+                          "done"
+
+                        Date.compare(day.date, Pronotex.Pronote.Homework.urgent_until(@today)) !=
+                            :gt ->
+                          "due"
+
+                        true ->
+                          "future"
                       end
                     }
                     aria-label={"#{Enum.count(day.entries, & &1.done)} devoirs faits sur #{length(day.entries)}"}
@@ -511,48 +570,70 @@
                   </span>
                 </h3>
                 <div class="divide-y divide-base-200 px-4">
-                  <article :for={homework <- day.entries} class="py-3">
-                    <div class="mb-2 flex items-center justify-between gap-2">
-                      <h4 class="text-sm font-medium">{homework.subject || "Devoir"}</h4>
-                      <button
-                        :if={@homework_writable}
-                        id={"homework-toggle-#{homework.id}"}
-                        phx-click="toggle-homework"
-                        phx-value-id={homework.id}
-                        disabled={@homework_saving != nil || @homework_save_error != nil}
-                        data-homework-status={
-                          cond do
-                            homework.done -> "done"
-                            Date.compare(homework.date, Date.add(@today, 1)) != :gt -> "due"
-                            true -> "future"
-                          end
-                        }
-                        aria-pressed={to_string(homework.done)}
-                        aria-label={
-                          if homework.done,
-                            do: "Marquer ce devoir non fait",
-                            else: "Marquer ce devoir fait"
-                        }
-                        class="btn btn-sm btn-ghost gap-2 shrink-0"
-                      >
-                        <.icon
-                          name={
-                            if homework.done, do: "hero-check-circle", else: "hero-minus-circle"
+                  <article
+                    :for={homework <- day.entries}
+                    class="py-3"
+                  >
+                    <div
+                      class="homework-entry min-w-0 border-l-2 border-base-300 pl-4"
+                      style={if homework.color, do: "border-left-color: #{homework.color}"}
+                    >
+                      <div class="mb-1.5 flex items-center justify-between gap-2">
+                        <h4 class={["text-sm font-medium", homework.done && "opacity-55"]}>
+                          {homework.subject || "Devoir"}
+                        </h4>
+                        <button
+                          :if={@homework_writable}
+                          id={"homework-toggle-#{homework.id}"}
+                          phx-click="toggle-homework"
+                          phx-value-id={homework.id}
+                          disabled={@homework_saving != nil || @homework_save_error != nil}
+                          data-homework-status={
+                            cond do
+                              homework.done ->
+                                "done"
+
+                              Date.compare(
+                                homework.date,
+                                Pronotex.Pronote.Homework.urgent_until(@today)
+                              ) != :gt ->
+                                "due"
+
+                              true ->
+                                "future"
+                            end
                           }
-                          class="size-5"
-                        />
-                        <%= if @homework_saving == homework.id do %>
-                          <span class="loading loading-spinner loading-xs" role="status">
-                            <span class="sr-only">Enregistrement en cours</span>
-                          </span>
-                        <% else %>
-                          {if homework.done, do: "Fait", else: "À faire"}
-                        <% end %>
-                      </button>
+                          aria-pressed={to_string(homework.done)}
+                          aria-label={
+                            if homework.done,
+                              do: "Marquer ce devoir non fait",
+                              else: "Marquer ce devoir fait"
+                          }
+                          class="btn btn-sm btn-ghost gap-2 shrink-0"
+                        >
+                          <.icon
+                            name={
+                              if homework.done, do: "hero-check-circle", else: "hero-minus-circle"
+                            }
+                            class="size-5"
+                          />
+                          <%= if @homework_saving == homework.id do %>
+                            <span class="loading loading-spinner loading-xs" role="status">
+                              <span class="sr-only">Enregistrement en cours</span>
+                            </span>
+                          <% else %>
+                            {if homework.done, do: "Fait", else: "À faire"}
+                          <% end %>
+                        </button>
+                      </div>
+                      <p
+                        phx-no-format
+                        class={[
+                          "whitespace-pre-line break-words text-sm leading-relaxed text-base-content/70",
+                          homework.done && "opacity-55"
+                        ]}
+                      >{homework.description}</p>
                     </div>
-                    <p class="whitespace-pre-line break-words text-sm leading-relaxed text-base-content/70">
-                      {homework.description}
-                    </p>
                   </article>
                 </div>
               </section>

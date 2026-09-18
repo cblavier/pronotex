@@ -3,6 +3,25 @@ defmodule Pronotex.Pronote.Event do
   alias Pronotex.Pronote.Lesson
   defstruct [:id, :title, :description, :start, :end]
 
+  def imminent?(event, today) do
+    next_workday =
+      Date.add(
+        today,
+        case Date.day_of_week(today) do
+          5 -> 3
+          6 -> 2
+          _ -> 1
+        end
+      )
+
+    first = NaiveDateTime.to_date(event.start)
+    last = NaiveDateTime.to_date(event.end || event.start)
+
+    Enum.any?([today, next_workday], fn date ->
+      Date.compare(first, date) != :gt and Date.compare(last, date) != :lt
+    end)
+  end
+
   def parse(raw) do
     %__MODULE__{
       id: Map.fetch!(raw, "N"),

@@ -75,7 +75,8 @@ defmodule Pronotex.Pronote.Client do
       &%{
         id: Map.fetch!(&1, "N"),
         name: Map.fetch!(&1, "L"),
-        first_name: &1["prenom"]
+        first_name: &1["prenom"],
+        school_name: get_in(&1, ["Etablissement", "V", "L"])
       }
     )
   end

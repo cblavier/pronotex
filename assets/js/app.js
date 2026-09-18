@@ -25,6 +25,18 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/pronotex"
 import topbar from "../vendor/topbar"
 
+// The login form is a regular POST form, outside LiveView.
+document.addEventListener("click", event => {
+  const key = event.target.closest("#pin-form [data-pin-digit], #pin-form [data-pin-action]")
+  if (!key) return
+  const input = document.querySelector("#pin-form #pin")
+  if (!input) return
+  if (key.dataset.pinAction === "clear") input.value = ""
+  else if (key.dataset.pinAction === "backspace") input.value = input.value.slice(0, -1)
+  else input.value = input.value + key.dataset.pinDigit
+  input.dispatchEvent(new Event("input", {bubbles: true}))
+})
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
@@ -80,4 +92,3 @@ if (process.env.NODE_ENV === "development") {
     window.liveReloader = reloader
   })
 }
-

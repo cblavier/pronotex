@@ -4,6 +4,8 @@ defmodule Pronotex.Pronote.Lesson do
   defstruct [
     :id,
     :subject,
+    :color,
+    :lunch_window,
     :start,
     :end,
     :status,
@@ -31,6 +33,8 @@ defmodule Pronotex.Pronote.Lesson do
       id: Map.fetch!(raw, "N"),
       child_id: child_id,
       subject: contents |> labels(16) |> List.first(),
+      color: Pronotex.Pronote.Color.parse(raw["CouleurFond"]),
+      lunch_window: lunch_window(general, NaiveDateTime.to_date(start)),
       teachers: labels(contents, 3),
       classrooms: labels(contents, 17),
       groups: labels(contents, 2),
@@ -44,6 +48,22 @@ defmodule Pronotex.Pronote.Lesson do
   end
 
   def date(value), do: value |> datetime() |> NaiveDateTime.to_date()
+
+  defp lunch_window(general, date) do
+    times = get_in(general, ["ListeHeures", "V"]) || []
+
+    with from when is_integer(from) <- general["debutDemiPension"],
+         to when is_integer(to) and to > from <- general["finDemiPension"],
+         %{"L" => from_label} <- Enum.find(times, &(&1["G"] == from)),
+         %{"L" => to_label} <- Enum.find(times, &(&1["G"] == to)),
+         {:ok, from_time} <- Time.from_iso8601(String.replace(from_label, "h", ":") <> ":00"),
+         {:ok, to_time} <- Time.from_iso8601(String.replace(to_label, "h", ":") <> ":00"),
+         :lt <- Time.compare(from_time, to_time) do
+      %{start: NaiveDateTime.new!(date, from_time), end: NaiveDateTime.new!(date, to_time)}
+    else
+      _ -> nil
+    end
+  end
 
   def datetime(value) do
     case Regex.run(

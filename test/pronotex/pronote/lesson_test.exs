@@ -24,5 +24,23 @@ defmodule Pronotex.Pronote.LessonTest do
     assert lesson.teachers == ["A", "B"]
     assert lesson.classrooms == ["101", "102"]
     refute lesson.canceled
+    assert lesson.color == nil
+  end
+
+  test "reads the API color independently of the subject and ignores invalid colors" do
+    raw = %{
+      "N" => "lesson",
+      "DateDuCours" => %{"V" => "17/09/26 09h00"},
+      "DateDuCoursFin" => %{"V" => "17/09/26 10h00"},
+      "ListeContenus" => %{"V" => [%{"G" => 16, "L" => "Une nouvelle matière"}]}
+    }
+
+    for color <- ["#0099DA", "#a49e6c", "#000000"] do
+      assert Lesson.parse(Map.put(raw, "CouleurFond", color), %{}, "child").color == color
+    end
+
+    for color <- [nil, "", "red", "#12345G", "#0099DA; display:none", %{}, 123] do
+      assert Lesson.parse(Map.put(raw, "CouleurFond", color), %{}, "child").color == nil
+    end
   end
 end

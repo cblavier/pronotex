@@ -14,12 +14,27 @@ defmodule PronotexWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :authenticated do
+    plug PronotexWeb.Auth
+  end
+
   scope "/", PronotexWeb do
     pipe_through :browser
+    get "/login", LoginController, :index
+    post "/login", LoginController, :create
+    post "/logout", LoginController, :delete
+  end
 
-    live "/", DashboardLive, :index
-    live "/:child", DashboardLive, :index
-    live "/:child/:section", DashboardLive, :index
+  scope "/", PronotexWeb do
+    pipe_through [:browser, :authenticated]
+
+    get "/avatars/:index", AvatarController, :show
+
+    live_session :authenticated, on_mount: [PronotexWeb.Auth] do
+      live "/", DashboardLive, :index
+      live "/:child", DashboardLive, :index
+      live "/:child/:section", DashboardLive, :index
+    end
   end
 
   # Other scopes may use custom stacks.
@@ -37,9 +52,9 @@ defmodule PronotexWeb.Router do
     import Phoenix.LiveDashboard.Router
 
     scope "/dev" do
-      pipe_through :browser
+      pipe_through [:browser, :authenticated]
 
-      live_dashboard "/dashboard", metrics: PronotexWeb.Telemetry
+      live_dashboard "/dashboard", metrics: PronotexWeb.Telemetry, on_mount: [PronotexWeb.Auth]
     end
   end
 end

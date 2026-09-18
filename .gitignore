@@ -42,6 +42,8 @@ npm-debug.log
 
 # Local credentials and direnv state
 /.envrc
+/.env
+/pronotex-image.tar
 /.direnv/
 
 # Personal avatars (local only)

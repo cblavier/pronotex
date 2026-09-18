@@ -9,6 +9,7 @@ defmodule Pronotex.Application do
   def start(_type, _args) do
     children = [
       PronotexWeb.Telemetry,
+      Pronotex.Auth,
       Pronotex.Pronote.Session,
       {DNSCluster, query: Application.get_env(:pronotex, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Pronotex.PubSub},

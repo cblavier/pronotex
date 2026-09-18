@@ -18,6 +18,7 @@ defmodule PronotexWeb.ConnCase do
   end
 
   setup do
-    {:ok, conn: Phoenix.ConnTest.build_conn()}
+    conn = Phoenix.ConnTest.build_conn() |> Plug.Test.init_test_session(Pronotex.Auth.session())
+    {:ok, conn: conn}
   end
 end

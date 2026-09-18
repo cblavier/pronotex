@@ -2,6 +2,25 @@ defmodule PronotexWeb.DashboardLiveTest do
   use PronotexWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
 
+  test "dashboard opens without a session when PIN is disabled" do
+    original = Pronotex.Auth.pin()
+    on_exit(fn -> Application.put_env(:pronotex, :pin_code, original) end)
+    Application.put_env(:pronotex, :pin_code, nil)
+    {:ok, view, _} = live(build_conn(), "/alice")
+    render_async(view)
+    assert has_element?(view, "#lesson-days", "Maths a")
+    view |> element("#nav-devoirs") |> render_click()
+    render_async(view)
+    assert has_element?(view, "#homework-days")
+  end
+
+  test "an open live page redirects when authentication expires", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    send(view.pid, :auth_expired)
+    assert_redirect(view, "/login")
+  end
+
   defmodule API do
     def children do
       notify(:children)
@@ -639,6 +658,18 @@ defmodule PronotexWeb.DashboardLiveTest do
     view |> element("#nav-devoirs") |> render_click()
     render_async(view)
     refute_received {:events, _}
+  end
+
+  test "upcoming event background follows today rather than the displayed week", %{conn: conn} do
+    Application.put_env(:pronotex, :today, fn -> ~D[2026-10-02] end)
+    {:ok, view, _} = live(conn, "/alice?week=2026-09-21")
+    render_async(view)
+    assert has_element?(view, "#upcoming-events article[data-imminent=true]", "Réunion a")
+
+    Application.put_env(:pronotex, :today, fn -> ~D[2026-10-01] end)
+    render_click(view, "refresh", %{})
+    render_async(view)
+    assert has_element?(view, "#upcoming-events article[data-imminent=false]", "Réunion a")
   end
 
   test "event errors and empty results do not hide lessons", %{conn: conn} do

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200" fill="none">
+  <defs>
+    <linearGradient id="base" x1="100" y1="0" x2="1500" y2="1200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#aed9c5"/>
+      <stop offset=".5" stop-color="#65b297"/>
+      <stop offset="1" stop-color="#3c987f"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="100" y1="700" x2="1450" y2="1200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#439682"/>
+      <stop offset="1" stop-color="#246d5b"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#base)" d="M0 0h1600v1200H0z"/>
+  <path fill="#d2eadd" fill-opacity=".4" d="M0 0h1080C955 220 682 195 475 325S223 653 0 715V0Z"/>
+  <path fill="#e6f3e9" fill-opacity=".25" d="M0 0h665C536 131 327 113 222 260S102 421 0 456V0Z"/>
+  <path fill="#3c987f" fill-opacity=".35" d="M1600 135c-250 12-300 231-436 355S826 620 662 756s-205 331-363 444h1301V135Z"/>
+  <path fill="url(#wave)" d="M1600 611c-208-68-359 58-478 187S884 959 657 981 315 1107 253 1200h1347V611Z"/>
+  <path fill="#205e50" fill-opacity=".3" d="M1600 933c-208-68-394-14-564 110s-355 135-522 157h1086V933Z"/>
+  <g stroke="#edf8f0" stroke-opacity=".22" stroke-width="1.5">
+    <path d="M-80 888C179 872 250 579 471 461S875 362 1081 135 1262-76 1430-120"/>
+    <path d="M-80 912C194 895 269 596 487 481S892 383 1098 155 1282-56 1450-100"/>
+    <path d="M934 1280c81-171 277-226 441-385s184-310 300-351"/>
+  </g>
+</svg>

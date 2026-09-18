@@ -1,5 +1,7 @@
 import Config
 
+config :pronotex, :pin_code, "01234567"
+
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :pronotex, PronotexWeb.Endpoint,

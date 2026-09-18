@@ -7,6 +7,8 @@
 # General application configuration
 import Config
 
+config :phoenix, :filter_parameters, ["password", "pin", "token", "secret"]
+
 # Configure the endpoint
 config :pronotex, PronotexWeb.Endpoint,
   url: [host: "localhost"],
