@@ -42,12 +42,26 @@ defmodule PronotexWeb.Layouts do
         {render_slot(@inner_block)}
       </main>
       <footer class="app-brand-footer">
-        <img
-          src={~p"/images/brand/captain-notes-skull-login.png"}
-          alt="Captain Notes"
-          width="104"
-          height="40"
-        />
+        <svg class="app-brand-logo" viewBox="0 0 1040 400" role="img" aria-label="Captain Notes">
+          <defs>
+            <mask
+              id="footer-logo-mask"
+              style="mask-type: alpha"
+              maskUnits="userSpaceOnUse"
+              x="0"
+              y="0"
+              width="1040"
+              height="400"
+            >
+              <image
+                href={~p"/images/brand/captain-notes-skull-login.png"}
+                width="1040"
+                height="400"
+              />
+            </mask>
+          </defs>
+          <rect width="1040" height="400" fill="currentColor" mask="url(#footer-logo-mask)" />
+        </svg>
       </footer>
     </div>
 
@@ -74,24 +88,28 @@ defmodule PronotexWeb.Layouts do
       <.flash
         id="client-error"
         kind={:error}
-        title={gettext("We can't find the internet")}
-        phx-disconnected={show(".phx-client-error #client-error") |> JS.remove_attribute("hidden")}
-        phx-connected={hide("#client-error") |> JS.set_attribute({"hidden", ""})}
+        title={gettext("Connexion Internet perdue")}
+        phx-disconnected={
+          JS.dispatch("connection-alert:pending", to: ".phx-client-error #client-error")
+        }
+        phx-connected={JS.dispatch("connection-alert:clear", to: "#client-error")}
         hidden
       >
-        {gettext("Attempting to reconnect")}
+        {gettext("Tentative de reconnexion en cours…")}
         <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
       </.flash>
 
       <.flash
         id="server-error"
         kind={:error}
-        title={gettext("Something went wrong!")}
-        phx-disconnected={show(".phx-server-error #server-error") |> JS.remove_attribute("hidden")}
-        phx-connected={hide("#server-error") |> JS.set_attribute({"hidden", ""})}
+        title={gettext("Connexion au serveur interrompue")}
+        phx-disconnected={
+          JS.dispatch("connection-alert:pending", to: ".phx-server-error #server-error")
+        }
+        phx-connected={JS.dispatch("connection-alert:clear", to: "#server-error")}
         hidden
       >
-        {gettext("Attempting to reconnect")}
+        {gettext("Tentative de reconnexion en cours…")}
         <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
       </.flash>
     </div>

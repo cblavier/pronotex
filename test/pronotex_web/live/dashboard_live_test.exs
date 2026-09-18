@@ -141,6 +141,18 @@ defmodule PronotexWeb.DashboardLiveTest do
         :empty ->
           {:ok, []}
 
+        :many_events ->
+          {:ok,
+           for n <- 1..12 do
+             %Pronotex.Pronote.Event{
+               id: "event-#{n}",
+               title: "Évènement #{id} #{n}",
+               description: "",
+               start: ~N[2026-10-05 17:00:00],
+               end: ~N[2026-10-05 18:00:00]
+             }
+           end}
+
         :events_failure ->
           {:error, Pronotex.Pronote.Error.new(:forbidden)}
 
@@ -267,7 +279,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert has_element?(view, "#next-week")
     assert has_element?(view, "#previous-week")
     refute has_element?(view, "#week-view")
-    assert Date.diff(to, from) == 6
+    assert to == ~D[2026-09-18]
     refute_received {:lessons, _, _, _}
     assert_receive {:homework, "a", ~D[2026-09-18], ~D[2026-09-19]}
   end
@@ -389,8 +401,29 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert_patch(view, "/alice")
     render_async(view)
     assert has_element?(view, "#child-name", "Alice")
-    assert_receive {:lessons, "a", ~D[2026-09-18], ~D[2026-09-24]}
+    assert_receive {:lessons, "a", ~D[2026-09-18], ~D[2026-09-18]}
     refute_received {:lessons, _, _, _}
+  end
+
+  test "today timetable shows weekdays through Friday and advances on weekends", %{conn: conn} do
+    for {date, first, last} <- [
+          {~D[2026-09-14], ~D[2026-09-14], ~D[2026-09-18]},
+          {~D[2026-09-16], ~D[2026-09-16], ~D[2026-09-18]},
+          {~D[2026-09-18], ~D[2026-09-18], ~D[2026-09-18]},
+          {~D[2026-09-19], ~D[2026-09-21], ~D[2026-09-25]},
+          {~D[2026-09-20], ~D[2026-09-21], ~D[2026-09-25]}
+        ] do
+      Application.put_env(:pronotex, :today, fn -> date end)
+      {:ok, view, _} = live(conn, "/alice")
+      render_async(view)
+      assert_receive {:lessons, "a", ^first, ^last}
+
+      if Date.day_of_week(date) > 5 do
+        refute has_element?(view, "#no-lessons-today")
+        refute has_element?(view, "#lesson-days h3", "Aujourd’hui")
+        assert has_element?(view, "#lesson-days", "Maths a")
+      end
+    end
   end
 
   test "today and week modes retain the child and support browser navigation", %{conn: conn} do
@@ -399,7 +432,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     view |> element("#today-view") |> render_click()
     assert_patch(view, "/basile")
     render_async(view)
-    assert_receive {:lessons, "b", ~D[2026-09-18], ~D[2026-09-24]}
+    assert_receive {:lessons, "b", ~D[2026-09-18], ~D[2026-09-18]}
     assert has_element?(view, "#lesson-days h3", "Aujourd’hui")
 
     view |> element("#previous-week") |> render_click()
@@ -412,7 +445,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     view |> element(".child-picker-option[data-child-id]:not([aria-current])") |> render_click()
     assert_patch(view, "/alice")
     render_async(view)
-    assert_receive {:lessons, "a", ~D[2026-09-18], ~D[2026-09-24]}
+    assert_receive {:lessons, "a", ~D[2026-09-18], ~D[2026-09-18]}
   end
 
   test "refresh rolls the today range forward after midnight", %{conn: conn} do
@@ -421,7 +454,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     Application.put_env(:pronotex, :today, fn -> ~D[2026-09-19] end)
     render_click(view, "refresh", %{})
     render_async(view)
-    assert_receive {:lessons, "a", ~D[2026-09-19], ~D[2026-09-25]}
+    assert_receive {:lessons, "a", ~D[2026-09-21], ~D[2026-09-25]}
     assert has_element?(view, "#week-label", "à partir d’aujourd’hui")
     refute has_element?(view, "#week-label", "19/09")
   end
@@ -453,7 +486,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     view |> element("#today-view") |> render_click()
     assert_patch(view, "/alice")
     render_async(view)
-    assert_receive {:lessons, "a", ~D[2026-09-17], ~D[2026-09-23]}
+    assert_receive {:lessons, "a", ~D[2026-09-17], ~D[2026-09-18]}
     view |> element("#next-week") |> render_click()
     assert_patch(view, "/alice?week=2026-09-21")
     render_async(view)
@@ -657,6 +690,35 @@ defmodule PronotexWeb.DashboardLiveTest do
     view |> element("#nav-agenda") |> render_click()
     render_async(view)
     assert page_title(view) == "Basile - Agenda"
+  end
+
+  test "mobile agenda panel selection keeps loaded content", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    assert has_element?(view, "#agenda-content[data-panel=timetable]")
+    view |> element("#agenda-panel-events") |> render_click()
+    assert has_element?(view, "#agenda-panel-events[aria-pressed=true]")
+    assert has_element?(view, "#agenda-content[data-panel=events]")
+    assert has_element?(view, "#upcoming-events", "Réunion a")
+    view |> element("#agenda-panel-timetable") |> render_click()
+    assert has_element?(view, "#agenda-content[data-panel=timetable]")
+    assert has_element?(view, "#lesson-days", "Maths a")
+  end
+
+  test "events show eight initially and reveal the rest on demand", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :many_events)
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    assert has_element?(view, "#upcoming-title", "Évènements")
+    assert has_element?(view, "#upcoming-events article:nth-child(8)")
+    refute has_element?(view, "#upcoming-events article:nth-child(9)")
+    view |> element("#show-more-events") |> render_click()
+    assert has_element?(view, "#upcoming-events article:nth-child(12)")
+    refute has_element?(view, "#show-more-events")
+    view |> element(".child-picker-option[data-child-id]") |> render_click()
+    render_async(view)
+    refute has_element?(view, "#upcoming-events article:nth-child(9)")
+    assert has_element?(view, "#show-more-events")
   end
 
   test "upcoming events load with agenda and stay independent of the selected week", %{conn: conn} do

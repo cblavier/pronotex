@@ -66,6 +66,6 @@ defmodule PronotexWeb.LoginController do
   defp page(conn, error \\ nil) do
     conn
     |> put_resp_header("cache-control", "private, no-store")
-    |> render(:index, page_title: "Connexion", configured: Auth.configured?(), error: error)
+    |> render(:index, page_title: "Captain Notes", configured: Auth.configured?(), error: error)
   end
 end

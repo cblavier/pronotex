@@ -399,7 +399,23 @@ html { touch-action: manipulation; }
 .page-shell { display: flex; flex-direction: column; }
 .page-shell > main { width: 100%; flex: 1; }
 .app-brand-footer { display: flex; justify-content: center; padding: 0.5rem 1rem 1.5rem; }
-.app-brand-footer img { width: 104px; height: 40px; object-fit: contain; opacity: 0.6; mix-blend-mode: multiply; }
-@media (prefers-color-scheme: dark) {
-  .app-brand-footer img { filter: invert(1) grayscale(1); mix-blend-mode: screen; }
+.app-brand-logo { width: 104px; height: 40px; color: var(--day-ink); opacity: 0.75; }
+
+/* Single-column agenda switches panels without removing the LiveView streams. */
+#agenda-subnav { display: none; }
+@media (width < 1024px) {
+  #agenda-subnav { display: flex; gap: 0.25rem; padding: 0.25rem; border: 1px solid var(--day-line); border-radius: 0.5rem; background: var(--surface-background); }
+  #agenda-subnav button { flex: 1; min-height: 2.5rem; padding: 0.5rem; border: 0; border-radius: 0.375rem; background: transparent; color: var(--muted-ink); font-size: 0.875rem; font-weight: 500; cursor: pointer; }
+  #agenda-subnav button[aria-pressed="true"] { background: var(--day-tint); color: var(--day-ink); }
+  #agenda-subnav button:focus-visible { outline: 2px solid var(--day-ink); outline-offset: 1px; }
+  #agenda-subnav button:disabled { cursor: wait; }
+  #agenda-content[data-panel="timetable"] #upcoming,
+  #agenda-content[data-panel="events"] #timetable { display: none; }
+}
+
+#show-more-events { border-color: var(--day-line); box-shadow: none; }
+
+.page-shell > main { padding-bottom: 1rem; }
+@media (min-width: 640px) {
+  .page-shell > main { padding-bottom: 1.5rem; }
 }

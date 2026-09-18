@@ -11,6 +11,7 @@ defmodule PronotexWeb.DashboardLive do
       |> assign(
         page_title: "Mon agenda",
         section: "agenda",
+        agenda_panel: "timetable",
         grade_period: nil,
         grade_periods: [],
         grades_error: nil,
@@ -32,6 +33,7 @@ defmodule PronotexWeb.DashboardLive do
         error: nil,
         event_error: nil,
         event_count: 0,
+        remaining_events: [],
         lesson_error: nil,
         homework_writable: false,
         homework_saving: nil,
@@ -116,6 +118,18 @@ defmodule PronotexWeb.DashboardLive do
   @impl true
   def handle_event(_event, _params, %{assigns: %{loading: true}} = socket),
     do: {:noreply, socket}
+
+  def handle_event("agenda-panel", %{"panel" => panel}, socket)
+      when panel in ["timetable", "events"] do
+    {:noreply, assign(socket, :agenda_panel, panel)}
+  end
+
+  def handle_event("show-more-events", _, socket) do
+    {:noreply,
+     socket
+     |> stream(:events, socket.assigns.remaining_events)
+     |> assign(:remaining_events, [])}
+  end
 
   def handle_event("toggle-homework", %{"id" => id}, socket) do
     task =
@@ -285,6 +299,15 @@ defmodule PronotexWeb.DashboardLive do
     mode = socket.assigns.mode
     from = socket.assigns.week
     to = Date.add(from, 6)
+
+    {lessons_from, lessons_to} =
+      if mode == :today do
+        start = if Date.day_of_week(from) > 5, do: Date.add(Date.end_of_week(from), 1), else: from
+        {start, Date.add(Date.beginning_of_week(start), 4)}
+      else
+        {from, to}
+      end
+
     today = socket.assigns.today
 
     socket
@@ -301,6 +324,7 @@ defmodule PronotexWeb.DashboardLive do
       error: nil,
       event_error: nil,
       event_count: 0,
+      remaining_events: [],
       lesson_error: nil,
       homework_saving: nil,
       homework_save_error: nil,
@@ -345,7 +369,11 @@ defmodule PronotexWeb.DashboardLive do
            week: from,
            mode: mode,
            events: if(section == "agenda", do: api.events(child.id), else: {:ok, []}),
-           lessons: if(section == "agenda", do: api.lessons(child.id, from, to), else: {:ok, []}),
+           lessons:
+             if(section == "agenda",
+               do: api.lessons(child.id, lessons_from, lessons_to),
+               else: {:ok, []}
+             ),
            homework:
              if(section == "devoirs", do: api.homework(child.id, from, to), else: {:ok, []}),
            menus: if(section == "cantine", do: api.menus(child.id, from, to), else: {:ok, []}),
@@ -470,8 +498,12 @@ defmodule PronotexWeb.DashboardLive do
 
   defp apply_result(socket, :events, {:ok, events}) do
     socket
-    |> assign(event_count: length(events), event_error: nil)
-    |> stream(:events, events, reset: true)
+    |> assign(
+      event_count: length(events),
+      event_error: nil,
+      remaining_events: Enum.drop(events, 8)
+    )
+    |> stream(:events, Enum.take(events, 8), reset: true)
   end
 
   defp apply_result(socket, :events, {:error, error}),
@@ -521,7 +553,8 @@ defmodule PronotexWeb.DashboardLive do
       |> Enum.map(fn day -> %{day | entries: Pronotex.Agenda.entries(day.entries)} end)
 
     days =
-      if socket.assigns.mode == :today and not Enum.any?(days, &(&1.date == socket.assigns.today)) do
+      if socket.assigns.mode == :today and Date.day_of_week(socket.assigns.today) <= 5 and
+           not Enum.any?(days, &(&1.date == socket.assigns.today)) do
         [
           %{id: Date.to_iso8601(socket.assigns.today), date: socket.assigns.today, entries: []}
           | days

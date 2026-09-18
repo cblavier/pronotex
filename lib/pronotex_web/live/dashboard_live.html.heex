@@ -355,11 +355,26 @@
       </div>
       <div
         id="agenda-content"
+        data-panel={@agenda_panel}
         class="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
         hidden={@section != "agenda"}
         aria-labelledby="nav-agenda"
         aria-busy={to_string(@loading)}
       >
+        <nav id="agenda-subnav" aria-label="Affichage de l’agenda">
+          <button
+            :for={{panel, label} <- [{"timetable", "Emploi du temps"}, {"events", "Évènements"}]}
+            id={"agenda-panel-#{panel}"}
+            type="button"
+            phx-click="agenda-panel"
+            phx-value-panel={panel}
+            aria-pressed={to_string(@agenda_panel == panel)}
+            aria-controls={if panel == "events", do: "upcoming", else: "timetable"}
+            disabled={@loading}
+          >
+            {label}
+          </button>
+        </nav>
         <section id="timetable" aria-label="Emploi du temps" class="min-w-0">
           <div class="space-y-5">
             <p :if={@lesson_error} id="timetable-error" role="alert" class="text-sm text-error">
@@ -485,7 +500,7 @@
             id="upcoming-title"
             class="day-heading text-xs font-semibold uppercase tracking-wide"
           >
-            À venir
+            Évènements
           </h2>
           <div class="space-y-4 px-4 pb-4">
             <div :if={@event_error} id="events-error" role="alert" class="pt-4 text-sm text-error">
@@ -520,6 +535,15 @@
                 </div>
               </article>
             </div>
+            <button
+              :if={@remaining_events != []}
+              id="show-more-events"
+              phx-click="show-more-events"
+              class="btn btn-sm btn-ghost w-full"
+              disabled={@loading}
+            >
+              Voir plus
+            </button>
           </div>
         </aside>
       </div>

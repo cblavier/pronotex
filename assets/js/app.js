@@ -49,6 +49,41 @@ topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
+// Give reconnects a grace period, including after returning to a sleeping tab.
+const pendingConnectionAlerts = new Map()
+const hideConnectionAlert = element => {
+  clearTimeout(pendingConnectionAlerts.get(element))
+  element.hidden = true
+  element.style.display = "none"
+}
+const scheduleConnectionAlert = element => {
+  hideConnectionAlert(element)
+  pendingConnectionAlerts.set(element, null)
+  if (document.hidden) return
+  pendingConnectionAlerts.set(element, setTimeout(() => {
+    if (element.isConnected && !document.hidden) {
+      element.hidden = false
+      element.style.display = "block"
+    }
+  }, 5000))
+}
+window.addEventListener("connection-alert:pending", event => {
+  if (!pendingConnectionAlerts.has(event.target)) scheduleConnectionAlert(event.target)
+})
+window.addEventListener("connection-alert:clear", event => {
+  hideConnectionAlert(event.target)
+  pendingConnectionAlerts.delete(event.target)
+})
+document.addEventListener("visibilitychange", () => {
+  for (const element of pendingConnectionAlerts.keys()) {
+    if (element.isConnected) scheduleConnectionAlert(element)
+    else {
+      hideConnectionAlert(element)
+      pendingConnectionAlerts.delete(element)
+    }
+  }
+})
+
 // connect if there are any LiveViews on the page
 liveSocket.connect()
 
