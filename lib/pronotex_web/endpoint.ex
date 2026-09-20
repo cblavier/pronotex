@@ -9,6 +9,7 @@ defmodule PronotexWeb.Endpoint do
     key: "_pronotex_key",
     signing_salt: "M2Sv5JIT",
     same_site: "Lax",
+    max_age: 12 * 60 * 60,
     secure: Application.compile_env(:pronotex, :secure_cookies, false)
   ]
 

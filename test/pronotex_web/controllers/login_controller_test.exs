@@ -106,6 +106,26 @@ defmodule PronotexWeb.LoginControllerTest do
     assert conn |> get("/") |> redirected_to() == "/login"
   end
 
+  test "login cookie persists for twelve hours and restores authentication in a fresh connection" do
+    conn = build_conn() |> post("/login", %{"pin" => "01234567"})
+    cookie = conn.resp_cookies["_pronotex_key"]
+    assert cookie.max_age == 43_200
+    assert Enum.any?(get_resp_header(conn, "set-cookie"), &String.contains?(&1, "HttpOnly"))
+    expires_at = get_session(conn, "auth_expires_at")
+
+    restored =
+      build_conn()
+      |> put_req_cookie("_pronotex_key", cookie.value)
+      |> get("/login")
+
+    assert redirected_to(restored) == "/"
+    assert get_session(restored, "auth_expires_at") == expires_at
+    assert Pronotex.Auth.valid?(get_session(restored))
+
+    logged_out = restored |> recycle() |> post("/logout", %{})
+    assert logged_out.resp_cookies["_pronotex_key"].max_age == 0
+  end
+
   test "three failures block even a correct PIN, and subsequent failures increase the delay" do
     for _ <- 1..2, do: assert({:invalid, 0} = Pronotex.Auth.attempt("11111111"))
     assert {:invalid, 60} = Pronotex.Auth.attempt("11111111")
