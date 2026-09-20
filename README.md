@@ -2,7 +2,31 @@
 
 ## Description du projet
 
-Une interface PRONOTE pour consulter l’agenda, les devoirs, les notes, les menus et les messages de ses enfants. Développée avec Elixir et Phoenix LiveView, sans base de données.
+Une interface PRONOTE pour consulter l’agenda, les devoirs, les notes, les menus et les messages des enfants, avec un seul identifiant.
+
+La motivation est de donnée l'accès avec un seul identifiant familial, aux données pronote de toute la famille, tout en donnant accès à certaines fonctionnalités normalement restreintes au compte des enfants (marquer les devoirs faits, lire les messages personnels...)
+
+L'application a été développée dans un objectif de simplicité, toutes les fonctionnalités de pronote ne seront pas portées.
+
+Développée avec Elixir et Phoenix LiveView. Ne nécessite pas de base de données.
+
+## Screenshots
+
+### Desktop
+
+![Vue desktop 1 de Captain Notes](screenshots/desktop-01.jpg)
+
+![Vue desktop 2 de Captain Notes](screenshots/desktop-02.jpg)
+
+![Vue desktop 3 de Captain Notes](screenshots/desktop-03.jpg)
+
+### Mobile
+
+<p>
+  <img src="screenshots/mobile-01.jpg" alt="Vue mobile 1 de Captain Notes" width="250" />
+  <img src="screenshots/mobile-02.jpg" alt="Vue mobile 2 de Captain Notes" width="250" />
+  <img src="screenshots/mobile-03.jpg" alt="Vue mobile 3 de Captain Notes" width="250" />
+</p>
 
 ## Lancer le projet en local
 

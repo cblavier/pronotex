@@ -39,13 +39,60 @@ npm-debug.log
 *.db
 *.db-*
 
+# Local credentials and direnv state (including nested directories and backups)
+.env
+.env.*
+.envrc
+.envrc.*
+env
+env.*
+.direnv/
+# Keep sanitized configuration templates versionable.
+!.env.example
+!.env.*.example
+!.envrc.example
+!env.example
+!env.*.example
 
-# Local credentials and direnv state
-/.envrc
-/.env
-/env
+# Local settings and credentials
+settings.local.*
+config.local.*
+*.local.exs
+credentials.json
+credentials.*.json
+secrets.json
+secrets.*.json
+secrets.yml
+secrets.yaml
+/secrets/
+/.secrets/
+
+# Private keys and local certificate bundles
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+/priv/cert/
+
+# Logs, network captures and diagnostic dumps may contain personal data
+*.log
+*.log.*
+/logs/
+*.har
+*.dump
+*.dmp
+
+# Local Docker image exports
 /pronotex-image.tar
-/.direnv/
+/pronotex-image*.tar.gz
+
+# Editor backups and OS metadata
+*.swp
+*.swo
+*~
+.DS_Store
 
 # Personal avatars (local only)
 /priv/static/images/avatars/
