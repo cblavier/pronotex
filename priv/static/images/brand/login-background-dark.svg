@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+  <defs>
+    <pattern id="paper" width="8" height="8" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="2" r="0.5" fill="#a7c6b9" opacity="0.035"/>
+      <circle cx="5" cy="6" r="0.5" fill="#000" opacity="0.08"/>
+    </pattern>
+    <pattern id="lines" width="320" height="32" patternUnits="userSpaceOnUse">
+      <path d="M0 31.5H320" stroke="#80b5a1" stroke-opacity="0.11"/>
+    </pattern>
+  </defs>
+  <path fill="#172320" d="M0 0h320v320H0z"/>
+  <path fill="url(#paper)" d="M0 0h320v320H0z"/>
+  <path fill="url(#lines)" d="M0 0h320v320H0z"/>
+</svg>

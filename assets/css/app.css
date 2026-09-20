@@ -125,6 +125,22 @@ html { touch-action: manipulation; }
   border-color: color-mix(in srgb, var(--login-primary) 20%, var(--color-base-100));
   box-shadow: 0 16px 48px #163f3512;
 }
+@media (prefers-color-scheme: dark) {
+  #login-screen {
+    background-color: #172320;
+    background-image:
+      linear-gradient(to right,
+        transparent calc(clamp(28px, 8vw, 96px) - 1px),
+        #80b5a133 calc(clamp(28px, 8vw, 96px) - 1px),
+        #80b5a133 clamp(28px, 8vw, 96px),
+        transparent clamp(28px, 8vw, 96px)),
+      url("/images/brand/login-background-dark.svg");
+    background-size: auto, 320px 320px;
+  }
+  #login-screen .login-card {
+    box-shadow: 0 16px 48px #00000030;
+  }
+}
 #login-screen .login-title { color: var(--login-primary); }
 #login-screen .pin-key {
   display: flex;
@@ -547,6 +563,13 @@ html { touch-action: manipulation; }
 
 #login-screen input[name="remember"] { accent-color: var(--login-primary); }
 #login-screen input[name="remember"]:checked { --input-color: var(--login-primary); }
+@media (prefers-color-scheme: light) {
+  #login-screen input[name="remember"]:checked {
+    color: #fff;
+    background-color: var(--login-primary);
+    border-color: var(--login-primary);
+  }
+}
 
 #login-screen .themed-dropdown {
   --day-ink: var(--login-primary);
