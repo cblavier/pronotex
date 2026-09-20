@@ -16,6 +16,7 @@ defmodule PronotexWeb.DashboardLive do
         messages_error: nil,
         messages_available: false,
         messages_unread: 0,
+        parent_messages_unread: 0,
         message_saving: nil,
         open_discussion: nil,
         agenda_panel: "timetable",
@@ -51,6 +52,7 @@ defmodule PronotexWeb.DashboardLive do
         menu_error: nil,
         homework_count: 0,
         homework_badge_count: 0,
+        homework_badge_cache: %{},
         api: Application.get_env(:pronotex, :pronote_client, Pronotex.Pronote)
       )
       |> stream(:events, [])
@@ -88,6 +90,7 @@ defmodule PronotexWeb.DashboardLive do
         "notes" -> "notes"
         "menu" -> "cantine"
         "messages" -> "messages"
+        "parent-messages" when socket.assigns.account.role == :parent -> "parent-messages"
         _ -> "agenda"
       end
 
@@ -106,7 +109,7 @@ defmodule PronotexWeb.DashboardLive do
         week: week,
         mode: mode,
         section: section,
-        open_discussion: if(section == "messages", do: params["discussion"]),
+        open_discussion: if(section in ["messages", "parent-messages"], do: params["discussion"]),
         grade_period: period,
         today: today,
         selected_slug: slug,
@@ -136,17 +139,23 @@ defmodule PronotexWeb.DashboardLive do
   def handle_event("mark-discussion", %{"id" => id}, socket) do
     discussion = Enum.find(socket.assigns.discussions, &(&1.id == id))
 
-    if (socket.assigns.section == "messages" and discussion) &&
+    if (socket.assigns.section in ["messages", "parent-messages"] and discussion) &&
          is_nil(socket.assigns.message_saving) && !socket.assigns.messages_loading do
       api = socket.assigns.api
+      account = socket.assigns.account
       child_id = socket.assigns.child.id
       generation = socket.assigns.messages_generation
+      parent_inbox = socket.assigns.section == "parent-messages"
 
       {:noreply,
        socket
        |> assign(:message_saving, id)
        |> start_async({:message_save, generation}, fn ->
-         api.set_discussion_read(child_id, id, discussion.unread > 0)
+         if parent_inbox do
+           api_call(api, account, :set_parent_discussion_read, [id, discussion.unread > 0])
+         else
+           api_call(api, account, :set_discussion_read, [child_id, id, discussion.unread > 0])
+         end
        end)}
     else
       {:noreply, socket}
@@ -169,6 +178,7 @@ defmodule PronotexWeb.DashboardLive do
     if socket.assigns.section == "devoirs" and socket.assigns.homework_writable and
          is_nil(socket.assigns.homework_saving) and task do
       api = socket.assigns.api
+      account = socket.assigns.account
       child_id = socket.assigns.child.id
       generation = socket.private[:homework_generation]
 
@@ -177,7 +187,7 @@ defmodule PronotexWeb.DashboardLive do
 
       {:noreply,
        start_async(socket, {:save_homework, generation}, fn ->
-         api.set_homework_done(child_id, id, !task.done)
+         api_call(api, account, :set_homework_done, [child_id, id, !task.done])
        end)}
     else
       {:noreply, socket}
@@ -193,7 +203,7 @@ defmodule PronotexWeb.DashboardLive do
   end
 
   def handle_event("section", %{"section" => section}, socket)
-      when section in ["agenda", "devoirs", "notes", "cantine", "messages"] do
+      when section in ["agenda", "devoirs", "notes", "cantine", "messages", "parent-messages"] do
     {:noreply, push_patch(socket, to: selection_url(socket, section: section))}
   end
 
@@ -242,8 +252,7 @@ defmodule PronotexWeb.DashboardLive do
       assign(socket,
         children: result.children,
         child: result.child,
-        homework_badge_count: pending_count(result.urgent_homework),
-        homework_writable: socket.assigns.api.homework_writable?(result.child),
+        homework_writable: writable?(socket.assigns.api, socket.assigns.account, result.child),
         page_title: page_title(result.child, nil, socket.assigns.section),
         loading: false,
         error: nil
@@ -251,6 +260,7 @@ defmodule PronotexWeb.DashboardLive do
 
     {:noreply,
      socket
+     |> cache_homework_badge(pending_count(result.urgent_homework))
      |> put_private(:urgent_homework, result.urgent_homework)
      |> apply_result(:events, result.events)
      |> apply_result(:lessons, result.lessons)
@@ -281,10 +291,14 @@ defmodule PronotexWeb.DashboardLive do
       case result do
         {:ok, {:ok, discussions}} ->
           {:noreply,
-           assign(socket,
-             discussions: discussions,
-             messages_error: nil,
-             messages_unread: Enum.sum(Enum.map(discussions, & &1.unread))
+           socket
+           |> assign(discussions: discussions, messages_error: nil)
+           |> assign(
+             if(socket.assigns.section == "parent-messages",
+               do: :parent_messages_unread,
+               else: :messages_unread
+             ),
+             Enum.sum(Enum.map(discussions, & &1.unread))
            )}
 
         _ ->
@@ -300,6 +314,16 @@ defmodule PronotexWeb.DashboardLive do
       {:noreply, socket}
     end
   end
+
+  def handle_async({:other_inbox_count, generation}, {:ok, {key, {:ok, discussions}}}, socket) do
+    if generation == socket.assigns.messages_generation do
+      {:noreply, assign(socket, key, Enum.sum(Enum.map(discussions, & &1.unread)))}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_async({:other_inbox_count, _}, _, socket), do: {:noreply, socket}
 
   def handle_async({:save_homework, generation}, result, socket) do
     if generation == socket.private[:homework_generation] do
@@ -356,6 +380,7 @@ defmodule PronotexWeb.DashboardLive do
     period = socket.assigns.grade_period
     section = socket.assigns.section
     api = socket.assigns.api
+    account = socket.assigns.account
     selected_slug = socket.assigns.selected_slug
     mode = socket.assigns.mode
     from = socket.assigns.week
@@ -378,6 +403,7 @@ defmodule PronotexWeb.DashboardLive do
       messages_generation: make_ref(),
       discussions: [],
       messages_unread: 0,
+      parent_messages_unread: 0,
       messages_error: nil,
       messages_loading: false,
       messages_available: false,
@@ -401,7 +427,8 @@ defmodule PronotexWeb.DashboardLive do
       menu_count: 0,
       menu_error: nil,
       homework_count: 0,
-      homework_badge_count: 0
+      homework_badge_count:
+        Map.get(socket.assigns.homework_badge_cache, {selected_slug, today}, 0)
     )
     |> stream(:events, [], reset: true)
     |> stream(:grades, [], reset: true)
@@ -414,11 +441,15 @@ defmodule PronotexWeb.DashboardLive do
     |> stream(:homework_days, [], reset: true)
     |> start_async(:load, fn ->
       read = fn ->
-        with {:ok, children} <- api.children(),
+        with {:ok, children} <- api_call(api, account, :children, []),
              child when not is_nil(child) <-
                Enum.find(children, &(child_slug(&1) == selected_slug)) || List.first(children) do
           urgent_homework =
-            case api.homework(child.id, today, Pronotex.Pronote.Homework.urgent_until(today)) do
+            case api_call(api, account, :homework, [
+                   child.id,
+                   today,
+                   Pronotex.Pronote.Homework.urgent_until(today)
+                 ]) do
               {:ok, tasks} ->
                 Enum.filter(
                   tasks,
@@ -437,16 +468,31 @@ defmodule PronotexWeb.DashboardLive do
              child: child,
              week: from,
              mode: mode,
-             events: if(section == "agenda", do: api.events(child.id), else: {:ok, []}),
+             events:
+               if(section == "agenda",
+                 do: api_call(api, account, :events, [child.id]),
+                 else: {:ok, []}
+               ),
              lessons:
                if(section == "agenda",
-                 do: api.lessons(child.id, lessons_from, lessons_to),
+                 do: api_call(api, account, :lessons, [child.id, lessons_from, lessons_to]),
                  else: {:ok, []}
                ),
              homework:
-               if(section == "devoirs", do: api.homework(child.id, from, to), else: {:ok, []}),
-             menus: if(section == "cantine", do: api.menus(child.id, from, to), else: {:ok, []}),
-             grades: if(section == "notes", do: api.grades(child.id, period), else: :skip)
+               if(section == "devoirs",
+                 do: api_call(api, account, :homework, [child.id, from, to]),
+                 else: {:ok, []}
+               ),
+             menus:
+               if(section == "cantine",
+                 do: api_call(api, account, :menus, [child.id, from, to]),
+                 else: {:ok, []}
+               ),
+             grades:
+               if(section == "notes",
+                 do: api_call(api, account, :grades, [child.id, period]),
+                 else: :skip
+               )
            }}
         else
           nil -> {:error, "Aucun enfant accessible sur ce compte."}
@@ -477,18 +523,48 @@ defmodule PronotexWeb.DashboardLive do
     if stale_children?, do: read.(), else: result
   end
 
+  defp api_call(Pronotex.Pronote, account, operation, args) do
+    server = Pronotex.Pronote.Session.for_account(account.id)
+    apply(Pronotex.Pronote, operation, args ++ [server])
+  end
+
+  defp api_call(api, _account, operation, args), do: apply(api, operation, args)
+
+  defp writable?(api, account, child),
+    do: account.role == :child or api.homework_writable?(child)
+
   defp load_messages(socket) do
-    available = socket.assigns.api.homework_writable?(socket.assigns.child)
+    account = socket.assigns.account
+    api = socket.assigns.api
+    child_id = socket.assigns.child.id
+    parent_inbox = socket.assigns.section == "parent-messages"
+    child_available = writable?(api, account, socket.assigns.child)
+    available = if parent_inbox, do: account.role == :parent, else: child_available
+    generation = socket.assigns.messages_generation
     socket = assign(socket, :messages_available, available)
 
-    if available do
-      api = socket.assigns.api
-      child_id = socket.assigns.child.id
+    socket =
+      if available do
+        socket
+        |> assign(:messages_loading, true)
+        |> start_async({:messages_load, generation}, fn ->
+          if parent_inbox,
+            do: api_call(api, account, :parent_discussions, []),
+            else: api_call(api, account, :discussions, [child_id])
+        end)
+      else
+        socket
+      end
 
-      socket
-      |> assign(:messages_loading, true)
-      |> start_async({:messages_load, socket.assigns.messages_generation}, fn ->
-        api.discussions(child_id)
+    if account.role == :parent and (not parent_inbox or child_available) do
+      start_async(socket, {:other_inbox_count, generation}, fn ->
+        result =
+          if parent_inbox,
+            do: api_call(api, account, :discussions, [child_id]),
+            else: api_call(api, account, :parent_discussions, [])
+
+        key = if parent_inbox, do: :messages_unread, else: :parent_messages_unread
+        {key, result}
       end)
     else
       socket
@@ -508,6 +584,15 @@ defmodule PronotexWeb.DashboardLive do
     end
   end
 
+  defp cache_homework_badge(socket, count) do
+    key = {child_slug(socket.assigns.child), socket.assigns.today}
+
+    assign(socket,
+      homework_badge_count: count,
+      homework_badge_cache: Map.put(socket.assigns.homework_badge_cache, key, count)
+    )
+  end
+
   defp pending_count(tasks), do: Enum.count(tasks, &(!&1.done))
 
   defp update_homework_badge(socket, tasks) do
@@ -520,7 +605,7 @@ defmodule PronotexWeb.DashboardLive do
 
     socket
     |> put_private(:urgent_homework, urgent)
-    |> assign(:homework_badge_count, pending_count(urgent))
+    |> cache_homework_badge(pending_count(urgent))
   end
 
   defp now do
@@ -566,7 +651,8 @@ defmodule PronotexWeb.DashboardLive do
           "devoirs" => "Devoirs",
           "notes" => "Notes",
           "cantine" => "Menu",
-          "messages" => "Messages"
+          "messages" => "Messages",
+          "parent-messages" => "Mes messages"
         },
         section
       )
@@ -612,10 +698,10 @@ defmodule PronotexWeb.DashboardLive do
         "notes" when not is_nil(child) ->
           ~p"/#{child_slug(child)}/notes"
 
-        "messages" when not is_nil(child) ->
+        inbox when inbox in ["messages", "parent-messages"] and not is_nil(child) ->
           if discussion,
-            do: ~p"/#{child_slug(child)}/messages/#{discussion}",
-            else: ~p"/#{child_slug(child)}/messages"
+            do: ~p"/#{child_slug(child)}/#{inbox}/#{discussion}",
+            else: ~p"/#{child_slug(child)}/#{inbox}"
 
         "cantine" when not is_nil(child) ->
           ~p"/#{child_slug(child)}/menu"
@@ -660,8 +746,8 @@ defmodule PronotexWeb.DashboardLive do
     """
   end
 
-  defp discussion_url(slug, mode, week, period, discussion) do
-    path = if discussion, do: ~p"/#{slug}/messages/#{discussion}", else: ~p"/#{slug}/messages"
+  defp discussion_url(slug, mode, week, period, discussion, inbox) do
+    path = if discussion, do: ~p"/#{slug}/#{inbox}/#{discussion}", else: ~p"/#{slug}/#{inbox}"
     query = if mode == :week, do: [{"week", Date.to_iso8601(week)}], else: []
     query = if period, do: query ++ [{"period", period}], else: query
     path <> if(query == [], do: "", else: "?" <> URI.encode_query(query))
@@ -852,6 +938,15 @@ defmodule PronotexWeb.DashboardLive do
   defp child_theme(children, child), do: Pronotex.Family.theme(children, child)
   defp avatar_src(nil), do: nil
   defp avatar_src(child), do: Pronotex.Family.avatar(child)
+
+  defp messages_label(%{role: :parent, label: name}, _child, "parent-messages"),
+    do: "Messages " <> name
+
+  defp messages_label(%{role: :parent}, child, "messages") when not is_nil(child),
+    do: "Messages " <> first_name(child)
+
+  defp messages_label(_account, _child, _section), do: "Messages"
+
   defp first_name(child), do: Pronotex.Family.first_name(child)
 
   defp clock(time), do: Calendar.strftime(time, "%H:%M")

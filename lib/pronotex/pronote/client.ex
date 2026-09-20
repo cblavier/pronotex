@@ -111,7 +111,7 @@ defmodule Pronotex.Pronote.Client do
 
         {result, transport} =
           Transport.call(client.transport, "PageEmploiDuTemps", %{
-            "Signature" => %{"onglet" => 16, "membre" => %{"N" => child_id, "G" => 4}},
+            "Signature" => signature(client, child_id, 16),
             "data" => data
           })
 
@@ -150,7 +150,7 @@ defmodule Pronotex.Pronote.Client do
 
     {result, transport} =
       Transport.call(client.transport, "PageCahierDeTexte", %{
-        "Signature" => homework_signature(client, child_id),
+        "Signature" => signature(client, child_id, 88),
         "data" => %{"domaine" => %{"_T" => 8, "V" => "[#{first_week}..#{last_week}]"}}
       })
 
@@ -171,10 +171,10 @@ defmodule Pronotex.Pronote.Client do
     {homework, %{client | transport: transport, homework_reads: reads}}
   end
 
-  defp homework_signature(%{transport: %{space: 3}}, _child_id), do: %{"onglet" => 88}
+  defp signature(%{transport: %{space: 3}}, _child_id, tab), do: %{"onglet" => tab}
 
-  defp homework_signature(_client, child_id),
-    do: %{"onglet" => 88, "membre" => %{"N" => child_id, "G" => 4}}
+  defp signature(_client, child_id, tab),
+    do: %{"onglet" => tab, "membre" => %{"N" => child_id, "G" => 4}}
 
   def set_homework_done(client, child_id, homework_id, done) do
     unless client.transport.space == 3, do: raise(Error.new(:student_credentials_required))
@@ -192,7 +192,7 @@ defmodule Pronotex.Pronote.Client do
 
     {_, transport} =
       Transport.call(client.transport, "SaisieTAFFaitEleve", %{
-        "Signature" => homework_signature(client, child_id),
+        "Signature" => signature(client, child_id, 88),
         "data" => %{"listeTAF" => [%{"N" => homework_id, "TAFFait" => done}]}
       })
 
@@ -204,12 +204,16 @@ defmodule Pronotex.Pronote.Client do
     {tasks, client}
   end
 
+  # Parent requests require a child context in their signature, even for the
+  # parent's own mailbox. The authenticated PRONOTE account owns the messages.
+  defp discussion_signature(client), do: signature(client, hd(client.children)["N"], 131)
+
   def discussions(client) do
-    unless client.transport.space == 3, do: raise(Error.new(:student_credentials_required))
+    unless client.transport.space in [2, 3], do: raise(Error.new(:forbidden))
 
     {data, transport} =
       Transport.call(client.transport, "ListeMessagerie", %{
-        "Signature" => %{"onglet" => 131},
+        "Signature" => discussion_signature(client),
         "data" => %{"avecMessage" => true, "avecLu" => true}
       })
 
@@ -225,7 +229,7 @@ defmodule Pronotex.Pronote.Client do
       Enum.map_reduce(rows, transport, fn raw, transport ->
         {detail, transport} =
           Transport.call(transport, "ListeMessages", %{
-            "Signature" => %{"onglet" => 131},
+            "Signature" => discussion_signature(client),
             "data" => %{
               "listePossessionsMessages" => get_in(raw, ["listePossessionsMessages", "V"]) || []
             }
@@ -245,13 +249,13 @@ defmodule Pronotex.Pronote.Client do
   end
 
   def set_discussion_read(client, id, read) when is_boolean(read) do
-    unless client.transport.space == 3, do: raise(Error.new(:student_credentials_required))
+    unless client.transport.space in [2, 3], do: raise(Error.new(:forbidden))
     possessions = Map.get(client.discussion_reads, id)
     unless is_list(possessions) and possessions != [], do: raise(Error.new(:stale_discussion))
 
     {_, transport} =
       Transport.call(client.transport, "SaisieMessage", %{
-        "Signature" => %{"onglet" => 131},
+        "Signature" => discussion_signature(client),
         "data" => %{
           "commande" => "pourLu",
           "lu" => read,
@@ -287,7 +291,7 @@ defmodule Pronotex.Pronote.Client do
 
     {data, transport} =
       Transport.call(client.transport, "DernieresNotes", %{
-        "Signature" => %{"onglet" => 198, "membre" => %{"N" => child_id, "G" => 4}},
+        "Signature" => signature(client, child_id, 198),
         "data" => %{"Periode" => Map.take(period, ["N", "L"])}
       })
 
@@ -305,7 +309,7 @@ defmodule Pronotex.Pronote.Client do
 
     {data, transport} =
       Transport.call(client.transport, "PageAgenda", %{
-        "Signature" => %{"onglet" => 9, "membre" => %{"N" => child_id, "G" => 4}},
+        "Signature" => signature(client, child_id, 9),
         "data" => %{
           "AvecListeClasses" => true,
           "avecEventsPasses" => false,
@@ -339,7 +343,7 @@ defmodule Pronotex.Pronote.Client do
 
         {result, transport} =
           Transport.call(client.transport, "PageMenus", %{
-            "Signature" => %{"onglet" => 10, "membre" => %{"N" => child_id, "G" => 4}},
+            "Signature" => signature(client, child_id, 10),
             "data" => %{"date" => %{"_T" => 7, "V" => date}}
           })
 

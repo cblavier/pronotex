@@ -7,7 +7,10 @@ defmodule PronotexWeb.AvatarController do
       |> put_resp_header("cache-control", "private, no-store")
       |> put_resp_header("x-content-type-options", "nosniff")
 
-    case Pronotex.Family.avatar_data(index) do
+    case if(PronotexWeb.Auth.avatar_allowed?(conn, "/avatars/" <> index),
+           do: Pronotex.Family.avatar_data(index),
+           else: :error
+         ) do
       {:ok, type, bytes} -> conn |> put_resp_content_type(type) |> send_resp(200, bytes)
       :error -> send_resp(conn, 404, "")
     end

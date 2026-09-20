@@ -2,16 +2,8 @@ defmodule PronotexWeb.DashboardLiveTest do
   use PronotexWeb.ConnCase, async: false
   import Phoenix.LiveViewTest
 
-  test "dashboard opens without a session when PIN is disabled" do
-    original = Pronotex.Auth.pin()
-    on_exit(fn -> Application.put_env(:pronotex, :pin_code, original) end)
-    Application.put_env(:pronotex, :pin_code, nil)
-    {:ok, view, _} = live(build_conn(), "/alice")
-    render_async(view)
-    assert has_element?(view, "#lesson-days", "Maths a")
-    view |> element("#nav-devoirs") |> render_click()
-    render_async(view)
-    assert has_element?(view, "#homework-days")
+  test "dashboard redirects without a selected authenticated profile" do
+    assert {:error, {:redirect, %{to: "/login"}}} = live(build_conn(), "/alice")
   end
 
   test "an open live page redirects when authentication expires", %{conn: conn} do
@@ -87,6 +79,14 @@ defmodule PronotexWeb.DashboardLiveTest do
     def homework(id, from, to) do
       notify({:homework, id, from, to})
 
+      if Application.get_env(:pronotex, :dashboard_test_mode) == :slow_homework do
+        notify({:homework_pending, self()})
+
+        receive do
+          :finish_homework -> :ok
+        end
+      end
+
       case Application.get_env(:pronotex, :dashboard_test_mode) do
         :empty ->
           {:ok, []}
@@ -160,6 +160,21 @@ defmodule PronotexWeb.DashboardLiveTest do
       else
         {:ok, []}
       end
+    end
+
+    def parent_discussions do
+      notify(:parent_discussions)
+      discussions("parent")
+    end
+
+    def set_parent_discussion_read(thread, read) do
+      notify({:mark_parent_discussion, thread, read})
+      {:ok, rows} = discussions("parent")
+
+      {:ok,
+       Enum.map(rows, fn row ->
+         if row.id == thread, do: %{row | unread: if(read, do: 0, else: 2)}, else: row
+       end)}
     end
 
     def set_discussion_read(id, thread, read) do
@@ -312,6 +327,16 @@ defmodule PronotexWeb.DashboardLiveTest do
 
     defp notify(message),
       do: send(Application.fetch_env!(:pronotex, :dashboard_test_pid), message)
+  end
+
+  defmodule ChildAPI do
+    alias PronotexWeb.DashboardLiveTest.API
+    def children, do: {:ok, [%{id: "a", name: "Alice"}]}
+    defdelegate lessons(id, from, to), to: API
+    defdelegate homework(id, from, to), to: API
+    defdelegate events(id), to: API
+    defdelegate discussions(id), to: API
+    defdelegate homework_writable?(child), to: API
   end
 
   setup do
@@ -760,6 +785,69 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert page_title(view) == "Basile - Agenda"
   end
 
+  test "child profile cannot navigate to another child or the parent mailbox" do
+    Application.put_env(:pronotex, :pronote_client, ChildAPI)
+    Application.put_env(:pronotex, :dashboard_test_mode, :messages)
+    conn = build_conn() |> Plug.Test.init_test_session(Pronotex.Auth.session("child-1"))
+    {:ok, view, _} = live(conn, "/basile")
+    render_async(view)
+    assert_patch(view, "/alice")
+    assert has_element?(view, "#child-name", "Alice")
+    refute has_element?(view, "#child-picker", "Basile")
+    refute has_element?(view, "#open-parent-messages")
+    render_click(view, "select-child", %{"id" => "b"})
+    assert has_element?(view, "#child-name", "Alice")
+    render_patch(view, "/basile/parent-messages/thread-parent")
+    render_async(view)
+    assert_patch(view, "/alice")
+    refute has_element?(view, "#messages-content")
+    refute_received :parent_discussions
+  end
+
+  test "parents have a separate inbox with its own breadcrumb and unread status" do
+    Application.put_env(:pronotex, :dashboard_test_mode, :messages)
+    conn = build_conn() |> Plug.Test.init_test_session(Pronotex.Auth.session("parent-1"))
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    assert has_element?(view, "#open-parent-messages", "Messages Camille")
+    assert has_element?(view, "#open-messages", "Messages Alice")
+    assert has_element?(view, "#parent-messages-unread-count", "2")
+    view |> element("#open-parent-messages") |> render_click()
+    assert_patch(view, "/alice/parent-messages")
+    render_async(view)
+    assert has_element?(view, "#discussion-thread-parent")
+    assert has_element?(view, "#messages-title", "Messages Camille")
+    refute has_element?(view, "#discussion-thread-a")
+    view |> element("#discussion-thread-parent a") |> render_click()
+    assert_patch(view, "/alice/parent-messages/thread-parent")
+    assert has_element?(view, "#messages-breadcrumb a", "Messages Camille")
+    view |> element(".messages-header .discussion-status") |> render_click()
+    render_async(view)
+    assert_receive {:mark_parent_discussion, "thread-parent", true}
+    refute_received {:mark_discussion, _, _, _}
+    refute has_element?(view, "#parent-messages-unread-count")
+    assert has_element?(view, "#messages-unread-count", "2")
+    view |> element("#messages-breadcrumb a") |> render_click()
+    assert_patch(view, "/alice/parent-messages")
+    view |> element("#nav-agenda") |> render_click()
+    assert_patch(view, "/alice")
+    render_async(view)
+    view |> element("#open-messages") |> render_click()
+    render_async(view)
+    assert has_element?(view, "#messages-title", "Messages Alice")
+    view |> element("#discussion-thread-a a") |> render_click()
+    assert has_element?(view, "#messages-breadcrumb a", "Messages Alice")
+  end
+
+  test "family cannot open a parent's inbox even with a forged URL", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/alice/parent-messages/thread-parent")
+    render_async(view)
+    assert_patch(view, "/alice")
+    refute has_element?(view, "#open-parent-messages")
+    refute has_element?(view, "#messages-content")
+    refute_received :parent_discussions
+  end
+
   test "messages are reached from dropdown with explicit read actions and badge updates", %{
     conn: conn
   } do
@@ -989,6 +1077,26 @@ defmodule PronotexWeb.DashboardLiveTest do
     refute has_element?(view, ".agenda-pause[data-state=current]")
     assert has_element?(view, "#lesson-days article[data-state=current]")
     refute_received {:lessons, _, _, _}
+  end
+
+  test "homework badge stays visible during navigation without leaking to another child", %{
+    conn: conn
+  } do
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    assert has_element?(view, "#homework-nav-badge", "1")
+    Application.put_env(:pronotex, :dashboard_test_mode, :slow_homework)
+    view |> element("#nav-notes") |> render_click()
+    assert_receive {:homework_pending, task}
+    assert has_element?(view, "#nav-devoirs[disabled] #homework-nav-badge", "1")
+    send(task, :finish_homework)
+    render_async(view)
+    assert has_element?(view, "#homework-nav-badge", "1")
+    render_click(view, "select-child", %{"id" => "b"})
+    assert_receive {:homework_pending, other_task}
+    refute has_element?(view, "#homework-nav-badge")
+    send(other_task, :finish_homework)
+    render_async(view)
   end
 
   test "homework toggle checks and unchecks only the selected child's task", %{conn: conn} do

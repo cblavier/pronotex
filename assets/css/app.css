@@ -526,17 +526,39 @@ html { touch-action: manipulation; }
   }
 }
 
-#grade-period-picker { position: relative; }
-#grade-period { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-height: 2rem; padding: 0.375rem 0.625rem; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); color: var(--day-ink); font-size: 0.875rem; cursor: pointer; list-style: none; }
-#grade-period::-webkit-details-marker { display: none; }
-#grade-period::marker { content: ""; }
-#grade-period > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-#grade-period:focus-visible, #grade-period-picker[open] > summary { outline: 2px solid var(--day-ink); outline-offset: 2px; }
-.grade-period-options { position: absolute; right: 0; top: calc(100% + 0.5rem); z-index: 30; min-width: max(100%, 10rem); padding: 0.25rem; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); box-shadow: 0 8px 24px #00000018; }
-#grade-period-form .grade-period-option { position: relative; display: flex; justify-content: space-between; gap: 1rem; min-height: 2.75rem; padding: 0.625rem 0.75rem; border-radius: 0.25rem; color: var(--muted-ink); font-size: 0.875rem; cursor: pointer; }
-.grade-period-option input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.grade-period-check { visibility: hidden; }
-#grade-period-form .grade-period-option:has(input:checked), #grade-period-form .grade-period-option:hover { background: var(--day-tint); color: var(--day-ink); }
-.grade-period-option:has(input:checked) .grade-period-check { visibility: visible; }
-.grade-period-option:has(input:focus-visible) { outline: 2px solid var(--day-ink); outline-offset: -2px; }
+.themed-dropdown { position: relative; }
+.themed-dropdown > summary { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-height: 2rem; padding: 0.375rem 0.625rem; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); color: var(--day-ink); font-size: 0.875rem; cursor: pointer; list-style: none; }
+.themed-dropdown > summary::-webkit-details-marker { display: none; }
+.themed-dropdown > summary::marker { content: ""; }
+.themed-dropdown > summary > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.themed-dropdown > summary:focus-visible, .themed-dropdown[open] > summary { outline: 2px solid var(--day-ink); outline-offset: 2px; }
+.dropdown-options { position: absolute; right: 0; top: calc(100% + 0.5rem); z-index: 30; min-width: max(100%, 10rem); padding: 0.25rem; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); box-shadow: 0 8px 24px #00000018; }
+.dropdown-option { position: relative; display: flex; justify-content: space-between; gap: 1rem; min-height: 2.75rem; padding: 0.625rem 0.75rem; border-radius: 0.25rem; color: var(--muted-ink); font-size: 0.875rem; cursor: pointer; }
+.dropdown-option input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.dropdown-check { visibility: hidden; }
+.dropdown-option:has(input:checked), .dropdown-option:hover { background: var(--day-tint); color: var(--day-ink); }
+.dropdown-option:has(input:checked) .dropdown-check { visibility: visible; }
+.dropdown-option:has(input:focus-visible) { outline: 2px solid var(--day-ink); outline-offset: -2px; }
 @media (max-width: 639px) { #grade-period { min-height: 1.875rem; padding: 0.25rem 0.5rem; font-size: 0.75rem; } }
+
+#login-screen #login-account { min-height: 2.75rem; border-color: color-mix(in srgb, var(--login-primary) 45%, transparent); }
+
+#login-screen input[name="remember"] { accent-color: var(--login-primary); }
+#login-screen input[name="remember"]:checked { --input-color: var(--login-primary); }
+
+#login-screen .themed-dropdown {
+  --day-ink: var(--login-primary);
+  --day-line: color-mix(in srgb, var(--login-primary) 35%, var(--color-base-100));
+  --day-tint: color-mix(in srgb, var(--login-primary) 12%, var(--color-base-100));
+  --surface-background: var(--color-base-100);
+  --muted-ink: var(--color-base-content);
+}
+#login-screen .dropdown-options { width: 100%; }
+.dropdown-option { align-items: center; }
+
+.child-picker-separator { margin: 0.5rem; border: 0; border-top: 1px solid var(--color-base-300); }
+
+/* Keep homework navigation stable while its unread count loads or disappears. */
+@media (min-width: 640px) {
+  #nav-devoirs { width: 9rem; }
+}

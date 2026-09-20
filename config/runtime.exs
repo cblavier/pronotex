@@ -1,9 +1,5 @@
 import Config
 
-if config_env() != :test do
-  config :pronotex, :pin_code, System.get_env("PINCODE") || System.get_env("PIN_CODE")
-end
-
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
 # system starts, so it is typically used to load production configuration

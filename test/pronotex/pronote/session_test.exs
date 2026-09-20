@@ -6,6 +6,7 @@ defmodule Pronotex.Pronote.SessionTest do
 
   defp session(options \\ []) do
     options = Keyword.merge([encrypted: true, compressed: true], options)
+    options = if options[:direct_student], do: Keyword.put(options, :space, 3), else: options
     agent = start_supervised!({Agent, fn -> PronoteServer.initial(options) end})
     Req.Test.stub(__MODULE__, &PronoteServer.handle(&1, agent))
 
@@ -14,6 +15,11 @@ defmodule Pronotex.Pronote.SessionTest do
       username: "Parent",
       password: "PaSsWord-TEST"
     }
+
+    config =
+      if options[:direct_student],
+        do: %{config | url: "https://school.test/pronote/eleve.html", space: 3},
+        else: config
 
     student_agent =
       start_supervised!({Agent, fn -> PronoteServer.initial(Keyword.put(options, :space, 3)) end},
@@ -28,6 +34,7 @@ defmodule Pronotex.Pronote.SessionTest do
       start_supervised!(
         {Session,
          name: nil,
+         account: options[:account],
          config: config,
          req_options: [plug: {Req.Test, __MODULE__}],
          student_configs: student_configs,
@@ -37,6 +44,71 @@ defmodule Pronotex.Pronote.SessionTest do
     Req.Test.allow(__MODULE__, self(), server)
     Req.Test.allow(__MODULE__.Student, self(), server)
     {server, if(options[:student], do: student_agent, else: agent)}
+  end
+
+  test "direct child profile reads only its own data and writes through its own session" do
+    {server, agent} = session(direct_student: true)
+    assert {:ok, [%{id: "child-a"}]} = Pronote.children(server)
+    assert {:ok, [_]} = Pronote.lessons("child-a", ~D[2026-09-14], ~D[2026-09-20], server)
+    assert {:ok, _} = Pronote.grades("child-a", nil, server)
+    assert {:ok, _} = Pronote.menus("child-a", ~D[2026-09-14], ~D[2026-09-20], server)
+    assert {:ok, _} = Pronote.events("child-a", server)
+    assert {:ok, [task | _]} = Pronote.homework("child-a", ~D[2026-09-14], ~D[2026-09-21], server)
+    assert {:ok, tasks} = Pronote.set_homework_done("child-a", task.id, true, server)
+    assert Enum.find(tasks, &(&1.id == task.id)).done
+    assert {:ok, [discussion]} = Pronote.discussions("child-a", server)
+
+    assert {:ok, [%{unread: 0}]} =
+             Pronote.set_discussion_read("child-a", discussion.id, true, server)
+
+    before = Agent.get(agent, & &1.calls)
+
+    for operation <- [
+          fn -> Pronote.lessons("child-b", ~D[2026-09-14], ~D[2026-09-20], server) end,
+          fn -> Pronote.grades("child-b", nil, server) end,
+          fn -> Pronote.menus("child-b", ~D[2026-09-14], ~D[2026-09-20], server) end,
+          fn -> Pronote.events("child-b", server) end,
+          fn -> Pronote.homework("child-b", ~D[2026-09-14], ~D[2026-09-20], server) end,
+          fn -> Pronote.discussions("child-b", server) end,
+          fn -> Pronote.set_discussion_read("child-b", discussion.id, true, server) end,
+          fn -> Pronote.set_homework_done("child-b", task.id, true, server) end
+        ] do
+      assert {:error, %Error{reason: :child_not_found}} = operation.()
+    end
+
+    assert Agent.get(agent, & &1.calls) == before
+  end
+
+  test "parent inbox is separate from child inbox and requires a parent profile" do
+    {server, student_agent} = session(student: true, account: "parent-1")
+    assert {:ok, [parent]} = Pronote.parent_discussions(server)
+    assert {:ok, [%{unread: 0}]} = Pronote.set_parent_discussion_read(parent.id, true, server)
+    assert {:ok, [%{unread: 2}]} = Pronote.discussions("child-a", server)
+
+    refute Enum.any?(Agent.get(student_agent, & &1.calls), fn {name, _} ->
+             name == "SaisieMessage"
+           end)
+
+    assert {:ok, [%{unread: 0}]} = Pronote.parent_discussions(server)
+
+    for account <- ["family", "child-1"] do
+      :sys.replace_state(server, &%{&1 | options: Keyword.put(&1.options, :account, account)})
+      assert {:error, %Error{reason: :forbidden}} = Pronote.parent_discussions(server)
+
+      assert {:error, %Error{reason: :forbidden}} =
+               Pronote.set_parent_discussion_read(parent.id, false, server)
+    end
+  end
+
+  test "parent message writes are not retried on an expired session" do
+    {server, agent} = session(account: "parent-1", write_error: 10)
+    assert {:ok, [parent]} = Pronote.parent_discussions(server)
+
+    assert {:error, %Error{reason: :session_expired}} =
+             Pronote.set_parent_discussion_read(parent.id, true, server)
+
+    assert Enum.count(Agent.get(agent, & &1.calls), fn {name, _} -> name == "SaisieMessage" end) ==
+             1
   end
 
   for {encrypted, compressed} <- [{false, false}, {true, false}, {false, true}, {true, true}] do

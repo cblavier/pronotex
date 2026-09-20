@@ -5,24 +5,52 @@ defmodule Pronotex.Pronote.Config do
   @derive {Inspect, only: [:url]}
   defstruct [:url, :username, :password, space: 2]
 
-  def from_env do
-    validate(%__MODULE__{
-      url: System.get_env("PRONOTE_URL", ""),
-      username: System.get_env("PRONOTE_USERNAME"),
-      password: System.get_env("PRONOTE_PASSWORD")
-    })
+  def from_env, do: from_account("family")
+
+  def from_account(id) do
+    with %{role: role} <- Pronotex.Accounts.get(id) do
+      {username, password} = Pronotex.Accounts.credentials(id)
+
+      build(
+        System.get_env("PRONOTE_URL", ""),
+        username,
+        password,
+        if(role == :child, do: 3, else: 2)
+      )
+    else
+      _ -> {:error, Error.new(:missing_credentials)}
+    end
   end
 
   def student_from_env(child) do
-    url =
-      System.get_env("PRONOTE_URL", "")
+    build(
+      System.get_env("PRONOTE_URL", ""),
+      Pronotex.Family.value(child, "USERNAME"),
+      Pronotex.Family.value(child, "PASSWORD"),
+      3
+    )
+  end
 
-    validate(%__MODULE__{
-      url: String.replace_suffix(url, "/parent.html", "/eleve.html"),
-      username: Pronotex.Family.value(child, "USERNAME"),
-      password: Pronotex.Family.value(child, "PASSWORD"),
-      space: 3
-    })
+  def build(base, username, password, space) do
+    uri = URI.parse(base)
+
+    if uri.scheme == "https" and is_binary(uri.host) and uri.host != "" and
+         is_nil(uri.userinfo) and is_nil(uri.query) and is_nil(uri.fragment) and
+         not Enum.any?(
+           String.split(String.downcase(uri.path || ""), "/"),
+           &String.ends_with?(&1, ".html")
+         ) do
+      validate(%__MODULE__{
+        url:
+          String.trim_trailing(base, "/") <>
+            if(space == 3, do: "/eleve.html", else: "/parent.html"),
+        username: username,
+        password: password,
+        space: space
+      })
+    else
+      {:error, Error.new(:invalid_url)}
+    end
   end
 
   def student_configured?(nil), do: false

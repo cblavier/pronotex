@@ -20,10 +20,17 @@ defmodule PronotexWeb.LoginHTML do
         <.flash :if={!@configured || @error} id="login-error" kind={:error}>
           {if !@configured,
             do:
-              "Accès indisponible : vérifiez la configuration du code PIN, puis redémarrez l’application.",
+              "Accès indisponible : vérifiez la configuration des comptes et de leurs codes PIN, puis redémarrez l’application.",
             else: @error}
         </.flash>
         <.form :if={@configured} for={%{}} action={~p"/login"} id="pin-form" class="mt-6 space-y-4">
+          <.dropdown
+            id="login-account"
+            name="account"
+            label="Compte"
+            options={Enum.map(@accounts, &{&1.label, &1.id})}
+            value={@selected_account}
+          />
           <input
             id="pin"
             aria-label="Code PIN"
@@ -56,6 +63,15 @@ defmodule PronotexWeb.LoginHTML do
               <.icon name="hero-backspace" class="size-5" />
             </button>
           </div>
+          <label class="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              name="remember"
+              value="true"
+              checked={@remember}
+              class="checkbox checkbox-sm"
+            /> Rester connecté
+          </label>
           <button class="btn login-submit w-full" type="submit">Se connecter</button>
         </.form>
       </section>

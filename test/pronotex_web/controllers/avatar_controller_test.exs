@@ -1,7 +1,20 @@
 defmodule PronotexWeb.AvatarControllerTest do
   use PronotexWeb.ConnCase, async: false
 
+  defmodule API do
+    def children, do: {:ok, [%{name: "Camille"}]}
+  end
+
   setup do
+    api = Application.get_env(:pronotex, :pronote_client)
+    Application.put_env(:pronotex, :pronote_client, API)
+
+    on_exit(fn ->
+      if api,
+        do: Application.put_env(:pronotex, :pronote_client, api),
+        else: Application.delete_env(:pronotex, :pronote_client)
+    end)
+
     keys = ~w(PRONOTE_CHILD_91_FIRST_NAME PRONOTE_CHILD_91_AVATAR_BASE64 PRONOTE_CHILD_91_AVATAR)
     old = Map.new(keys, &{&1, System.get_env(&1)})
     Enum.each(keys, &System.delete_env/1)
@@ -35,6 +48,14 @@ defmodule PronotexWeb.AvatarControllerTest do
     end
 
     assert response(get(conn, "/avatars/not-an-index"), 404) == ""
+  end
+
+  test "a child cannot fetch another child's avatar", %{conn: conn} do
+    bytes = <<137, 80, 78, 71, 13, 10, 26, 10>>
+    System.put_env("PRONOTE_CHILD_91_FIRST_NAME", "Other child")
+    System.put_env("PRONOTE_CHILD_91_AVATAR_BASE64", Base.encode64(bytes))
+    conn = conn |> Plug.Test.init_test_session(Pronotex.Auth.session("child-1"))
+    assert response(get(conn, "/avatars/91"), 404) == ""
   end
 
   test "invalid base64 falls back to the local avatar" do

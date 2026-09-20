@@ -15,8 +15,30 @@ defmodule PronotexWeb.Auth do
     end
   end
 
+  def avatar_allowed?(conn, path) do
+    account = Pronotex.Accounts.get(get_session(conn, "auth_account"))
+
+    if account do
+      api = Application.get_env(:pronotex, :pronote_client, Pronotex.Pronote)
+
+      result =
+        if api == Pronotex.Pronote do
+          Pronotex.Pronote.children(Pronotex.Pronote.Session.for_account(account.id))
+        else
+          api.children()
+        end
+
+      case result do
+        {:ok, children} -> Enum.any?(children, &(Pronotex.Family.avatar(&1) == path))
+        _ -> false
+      end
+    else
+      false
+    end
+  end
+
   def on_mount(:default, _, session, socket) do
-    if Auth.enabled?(), do: mount_authenticated(session, socket), else: {:cont, socket}
+    mount_authenticated(session, socket)
   end
 
   defp mount_authenticated(session, socket) do
@@ -31,6 +53,7 @@ defmodule PronotexWeb.Auth do
 
       socket =
         socket
+        |> Phoenix.Component.assign(:account, Pronotex.Accounts.get(session["auth_account"]))
         |> attach_hook(:auth_event, :handle_event, fn _, _, socket -> check(session, socket) end)
         |> attach_hook(:auth_params, :handle_params, fn _, _, socket -> check(session, socket) end)
         |> attach_hook(:auth_info, :handle_info, fn

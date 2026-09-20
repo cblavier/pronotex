@@ -37,7 +37,7 @@ defmodule Pronotex.Pronote.ConfigTest do
     end)
 
     Enum.each(keys, &System.delete_env/1)
-    System.put_env("PRONOTE_URL", "https://school.test/pronote/parent.html")
+    System.put_env("PRONOTE_URL", "https://school.test/pronote/")
     System.put_env("PRONOTE_CHILD_1_FIRST_NAME", "Alice")
     System.put_env("PRONOTE_CHILD_2_FIRST_NAME", "Basile")
     alice = %{name: "DUPONT Alice", first_name: nil}

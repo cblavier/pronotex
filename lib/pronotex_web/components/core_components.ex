@@ -503,6 +503,44 @@ defmodule PronotexWeb.CoreComponents do
     """
   end
 
+  @doc "A themed dropdown for both LiveView and ordinary HTML forms."
+  attr :id, :string, required: true
+  attr :name, :string, required: true
+  attr :label, :string, required: true
+  attr :options, :list, required: true
+  attr :value, :string, default: nil
+  attr :disabled, :boolean, default: false
+
+  def dropdown(assigns) do
+    selected =
+      Enum.find(assigns.options, fn {_, value} -> value == assigns.value end) ||
+        List.first(assigns.options)
+
+    assigns = assign(assigns, :selected, selected)
+
+    ~H"""
+    <details id={@id <> "-picker"} class="themed-dropdown" data-dropdown>
+      <summary id={@id} aria-label={@label}>
+        <span data-dropdown-label>{if @selected, do: elem(@selected, 0)}</span>
+        <.icon name="hero-chevron-down" class="size-4 shrink-0" />
+      </summary>
+      <div class="dropdown-options" role="group" aria-label={@label}>
+        <label :for={{label, value} <- @options} class="dropdown-option">
+          <input
+            type="radio"
+            name={@name}
+            value={value}
+            checked={@selected && value == elem(@selected, 1)}
+            disabled={@disabled}
+          />
+          <span data-option-label>{label}</span>
+          <.icon name="hero-check" class="size-4 dropdown-check" />
+        </label>
+      </div>
+    </details>
+    """
+  end
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do

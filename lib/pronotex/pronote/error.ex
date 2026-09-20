@@ -6,10 +6,10 @@ defmodule Pronotex.Pronote.Error do
     message =
       case reason do
         :missing_credentials ->
-          "Renseignez PRONOTE_USERNAME et PRONOTE_PASSWORD dans .envrc."
+          "Renseignez les identifiants PRONOTE du profil sélectionné."
 
         :invalid_url ->
-          "PRONOTE_URL doit être une URL HTTPS directe vers parent.html."
+          "PRONOTE_URL doit être une URL HTTPS de base, sans parent.html ni eleve.html."
 
         :authentication_failed ->
           "Pronote a refusé la connexion. Vérifiez vos identifiants."
@@ -27,7 +27,7 @@ defmodule Pronotex.Pronote.Error do
           "Ce compte ne permet pas de consulter ces données."
 
         :child_not_found ->
-          "Cet enfant n’est pas accessible depuis ce compte parent."
+          "Cet enfant n’est pas accessible depuis ce compte."
 
         :stale_discussion ->
           "Rechargez les messages avant de modifier leur statut."

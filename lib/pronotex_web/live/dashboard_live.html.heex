@@ -17,7 +17,7 @@
               </span>
             </span>
             <span
-              :if={@messages_unread > 0}
+              :if={@messages_unread + @parent_messages_unread > 0}
               id="messages-avatar-dot"
               class="messages-unread-dot"
               aria-label="Messages non lus"
@@ -70,6 +70,10 @@
               </button>
             </li>
           </ul>
+          <hr
+            :if={Enum.any?(@children, &(&1.id != @child.id))}
+            class="child-picker-separator"
+          />
           <button
             id="open-messages"
             type="button"
@@ -92,12 +96,43 @@
             >
               <rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 6 9 7 9-7" />
             </svg>
-            <span>Messages</span>
+            <span>{messages_label(@account, @child, "messages")}</span>
             <.count_badge
               :if={@messages_unread > 0}
               id="messages-unread-count"
               aria-label={"#{@messages_unread} messages non lus"}
               count={@messages_unread}
+            />
+          </button>
+          <button
+            :if={@account.role == :parent}
+            id="open-parent-messages"
+            type="button"
+            class="child-picker-option messages-menu-item"
+            phx-click={
+              JS.push("section", value: %{section: "parent-messages"})
+              |> JS.remove_attribute("open", to: "#child-picker")
+            }
+            aria-current={if @section == "parent-messages", do: "page"}
+            disabled={@loading}
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              aria-hidden="true"
+            >
+              <rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 6 9 7 9-7" />
+            </svg>
+            <span>{messages_label(@account, @child, "parent-messages")}</span>
+            <.count_badge
+              :if={@parent_messages_unread > 0}
+              id="parent-messages-unread-count"
+              aria-label={"#{@parent_messages_unread} messages non lus"}
+              count={@parent_messages_unread}
             />
           </button>
           <.form
@@ -143,7 +178,7 @@
           <.icon name={icon} class="hidden size-4 sm:inline-block" />
           {label}
           <.count_badge
-            :if={section == "devoirs" && !@loading && @homework_badge_count > 0}
+            :if={section == "devoirs" && @homework_badge_count > 0}
             id="homework-nav-badge"
             aria-label={
               "#{@homework_badge_count} devoirs à faire " <>
@@ -154,7 +189,7 @@
         </button>
       </nav>
       <nav
-        :if={@section not in ["notes", "messages"]}
+        :if={@section not in ["notes", "messages", "parent-messages"]}
         id="date-navigation"
         aria-label="Choisir la période"
         class="my-4 ml-auto flex flex-wrap items-center justify-end gap-3"
@@ -216,38 +251,14 @@
         id="grade-period-form"
         phx-change="grade-period"
       >
-        <details
-          id="grade-period-picker"
-          phx-click-away={JS.remove_attribute("open", to: "#grade-period-picker")}
-          phx-window-keydown={JS.remove_attribute("open", to: "#grade-period-picker")}
-          phx-key="Escape"
-        >
-          <summary id="grade-period" aria-label="Période">
-            <span>
-              {Enum.find_value(@grade_periods, fn {label, key} ->
-                if key == @grade_period, do: label
-              end)}
-            </span>
-            <.icon name="hero-chevron-down" class="size-4 shrink-0" />
-          </summary>
-          <div class="grade-period-options" role="group" aria-label="Choisir la période">
-            <label :for={{label, key} <- @grade_periods} class="grade-period-option">
-              <input
-                type="radio"
-                name="period"
-                value={key}
-                checked={key == @grade_period}
-                disabled={@loading}
-                phx-click={
-                  JS.remove_attribute("open", to: "#grade-period-picker")
-                  |> JS.focus(to: "#grade-period")
-                }
-              />
-              <span>{label}</span>
-              <.icon name="hero-check" class="size-4 grade-period-check" />
-            </label>
-          </div>
-        </details>
+        <.dropdown
+          id="grade-period"
+          name="period"
+          label="Période"
+          options={@grade_periods}
+          value={@grade_period}
+          disabled={@loading}
+        />
       </form>
     </div>
   </div>
@@ -689,7 +700,7 @@
     </div>
   </div>
   <section
-    :if={@section == "messages"}
+    :if={@section in ["messages", "parent-messages"]}
     id="messages-content"
     aria-labelledby="messages-title"
     aria-busy={to_string(@loading || @messages_loading)}
@@ -698,11 +709,13 @@
       <nav id="messages-breadcrumb" aria-label="Fil d’Ariane" class="messages-breadcrumb">
         <.link
           :if={@open_discussion}
-          patch={discussion_url(@selected_slug, @mode, @week, @grade_period, nil)}
+          patch={discussion_url(@selected_slug, @mode, @week, @grade_period, nil, @section)}
         >
-          Messages
+          {messages_label(@account, @child, @section)}
         </.link>
-        <h2 :if={!@open_discussion} id="messages-title">Messages</h2>
+        <h2 :if={!@open_discussion} id="messages-title">
+          {messages_label(@account, @child, @section)}
+        </h2>
         <span :if={@open_discussion} aria-hidden="true">/</span>
         <h2 :if={@open_discussion} id="messages-title" aria-current="page">
           {case Enum.find(@discussions, &(&1.id == @open_discussion)) do
@@ -755,7 +768,9 @@
         <.link
           :if={!@open_discussion}
           class="discussion-summary"
-          patch={discussion_url(@selected_slug, @mode, @week, @grade_period, discussion.id)}
+          patch={
+            discussion_url(@selected_slug, @mode, @week, @grade_period, discussion.id, @section)
+          }
         >
           <span class="discussion-heading">
             <strong>{discussion.subject}</strong>

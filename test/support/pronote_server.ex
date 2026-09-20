@@ -225,8 +225,14 @@ defmodule Pronotex.Test.PronoteServer do
   end
 
   defp data("PageEmploiDuTemps", payload, state) do
-    id = payload["Signature"]["membre"]["N"]
-    assert payload["Signature"] == %{"onglet" => 16, "membre" => %{"N" => id, "G" => 4}}
+    id = if state.options[:space] == 3, do: "child-a", else: payload["Signature"]["membre"]["N"]
+
+    expected =
+      if state.options[:space] == 3,
+        do: %{"onglet" => 16},
+        else: %{"onglet" => 16, "membre" => %{"N" => id, "G" => 4}}
+
+    assert payload["Signature"] == expected
     assert payload["data"]["ressource"]["N"] == id
     assert payload["data"]["Ressource"]["N"] == id
     week = payload["data"]["numeroSemaine"]
@@ -306,8 +312,14 @@ defmodule Pronotex.Test.PronoteServer do
   end
 
   defp data("PageMenus", payload, state) do
-    id = payload["Signature"]["membre"]["N"]
-    assert payload["Signature"] == %{"onglet" => 10, "membre" => %{"N" => id, "G" => 4}}
+    id = if state.options[:space] == 3, do: "child-a", else: payload["Signature"]["membre"]["N"]
+
+    expected =
+      if state.options[:space] == 3,
+        do: %{"onglet" => 10},
+        else: %{"onglet" => 10, "membre" => %{"N" => id, "G" => 4}}
+
+    assert payload["Signature"] == expected
     assert payload["data"]["date"]["_T"] == 7
     date = payload["data"]["date"]["V"] |> String.split(" ") |> hd()
 
@@ -327,8 +339,14 @@ defmodule Pronotex.Test.PronoteServer do
   end
 
   defp data("DernieresNotes", payload, state) do
-    id = payload["Signature"]["membre"]["N"]
-    assert payload["Signature"] == %{"onglet" => 198, "membre" => %{"N" => id, "G" => 4}}
+    id = if state.options[:space] == 3, do: "child-a", else: payload["Signature"]["membre"]["N"]
+
+    expected =
+      if state.options[:space] == 3,
+        do: %{"onglet" => 198},
+        else: %{"onglet" => 198, "membre" => %{"N" => id, "G" => 4}}
+
+    assert payload["Signature"] == expected
     period = payload["data"]["Periode"]["N"]
     assert period in ["s1", "s2"]
 
@@ -365,8 +383,14 @@ defmodule Pronotex.Test.PronoteServer do
   end
 
   defp data("ListeMessagerie", payload, state) do
-    assert state.options[:space] == 3
-    assert payload["Signature"] == %{"onglet" => 131}
+    assert (state.options[:space] || 2) in [2, 3]
+
+    expected =
+      if state.options[:space] == 3,
+        do: %{"onglet" => 131},
+        else: %{"onglet" => 131, "membre" => %{"N" => "child-a", "G" => 4}}
+
+    assert payload["Signature"] == expected
 
     {%{
        "listeEtiquettes" => %{"V" => []},
@@ -387,6 +411,12 @@ defmodule Pronotex.Test.PronoteServer do
   end
 
   defp data("ListeMessages", payload, state) do
+    expected =
+      if state.options[:space] == 3,
+        do: %{"onglet" => 131},
+        else: %{"onglet" => 131, "membre" => %{"N" => "child-a", "G" => 4}}
+
+    assert payload["Signature"] == expected
     assert payload["data"]["listePossessionsMessages"] == [%{"N" => "possession"}]
 
     {%{
@@ -407,15 +437,27 @@ defmodule Pronotex.Test.PronoteServer do
   end
 
   defp data("SaisieMessage", payload, state) do
-    assert state.options[:space] == 3
+    expected =
+      if state.options[:space] == 3,
+        do: %{"onglet" => 131},
+        else: %{"onglet" => 131, "membre" => %{"N" => "child-a", "G" => 4}}
+
+    assert payload["Signature"] == expected
+    assert (state.options[:space] || 2) in [2, 3]
     assert payload["data"]["commande"] == "pourLu"
     assert payload["data"]["listePossessionsMessages"] == [%{"N" => "possession"}]
     {%{}, %{state | discussion_read: payload["data"]["lu"]}, nil, false}
   end
 
   defp data("PageAgenda", payload, state) do
-    id = payload["Signature"]["membre"]["N"]
-    assert payload["Signature"] == %{"onglet" => 9, "membre" => %{"N" => id, "G" => 4}}
+    id = if state.options[:space] == 3, do: "child-a", else: payload["Signature"]["membre"]["N"]
+
+    expected =
+      if state.options[:space] == 3,
+        do: %{"onglet" => 9},
+        else: %{"onglet" => 9, "membre" => %{"N" => id, "G" => 4}}
+
+    assert payload["Signature"] == expected
 
     assert payload["data"] == %{
              "AvecListeClasses" => true,

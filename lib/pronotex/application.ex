@@ -11,6 +11,8 @@ defmodule Pronotex.Application do
       PronotexWeb.Telemetry,
       Pronotex.Auth,
       Pronotex.Pronote.Session,
+      {Registry, keys: :unique, name: Pronotex.Pronote.Registry},
+      {DynamicSupervisor, strategy: :one_for_one, name: Pronotex.Pronote.Supervisor},
       {DNSCluster, query: Application.get_env(:pronotex, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Pronotex.PubSub},
       # Start a worker by calling: Pronotex.Worker.start_link(arg)

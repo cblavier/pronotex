@@ -37,7 +37,7 @@ defmodule PronotexWeb.ManifestTest do
       manifest
       |> recycle()
       |> Plug.Conn.put_private(:plug_skip_csrf_protection, false)
-      |> post("/login", %{"pin" => "01234567", "_csrf_token" => token})
+      |> post("/login", %{"account" => "family", "pin" => "01234567", "_csrf_token" => token})
 
     assert redirected_to(result) == "/"
     assert Pronotex.Auth.valid?(get_session(result))

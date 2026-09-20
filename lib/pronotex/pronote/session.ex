@@ -7,6 +7,20 @@ defmodule Pronotex.Pronote.Session do
     GenServer.start_link(__MODULE__, options, name: Keyword.get(options, :name, __MODULE__))
   end
 
+  def for_account(id) do
+    if is_nil(Pronotex.Accounts.get(id)), do: raise(Error.new(:forbidden))
+    name = {:via, Registry, {Pronotex.Pronote.Registry, {id, Pronotex.Accounts.fingerprint(id)}}}
+
+    case DynamicSupervisor.start_child(
+           Pronotex.Pronote.Supervisor,
+           {__MODULE__, [name: name, account: id]}
+         ) do
+      {:ok, pid} -> pid
+      {:error, {:already_started, pid}} -> pid
+      {:error, _} -> raise Error.new(:network)
+    end
+  end
+
   @impl true
   def init(options), do: {:ok, %{options: options, client: nil, students: %{}}}
 
@@ -14,13 +28,19 @@ defmodule Pronotex.Pronote.Session do
   def handle_call(:logout, _from, state), do: {:reply, :ok, %{state | client: nil, students: %{}}}
 
   def handle_call(operation, _from, state)
-      when elem(operation, 0) in [:discussions, :set_discussion_read] do
+      when elem(operation, 0) in [
+             :discussions,
+             :set_discussion_read,
+             :parent_discussions,
+             :set_parent_discussion_read
+           ] do
     result = safely(fn -> execute(operation, state) end)
 
     result =
       case result do
-        {:error, %Error{reason: :session_expired}} when elem(operation, 0) == :discussions ->
-          safely(fn -> execute(operation, %{state | students: %{}}) end)
+        {:error, %Error{reason: :session_expired}}
+        when elem(operation, 0) in [:discussions, :parent_discussions] ->
+          safely(fn -> execute(operation, %{state | students: %{}, client: nil}) end)
 
         other ->
           other
@@ -76,7 +96,7 @@ defmodule Pronotex.Pronote.Session do
   defp execute(operation, %{client: nil} = state) do
     config =
       case Keyword.get(state.options, :config) do
-        nil -> Config.from_env()
+        nil -> Config.from_account(Keyword.get(state.options, :account, "family"))
         config -> Config.validate(config)
       end
 
@@ -116,6 +136,40 @@ defmodule Pronotex.Pronote.Session do
   defp execute({:events, child_id}, state) do
     {events, client} = Client.events(state.client, child_id)
     {:ok, events, %{state | client: client}}
+  end
+
+  defp execute({:parent_discussions}, state) do
+    authorize_parent!(state)
+    {reply, client} = Client.discussions(state.client)
+    {:ok, reply, %{state | client: client}}
+  end
+
+  defp execute({:set_parent_discussion_read, id, read}, state) do
+    authorize_parent!(state)
+    {reply, client} = Client.set_discussion_read(state.client, id, read)
+    {:ok, reply, %{state | client: client}}
+  end
+
+  defp execute(operation, %{client: %{transport: %{space: 3}}} = state)
+       when elem(operation, 0) in [:discussions, :set_discussion_read, :set_homework_done] do
+    child_id = elem(operation, 1)
+
+    unless Enum.any?(Client.children(state.client), &(&1.id == child_id)),
+      do: raise(Error.new(:child_not_found))
+
+    {reply, client} =
+      case operation do
+        {:discussions, _} ->
+          Client.discussions(state.client)
+
+        {:set_discussion_read, _, id, read} ->
+          Client.set_discussion_read(state.client, id, read)
+
+        {:set_homework_done, _, id, done} ->
+          Client.set_homework_done(state.client, child_id, id, done)
+      end
+
+    {:ok, reply, %{state | client: client}}
   end
 
   defp execute(operation, state)
@@ -251,6 +305,11 @@ defmodule Pronotex.Pronote.Session do
 
     {:ok, tasks,
      %{state | client: parent, students: Map.put(state.students, child_id, {config, student})}}
+  end
+
+  defp authorize_parent!(state) do
+    unless match?(%{role: :parent}, Pronotex.Accounts.get(Keyword.get(state.options, :account))),
+      do: raise(Error.new(:forbidden))
   end
 
   defp normalize_name(name),
