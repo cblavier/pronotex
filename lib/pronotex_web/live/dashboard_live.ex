@@ -11,6 +11,13 @@ defmodule PronotexWeb.DashboardLive do
       |> assign(
         page_title: "Mon agenda",
         section: "agenda",
+        discussions: [],
+        messages_loading: false,
+        messages_error: nil,
+        messages_available: false,
+        messages_unread: 0,
+        message_saving: nil,
+        open_discussion: nil,
         agenda_panel: "timetable",
         grade_period: nil,
         grade_periods: [],
@@ -80,6 +87,7 @@ defmodule PronotexWeb.DashboardLive do
         "devoirs" -> "devoirs"
         "notes" -> "notes"
         "menu" -> "cantine"
+        "messages" -> "messages"
         _ -> "agenda"
       end
 
@@ -98,6 +106,7 @@ defmodule PronotexWeb.DashboardLive do
         week: week,
         mode: mode,
         section: section,
+        open_discussion: if(section == "messages", do: params["discussion"]),
         grade_period: period,
         today: today,
         selected_slug: slug,
@@ -122,6 +131,26 @@ defmodule PronotexWeb.DashboardLive do
   def handle_event("agenda-panel", %{"panel" => panel}, socket)
       when panel in ["timetable", "events"] do
     {:noreply, assign(socket, :agenda_panel, panel)}
+  end
+
+  def handle_event("mark-discussion", %{"id" => id}, socket) do
+    discussion = Enum.find(socket.assigns.discussions, &(&1.id == id))
+
+    if (socket.assigns.section == "messages" and discussion) &&
+         is_nil(socket.assigns.message_saving) && !socket.assigns.messages_loading do
+      api = socket.assigns.api
+      child_id = socket.assigns.child.id
+      generation = socket.assigns.messages_generation
+
+      {:noreply,
+       socket
+       |> assign(:message_saving, id)
+       |> start_async({:message_save, generation}, fn ->
+         api.set_discussion_read(child_id, id, discussion.unread > 0)
+       end)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("show-more-events", _, socket) do
@@ -164,7 +193,7 @@ defmodule PronotexWeb.DashboardLive do
   end
 
   def handle_event("section", %{"section" => section}, socket)
-      when section in ["agenda", "devoirs", "notes", "cantine"] do
+      when section in ["agenda", "devoirs", "notes", "cantine", "messages"] do
     {:noreply, push_patch(socket, to: selection_url(socket, section: section))}
   end
 
@@ -228,17 +257,49 @@ defmodule PronotexWeb.DashboardLive do
      |> apply_result(:homework, result.homework)
      |> apply_result(:menus, result.menus)
      |> apply_result(:grades, result.grades)
+     |> flash_load_errors()
      |> mark_loaded()
-     |> canonicalize()}
+     |> canonicalize()
+     |> load_messages()}
   end
 
   def handle_async(:load, {:ok, {:error, error}}, socket),
-    do: {:noreply, assign(socket, loading: false, error: message(error))}
+    do: {:noreply, socket |> assign(loading: false, error: message(error)) |> flash_load_errors()}
 
   def handle_async(:load, {:exit, _reason}, socket),
     do:
       {:noreply,
-       assign(socket, loading: false, error: "Le chargement a échoué. Réessayez dans un instant.")}
+       socket
+       |> assign(loading: false, error: "Le chargement a échoué. Réessayez dans un instant.")
+       |> flash_load_errors()}
+
+  def handle_async({kind, generation}, result, socket)
+      when kind in [:messages_load, :message_save] do
+    if generation == socket.assigns.messages_generation do
+      socket = assign(socket, messages_loading: false, message_saving: nil)
+
+      case result do
+        {:ok, {:ok, discussions}} ->
+          {:noreply,
+           assign(socket,
+             discussions: discussions,
+             messages_error: nil,
+             messages_unread: Enum.sum(Enum.map(discussions, & &1.unread))
+           )}
+
+        _ ->
+          text =
+            case result do
+              {:ok, {:error, error}} -> message(error)
+              _ -> "Impossible de charger les messages. Réessayez dans un instant."
+            end
+
+          {:noreply, socket |> assign(messages_error: text) |> put_flash(:error, text)}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
 
   def handle_async({:save_homework, generation}, result, socket) do
     if generation == socket.private[:homework_generation] do
@@ -314,6 +375,13 @@ defmodule PronotexWeb.DashboardLive do
     |> clear_flash(:error)
     |> assign(
       loading: true,
+      messages_generation: make_ref(),
+      discussions: [],
+      messages_unread: 0,
+      messages_error: nil,
+      messages_loading: false,
+      messages_available: false,
+      message_saving: nil,
       loaded_selection: nil,
       grades_error: nil,
       grade_count: 0,
@@ -345,45 +413,99 @@ defmodule PronotexWeb.DashboardLive do
     |> put_private(:homework_days, [])
     |> stream(:homework_days, [], reset: true)
     |> start_async(:load, fn ->
-      with {:ok, children} <- api.children(),
-           child when not is_nil(child) <-
-             Enum.find(children, &(child_slug(&1) == selected_slug)) || List.first(children) do
-        urgent_homework =
-          case api.homework(child.id, today, Pronotex.Pronote.Homework.urgent_until(today)) do
-            {:ok, tasks} ->
-              Enum.filter(
-                tasks,
-                &(Date.compare(&1.date, today) != :lt and
-                    Date.compare(&1.date, Pronotex.Pronote.Homework.urgent_until(today)) != :gt)
-              )
+      read = fn ->
+        with {:ok, children} <- api.children(),
+             child when not is_nil(child) <-
+               Enum.find(children, &(child_slug(&1) == selected_slug)) || List.first(children) do
+          urgent_homework =
+            case api.homework(child.id, today, Pronotex.Pronote.Homework.urgent_until(today)) do
+              {:ok, tasks} ->
+                Enum.filter(
+                  tasks,
+                  &(Date.compare(&1.date, today) != :lt and
+                      Date.compare(&1.date, Pronotex.Pronote.Homework.urgent_until(today)) != :gt)
+                )
 
-            _ ->
-              []
-          end
+              _ ->
+                []
+            end
 
-        {:ok,
-         %{
-           urgent_homework: urgent_homework,
-           children: children,
-           child: child,
-           week: from,
-           mode: mode,
-           events: if(section == "agenda", do: api.events(child.id), else: {:ok, []}),
-           lessons:
-             if(section == "agenda",
-               do: api.lessons(child.id, lessons_from, lessons_to),
-               else: {:ok, []}
-             ),
-           homework:
-             if(section == "devoirs", do: api.homework(child.id, from, to), else: {:ok, []}),
-           menus: if(section == "cantine", do: api.menus(child.id, from, to), else: {:ok, []}),
-           grades: if(section == "notes", do: api.grades(child.id, period), else: :skip)
-         }}
-      else
-        nil -> {:error, "Aucun enfant accessible sur ce compte."}
-        {:error, error} -> {:error, error}
+          {:ok,
+           %{
+             urgent_homework: urgent_homework,
+             children: children,
+             child: child,
+             week: from,
+             mode: mode,
+             events: if(section == "agenda", do: api.events(child.id), else: {:ok, []}),
+             lessons:
+               if(section == "agenda",
+                 do: api.lessons(child.id, lessons_from, lessons_to),
+                 else: {:ok, []}
+               ),
+             homework:
+               if(section == "devoirs", do: api.homework(child.id, from, to), else: {:ok, []}),
+             menus: if(section == "cantine", do: api.menus(child.id, from, to), else: {:ok, []}),
+             grades: if(section == "notes", do: api.grades(child.id, period), else: :skip)
+           }}
+        else
+          nil -> {:error, "Aucun enfant accessible sur ce compte."}
+          {:error, error} -> {:error, error}
+        end
       end
+
+      read_with_fresh_children(read)
     end)
+  end
+
+  # PRONOTE child resource IDs can change when its session is renewed mid-load.
+  # Repeat the complete read once so every request uses the refreshed child list.
+  defp read_with_fresh_children(read) do
+    result = read.()
+
+    stale_children? =
+      case result do
+        {:ok, data} ->
+          Enum.any?([:events, :lessons, :homework, :menus, :grades], fn key ->
+            match?({:error, %Pronotex.Pronote.Error{reason: :child_not_found}}, data[key])
+          end)
+
+        _ ->
+          false
+      end
+
+    if stale_children?, do: read.(), else: result
+  end
+
+  defp load_messages(socket) do
+    available = socket.assigns.api.homework_writable?(socket.assigns.child)
+    socket = assign(socket, :messages_available, available)
+
+    if available do
+      api = socket.assigns.api
+      child_id = socket.assigns.child.id
+
+      socket
+      |> assign(:messages_loading, true)
+      |> start_async({:messages_load, socket.assigns.messages_generation}, fn ->
+        api.discussions(child_id)
+      end)
+    else
+      socket
+    end
+  end
+
+  defp flash_load_errors(socket) do
+    errors =
+      [:error, :event_error, :lesson_error, :homework_error, :menu_error, :grades_error]
+      |> Enum.map(&socket.assigns[&1])
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    case errors do
+      [] -> clear_flash(socket, :error)
+      errors -> put_flash(socket, :error, Enum.join(errors, "\n"))
+    end
   end
 
   defp pending_count(tasks), do: Enum.count(tasks, &(!&1.done))
@@ -439,7 +561,13 @@ defmodule PronotexWeb.DashboardLive do
   defp page_title(child, slug, section) do
     label =
       Map.fetch!(
-        %{"agenda" => "Agenda", "devoirs" => "Devoirs", "notes" => "Notes", "cantine" => "Menu"},
+        %{
+          "agenda" => "Agenda",
+          "devoirs" => "Devoirs",
+          "notes" => "Notes",
+          "cantine" => "Menu",
+          "messages" => "Messages"
+        },
         section
       )
 
@@ -463,16 +591,77 @@ defmodule PronotexWeb.DashboardLive do
     mode = Keyword.get(overrides, :mode, socket.assigns.mode)
     week = Keyword.get(overrides, :week, socket.assigns.week)
     period = Keyword.get(overrides, :period, socket.assigns.grade_period)
+
+    discussion =
+      Keyword.get(
+        overrides,
+        :discussion,
+        if(Keyword.has_key?(overrides, :child) or Keyword.has_key?(overrides, :section),
+          do: nil,
+          else: socket.assigns.open_discussion
+        )
+      )
+
     base = if child, do: ~p"/#{child_slug(child)}", else: ~p"/"
 
     path =
       case section do
-        "devoirs" when not is_nil(child) -> ~p"/#{child_slug(child)}/devoirs"
-        "notes" when not is_nil(child) -> ~p"/#{child_slug(child)}/notes"
-        "cantine" when not is_nil(child) -> ~p"/#{child_slug(child)}/menu"
-        _ -> base
+        "devoirs" when not is_nil(child) ->
+          ~p"/#{child_slug(child)}/devoirs"
+
+        "notes" when not is_nil(child) ->
+          ~p"/#{child_slug(child)}/notes"
+
+        "messages" when not is_nil(child) ->
+          if discussion,
+            do: ~p"/#{child_slug(child)}/messages/#{discussion}",
+            else: ~p"/#{child_slug(child)}/messages"
+
+        "cantine" when not is_nil(child) ->
+          ~p"/#{child_slug(child)}/menu"
+
+        _ ->
+          base
       end
 
+    query = if mode == :week, do: [{"week", Date.to_iso8601(week)}], else: []
+    query = if period, do: query ++ [{"period", period}], else: query
+    path <> if(query == [], do: "", else: "?" <> URI.encode_query(query))
+  end
+
+  attr :discussion, :map, required: true
+  attr :saving, :string, default: nil
+  attr :loading, :boolean, default: false
+
+  defp discussion_read_button(assigns) do
+    ~H"""
+    <button
+      type="button"
+      class="btn btn-sm btn-ghost gap-2 shrink-0 discussion-status"
+      aria-pressed={to_string(@discussion.unread == 0)}
+      aria-label={if @discussion.unread > 0, do: "Marquer comme lu", else: "Marquer comme non lu"}
+      data-unread={to_string(@discussion.unread > 0)}
+      phx-click="mark-discussion"
+      phx-value-id={@discussion.id}
+      disabled={@saving != nil || @loading}
+    >
+      <.icon
+        name={if @discussion.unread == 0, do: "hero-check-circle", else: "hero-minus-circle"}
+        class="size-5"
+      />
+      <%= if @saving == @discussion.id do %>
+        <span class="loading loading-spinner loading-xs" role="status">
+          <span class="sr-only">Enregistrement en cours</span>
+        </span>
+      <% else %>
+        {if @discussion.unread == 0, do: "Lu", else: "Non lu"}
+      <% end %>
+    </button>
+    """
+  end
+
+  defp discussion_url(slug, mode, week, period, discussion) do
+    path = if discussion, do: ~p"/#{slug}/messages/#{discussion}", else: ~p"/#{slug}/messages"
     query = if mode == :week, do: [{"week", Date.to_iso8601(week)}], else: []
     query = if period, do: query ++ [{"period", period}], else: query
     path <> if(query == [], do: "", else: "?" <> URI.encode_query(query))

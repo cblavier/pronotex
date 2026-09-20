@@ -17,10 +17,12 @@ defmodule PronotexWeb.LoginHTML do
         <p class="mt-6 text-sm text-base-content/70">
           Saisissez votre code PIN pour accéder à l’application.
         </p>
-        <p :if={!@configured} role="alert" class="mt-4 text-sm text-error">
-          Accès indisponible : vérifiez la configuration du code PIN, puis redémarrez l’application.
-        </p>
-        <p :if={@error} role="alert" class="mt-4 text-sm text-error">{@error}</p>
+        <.flash :if={!@configured || @error} id="login-error" kind={:error}>
+          {if !@configured,
+            do:
+              "Accès indisponible : vérifiez la configuration du code PIN, puis redémarrez l’application.",
+            else: @error}
+        </.flash>
         <.form :if={@configured} for={%{}} action={~p"/login"} id="pin-form" class="mt-6 space-y-4">
           <input
             id="pin"

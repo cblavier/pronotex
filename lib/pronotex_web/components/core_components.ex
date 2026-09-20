@@ -31,6 +31,47 @@ defmodule PronotexWeb.CoreComponents do
 
   alias Phoenix.LiveView.JS
 
+  @doc "A shared count badge for unread messages and homework statuses."
+  attr :id, :string, default: nil
+  attr :count, :any, required: true
+  attr :status, :string, default: "due", values: ~w(done due future)
+  attr :class, :string, default: nil
+  attr :rest, :global
+
+  def count_badge(assigns) do
+    ~H"""
+    <span id={@id} class={["count-badge", @class]} data-status={@status} {@rest}>{@count}</span>
+    """
+  end
+
+  @doc "Displays a centered empty-state message with the decorative skull logo."
+  attr :id, :string, required: true
+  attr :text, :string, required: true
+
+  def empty_state(assigns) do
+    ~H"""
+    <div id={@id} class="empty-state">
+      <p>{@text}</p>
+      <svg class="empty-state-logo" viewBox="40 45 320 320" aria-hidden="true" focusable="false">
+        <defs>
+          <mask
+            id={"#{@id}-mask"}
+            maskUnits="userSpaceOnUse"
+            x="40"
+            y="45"
+            width="320"
+            height="320"
+            style="mask-type: alpha"
+          >
+            <image href="/images/brand/captain-notes-skull-login.png" width="1040" height="400" />
+          </mask>
+        </defs>
+        <rect x="40" y="45" width="320" height="320" fill="currentColor" mask={"url(##{@id}-mask)"} />
+      </svg>
+    </div>
+    """
+  end
+
   @doc """
   Renders flash notices.
 

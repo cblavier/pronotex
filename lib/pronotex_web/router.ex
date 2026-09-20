@@ -34,6 +34,7 @@ defmodule PronotexWeb.Router do
       live "/", DashboardLive, :index
       live "/:child", DashboardLive, :index
       live "/:child/:section", DashboardLive, :index
+      live "/:child/:section/:discussion", DashboardLive, :index
     end
   end
 

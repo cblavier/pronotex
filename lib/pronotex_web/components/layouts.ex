@@ -65,7 +65,7 @@ defmodule PronotexWeb.Layouts do
       </footer>
     </div>
 
-    <.flash_group flash={@flash} />
+    <.flash_group flash={@flash} retry="refresh" />
     """
   end
 
@@ -79,11 +79,24 @@ defmodule PronotexWeb.Layouts do
   attr :flash, :map, required: true, doc: "the map of flash messages"
   attr :id, :string, default: "flash-group", doc: "the optional id of flash container"
 
+  attr :retry, :string, default: nil
+
   def flash_group(assigns) do
     ~H"""
     <div id={@id} aria-live="polite">
       <.flash kind={:info} flash={@flash} />
-      <.flash kind={:error} flash={@flash} />
+      <.flash :if={error = Phoenix.Flash.get(@flash, :error)} kind={:error} id="flash-error">
+        <span class="whitespace-pre-line">{error}</span>
+        <button
+          :if={@retry}
+          id="retry-error"
+          type="button"
+          phx-click={@retry}
+          class="error-retry"
+        >
+          Réessayer
+        </button>
+      </.flash>
 
       <.flash
         id="client-error"

@@ -26,9 +26,19 @@ defmodule PronotexWeb.DashboardLiveTest do
       notify(:children)
 
       case Application.get_env(:pronotex, :dashboard_test_mode) do
-        :failure -> {:error, Pronotex.Pronote.Error.new(:network)}
-        :no_children -> {:ok, []}
-        _ -> {:ok, [%{id: "a", name: "Alice"}, %{id: "b", name: "Basile"}]}
+        :failure ->
+          {:error, Pronotex.Pronote.Error.new(:network)}
+
+        :no_children ->
+          {:ok, []}
+
+        :rotating_children ->
+          generation = Process.get(:children_generation, 0) + 1
+          Process.put(:children_generation, generation)
+          {:ok, [%{id: "a-#{generation}", name: "Alice"}]}
+
+        _ ->
+          {:ok, [%{id: "a", name: "Alice"}, %{id: "b", name: "Basile"}]}
       end
     end
 
@@ -110,6 +120,58 @@ defmodule PronotexWeb.DashboardLiveTest do
       end
     end
 
+    def discussions(id) do
+      if Application.get_env(:pronotex, :dashboard_test_mode) == :messages do
+        {:ok,
+         [
+           %{
+             id: "thread-#{id}",
+             subject: "Discussion #{id}",
+             author: "Professeur",
+             date: "18/09/2026",
+             unread: 2,
+             preview: "Bonjour",
+             messages: [
+               %{
+                 id: "m1",
+                 author: "Professeur",
+                 date: "18/09/2026",
+                 content: "<script>privé</script>"
+               }
+             ]
+           },
+           %{
+             id: "other-#{id}",
+             subject: "Autre discussion",
+             author: "Autre professeur",
+             date: "18/09/2026",
+             unread: 0,
+             preview: "Autre contenu",
+             messages: [
+               %{
+                 id: "m2",
+                 author: "Autre professeur",
+                 date: "18/09/2026",
+                 content: "Autre contenu"
+               }
+             ]
+           }
+         ]}
+      else
+        {:ok, []}
+      end
+    end
+
+    def set_discussion_read(id, thread, read) do
+      notify({:mark_discussion, id, thread, read})
+      {:ok, rows} = discussions(id)
+
+      {:ok,
+       Enum.map(rows, fn row ->
+         if row.id == thread, do: %{row | unread: if(read, do: 0, else: 2)}, else: row
+       end)}
+    end
+
     def homework_writable?(_child),
       do: Application.get_env(:pronotex, :dashboard_test_mode) != :no_student
 
@@ -152,6 +214,12 @@ defmodule PronotexWeb.DashboardLiveTest do
                end: ~N[2026-10-05 18:00:00]
              }
            end}
+
+        :rotating_children when id == "a-1" ->
+          {:error, Pronotex.Pronote.Error.new(:child_not_found)}
+
+        :inaccessible_child ->
+          {:error, Pronotex.Pronote.Error.new(:child_not_found)}
 
         :events_failure ->
           {:error, Pronotex.Pronote.Error.new(:forbidden)}
@@ -341,7 +409,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert has_element?(view, "#lesson-days", "Maths a")
     view |> element("#nav-devoirs") |> render_click()
     render_async(view)
-    assert has_element?(view, "#homework-error")
+    assert has_element?(view, "#flash-error")
     refute has_element?(view, "#no-homework")
     view |> element("#nav-agenda") |> render_click()
     render_async(view)
@@ -352,12 +420,12 @@ defmodule PronotexWeb.DashboardLiveTest do
     Application.put_env(:pronotex, :dashboard_test_mode, :failure)
     {:ok, view, _} = live(conn, ~p"/")
     render_async(view)
-    assert has_element?(view, "#page-error")
+    assert has_element?(view, "#flash-error")
     refute has_element?(view, "#no-lessons")
     Application.delete_env(:pronotex, :dashboard_test_mode)
-    view |> element("#retry") |> render_click()
+    view |> element("#retry-error") |> render_click()
     render_async(view)
-    refute has_element?(view, "#page-error")
+    refute has_element?(view, "#flash-error")
     assert has_element?(view, "#child-name", "Alice")
   end
 
@@ -534,9 +602,9 @@ defmodule PronotexWeb.DashboardLiveTest do
     Application.put_env(:pronotex, :dashboard_test_mode, :failure)
     render_click(view, "refresh", %{})
     render_async(view)
-    assert has_element?(view, "#menu-error")
+    assert has_element?(view, "#flash-error")
     Application.delete_env(:pronotex, :dashboard_test_mode)
-    view |> element("#retry-menus") |> render_click()
+    view |> element("#retry-error") |> render_click()
     render_async(view)
     assert has_element?(view, "#menu-days", "Gratin")
   end
@@ -575,10 +643,10 @@ defmodule PronotexWeb.DashboardLiveTest do
     Application.put_env(:pronotex, :dashboard_test_mode, :grades_failure)
     view |> form("#grade-period-form", %{"period" => "semester2"}) |> render_change()
     render_async(view)
-    assert has_element?(view, "#grades-error")
+    assert has_element?(view, "#flash-error")
     refute has_element?(view, "#no-grades")
     Application.delete_env(:pronotex, :dashboard_test_mode)
-    view |> element("#retry-grades") |> render_click()
+    view |> element("#retry-error") |> render_click()
     render_async(view)
     assert has_element?(view, "#grade-list", "Maths a")
   end
@@ -591,7 +659,7 @@ defmodule PronotexWeb.DashboardLiveTest do
 
     assert has_element?(
              view,
-             "#dashboard-navigation #grade-period option[value=semester2][selected]"
+             "#dashboard-navigation #grade-period-picker input[value=semester2][checked]"
            )
 
     assert_receive {:grades, "a", "semester2"}
@@ -620,7 +688,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     render_async(view)
     {:ok, reopened, _} = live(conn, url)
     render_async(reopened)
-    assert has_element?(reopened, "#grade-period option[value=semester2][selected]")
+    assert has_element?(reopened, "#grade-period-picker input[value=semester2][checked]")
   end
 
   test "notes canonicalize default and invalid periods once", %{conn: conn} do
@@ -692,6 +760,84 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert page_title(view) == "Basile - Agenda"
   end
 
+  test "messages are reached from dropdown with explicit read actions and badge updates", %{
+    conn: conn
+  } do
+    Application.put_env(:pronotex, :dashboard_test_mode, :messages)
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    render_async(view)
+    assert has_element?(view, "#messages-avatar-dot")
+    assert has_element?(view, "#messages-unread-count", "2")
+    refute has_element?(view, "#section-navigation #open-messages")
+    view |> element("#open-messages") |> render_click()
+    assert_patch(view, "/alice/messages")
+    render_async(view)
+    render_async(view)
+    refute has_element?(view, "#date-navigation")
+    view |> element("#discussion-thread-a .discussion-summary") |> render_click()
+    assert_patch(view, "/alice/messages/thread-a")
+    assert has_element?(view, "#messages-breadcrumb", "Discussion a")
+    refute has_element?(view, ".discussion-summary")
+    assert has_element?(view, ".discussion-status", "Non lu")
+    refute_received {:mark_discussion, _, _, _}
+    refute has_element?(view, "#messages-content script")
+    assert has_element?(view, "#discussion-body-thread-a:not([hidden])")
+    refute has_element?(view, "#discussion-other-a")
+    refute has_element?(view, "#messages-content", "Autre contenu")
+    view |> element(".messages-header .discussion-status") |> render_click()
+    render_async(view)
+    assert_receive {:mark_discussion, "a", "thread-a", true}
+    refute has_element?(view, "#messages-avatar-dot")
+    assert has_element?(view, ".discussion-status[aria-pressed=true]", "Lu")
+    refute has_element?(view, "#messages-unread-count")
+    view |> element(".messages-header .discussion-status") |> render_click()
+    render_async(view)
+    assert_receive {:mark_discussion, "a", "thread-a", false}
+    assert has_element?(view, "#messages-unread-count", "2")
+    view |> element("#messages-breadcrumb a", "Messages") |> render_click()
+    assert_patch(view, "/alice/messages")
+    assert has_element?(view, ".discussion-summary")
+    refute has_element?(view, "#discussion-body-thread-a")
+    view |> element("#discussion-other-a .discussion-summary") |> render_click()
+    assert_patch(view, "/alice/messages/other-a")
+    assert has_element?(view, "#discussion-body-other-a", "Autre contenu")
+    refute has_element?(view, "#discussion-thread-a")
+    view |> element(".child-picker-option[data-child-id]") |> render_click()
+    render_async(view)
+    render_async(view)
+    assert has_element?(view, "#discussion-thread-b")
+    refute has_element?(view, "#discussion-thread-a")
+    view |> element("#nav-agenda") |> render_click()
+    render_async(view)
+    refute has_element?(view, "#messages-content")
+  end
+
+  test "a discussion can be opened directly and missing discussions have a way back", %{
+    conn: conn
+  } do
+    Application.put_env(:pronotex, :dashboard_test_mode, :messages)
+    {:ok, view, _} = live(conn, "/alice/messages/thread-a")
+    render_async(view)
+    render_async(view)
+    assert has_element?(view, "#discussion-body-thread-a")
+    assert has_element?(view, "#messages-breadcrumb", "Discussion a")
+    refute has_element?(view, ".discussion-summary")
+    render_patch(view, "/alice/messages/missing")
+    assert has_element?(view, "#messages-content", "Cette discussion n’est plus disponible.")
+    view |> element("#messages-breadcrumb a") |> render_click()
+    assert_patch(view, "/alice/messages")
+    assert has_element?(view, "#discussion-thread-a .discussion-summary")
+  end
+
+  test "messages explain missing student credentials", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :no_student)
+    {:ok, view, _} = live(conn, "/alice/messages")
+    render_async(view)
+    assert has_element?(view, "#messages-content", "identifiants du compte élève")
+    refute has_element?(view, "#messages-avatar-dot")
+  end
+
   test "mobile agenda panel selection keeps loaded content", %{conn: conn} do
     {:ok, view, _} = live(conn, "/alice")
     render_async(view)
@@ -719,6 +865,28 @@ defmodule PronotexWeb.DashboardLiveTest do
     render_async(view)
     refute has_element?(view, "#upcoming-events article:nth-child(9)")
     assert has_element?(view, "#show-more-events")
+  end
+
+  test "reloads children once if their resource IDs changed during loading", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :rotating_children)
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    assert_receive {:events, "a-1"}
+    assert_receive {:events, "a-2"}
+    refute_received {:events, _}
+    refute has_element?(view, "#flash-error")
+    assert has_element?(view, "#upcoming-events", "Réunion a-2")
+    assert has_element?(view, "#lesson-days", "Maths a-2")
+  end
+
+  test "a persistently inaccessible child stays an error after one retry", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :inaccessible_child)
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    assert_receive {:events, "a"}
+    assert_receive {:events, "a"}
+    refute_received {:events, _}
+    assert has_element?(view, "#flash-error", "Cet enfant")
   end
 
   test "upcoming events load with agenda and stay independent of the selected week", %{conn: conn} do
@@ -755,14 +923,14 @@ defmodule PronotexWeb.DashboardLiveTest do
     Application.put_env(:pronotex, :dashboard_test_mode, :events_failure)
     {:ok, view, _} = live(conn, "/alice")
     render_async(view)
-    assert has_element?(view, "#events-error")
+    assert has_element?(view, "#flash-error")
     assert has_element?(view, "#lesson-days", "Maths a")
     refute has_element?(view, "#no-events")
     Application.put_env(:pronotex, :dashboard_test_mode, :empty)
-    view |> element("#retry-events") |> render_click()
+    view |> element("#retry-error") |> render_click()
     render_async(view)
     assert has_element?(view, "#no-events")
-    refute has_element?(view, "#events-error")
+    refute has_element?(view, "#flash-error")
   end
 
   test "lesson highlighting follows start and end times without refetching", %{conn: conn} do
@@ -851,7 +1019,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert has_element?(view, "#flash-error", "compte élève")
     assert has_element?(view, "#homework-toggle-task[aria-pressed=false][disabled]")
     Application.delete_env(:pronotex, :dashboard_test_mode)
-    view |> element("#reload-homework") |> render_click()
+    view |> element("#retry-error") |> render_click()
     render_async(view)
     refute has_element?(view, "#flash-error")
     refute has_element?(view, "#homework-toggle-task[disabled]")

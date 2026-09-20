@@ -229,7 +229,7 @@ html { touch-action: manipulation; }
 
 /* Mobile identity and date controls share the top row. */
 @media (max-width: 639px) {
-  .page-shell > main { padding-top: 1rem; }
+  .page-shell > main { padding-top: 1.5rem; }
   #responsive-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 0.5rem; row-gap: 1.25rem; margin-bottom: 1.5rem; }
   #dashboard-navigation { display: contents; }
   #section-navigation { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; width: 100%; border-bottom: 1px solid var(--color-base-300); }
@@ -305,9 +305,9 @@ html { touch-action: manipulation; }
   #date-navigation .btn { width: 2rem; height: 2rem; min-height: 2rem; padding: 0; }
 }
 
-.homework-day-count[data-status="done"] { color: var(--done-ink); background-color: var(--done-tint); }
-.homework-day-count[data-status="due"] { color: var(--due-ink); background-color: var(--due-tint); }
-.homework-day-count[data-status="future"] { color: var(--future-ink); background-color: var(--future-tint); }
+.count-badge[data-status="done"] { color: var(--done-ink); background-color: var(--done-tint); }
+.count-badge[data-status="due"] { color: var(--due-ink); background-color: var(--due-tint); }
+.count-badge[data-status="future"] { color: var(--future-ink); background-color: var(--future-tint); }
 
 :root {
   --page-background: #fdfdfd;
@@ -370,12 +370,13 @@ html { touch-action: manipulation; }
 .child-picker-chevron { flex-shrink: 0; color: var(--muted-ink); }
 #child-picker[open] .child-picker-chevron { transform: rotate(180deg); }
 #child-picker-panel { position: absolute; top: calc(100% + 0.5rem); left: 0; z-index: 30; width: 16rem; max-width: calc(100vw - 2rem); padding: 0.5rem; border: 1px solid var(--color-base-300); border-radius: 0.5rem; background: var(--surface-background); box-shadow: 0 12px 32px #163f351a; }
-.child-picker-option { display: flex; width: 100%; min-height: 3rem; align-items: center; gap: 0.875rem; padding: 0.5rem; border: 0; border-radius: 0.25rem; text-align: left; font-size: 1rem; color: var(--muted-ink); background: transparent; cursor: pointer; }
+.child-picker-option { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr) auto; width: 100%; min-height: 3rem; align-items: center; gap: 0.875rem; padding: 0.5rem; border: 0; border-radius: 0.25rem; text-align: left; font-size: 1rem; color: var(--muted-ink); background: transparent; cursor: pointer; }
 .child-picker-option:hover:not(:disabled) { background: var(--day-tint); }
 .child-picker-option:disabled { cursor: wait; }
 .child-picker-option[aria-current] .child-option-avatar { border: 1px solid var(--day-ink); }
 .child-picker-logout { margin: 0.5rem 0.5rem 0; padding-top: 0.5rem; border-top: 1px solid var(--color-base-300); }
-.child-picker-logout .child-picker-option { padding-inline: 0; gap: 1.125rem; }
+.child-picker-logout .child-picker-option { padding-inline: 0; }
+.child-picker-option > :first-child { justify-self: center; }
 @media (max-width: 639px) {
   #child-header { grid-column: 1; grid-row: 1; padding: 0; }
   #child-picker-toggle { gap: 0.375rem; }
@@ -405,7 +406,7 @@ html { touch-action: manipulation; }
 #agenda-subnav { display: none; }
 @media (width < 1024px) {
   #agenda-subnav { display: flex; gap: 0.25rem; padding: 0.25rem; border: 1px solid var(--day-line); border-radius: 0.5rem; background: var(--surface-background); }
-  #agenda-subnav button { flex: 1; min-height: 2.5rem; padding: 0.5rem; border: 0; border-radius: 0.375rem; background: transparent; color: var(--muted-ink); font-size: 0.875rem; font-weight: 500; cursor: pointer; }
+  #agenda-subnav button { flex: 1; min-height: 2.125rem; padding: 0.3125rem 0.5rem; border: 0; border-radius: 0.375rem; background: transparent; color: var(--muted-ink); font-size: 0.875rem; font-weight: 500; cursor: pointer; }
   #agenda-subnav button[aria-pressed="true"] { background: var(--day-tint); color: var(--day-ink); }
   #agenda-subnav button:focus-visible { outline: 2px solid var(--day-ink); outline-offset: 1px; }
   #agenda-subnav button:disabled { cursor: wait; }
@@ -419,3 +420,123 @@ html { touch-action: manipulation; }
 @media (min-width: 640px) {
   .page-shell > main { padding-bottom: 1.5rem; }
 }
+
+@media (prefers-color-scheme: dark) {
+  .count-badge[data-status="due"],
+  .page-shell .badge-error {
+    color: #fff1f2;
+    background-color: #9f1239;
+    border-color: #fb7185;
+  }
+  /* Keep status badges readable even when the lesson is in the past. */
+  .lesson-entry[data-state="past"]:has(.badge-error) { opacity: 1; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .page-shell .lesson-entry .badge-error { border-color: transparent; }
+}
+
+.child-avatar-wrapper { position: relative; flex-shrink: 0; }
+.messages-unread-dot { position: absolute; right: 0; top: 0; width: 0.95rem; height: 0.95rem; background: #e11d48; border: 2px solid var(--surface-background); border-radius: 50%; }
+.messages-menu-item { margin-top: 0.5rem; }
+#messages-unread-count { margin-left: auto; }
+.messages-empty { padding: 1.5rem 0; color: var(--muted-ink); font-size: 0.875rem; }
+.discussion-list { display: grid; gap: 1rem; margin-top: 1rem; }
+.discussion-card { position: relative; transition: background-color 150ms; border: 1px solid var(--color-base-300); border-radius: 0.5rem; background: var(--surface-background); overflow: hidden; }
+
+.discussion-summary { display: grid; gap: 0.5rem; width: 100%; padding: 1rem; text-align: left; cursor: pointer; background: transparent; border: 0; }
+
+.discussion-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; color: var(--day-ink); }
+.discussion-meta { color: var(--muted-ink); font-size: 0.75rem; }
+.discussion-preview { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted-ink); font-size: 0.875rem; }
+.discussion-actions { display: flex; justify-content: flex-end; padding: 0.5rem 1rem; }
+.discussion-status:disabled { opacity: 0.6; cursor: wait; }
+.discussion-summary:focus-visible, .discussion-status:focus-visible { outline: 2px solid var(--day-ink); outline-offset: -2px; }
+.discussion-message { padding: 1rem; border-top: 1px solid var(--day-line); }
+.discussion-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 0.75rem; font-size: 0.875rem; }
+
+/* Keep the retry action distinct from the error alert in both themes. */
+#flash-error .error-retry {
+  display: block;
+  width: fit-content;
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.875rem;
+  border-radius: 0.5rem;
+  background: #fda4af;
+  color: #881337;
+  border: 1px solid transparent;
+  box-shadow: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 150ms, color 150ms;
+}
+#flash-error .error-retry:hover {
+  background: #be123c;
+  color: #ffffff;
+}
+#flash-error .error-retry:active {
+  background: #9f1239;
+  color: #ffffff;
+}
+#flash-error .error-retry:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+}
+
+.messages-breadcrumb { display: flex; align-items: baseline; flex-wrap: nowrap; gap: 0.5rem; color: var(--day-ink); font-size: 1.125rem; font-weight: 600; }
+.messages-breadcrumb a:hover { text-decoration: underline; }
+#messages-content .discussion-status { --status-ink: var(--done-ink); --status-tint: var(--done-tint); --status-line: var(--done-line); color: var(--status-ink); background: var(--status-tint); border-color: transparent; border-radius: var(--radius-field, 0.25rem); }
+#messages-content .discussion-status[data-unread="true"] { --status-ink: var(--future-ink); --status-tint: var(--future-tint); --status-line: var(--future-line); }
+#messages-content .discussion-status:not(:disabled):hover { color: var(--status-ink); background: var(--status-tint); border-color: var(--status-line); }
+#messages-content .discussion-status:focus-visible { outline-color: var(--status-ink); }
+
+.discussion-card[data-view="list"] .discussion-heading { min-height: 2rem; padding-right: 7.5rem; color: var(--color-base-content); }
+.discussion-card[data-view="list"] .discussion-actions { position: absolute; top: 1rem; right: 1rem; padding: 0; }
+.discussion-card[data-view="detail"] .discussion-actions { padding: 1rem; }
+@media (hover: hover) {
+  .discussion-card[data-view="list"]:hover { background: color-mix(in srgb, var(--surface-background), var(--color-base-content) 5%); }
+}
+
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5rem; padding: 2.5rem 1rem; color: #737373; text-align: center; font-size: 0.875rem; }
+.empty-state-logo { display: block; width: 4.5rem; height: 4.5rem; opacity: 0.5; }
+@media (prefers-color-scheme: dark) { .empty-state { color: #a3a3a3; } }
+
+.messages-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.messages-header .messages-breadcrumb { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
+.messages-breadcrumb > a, .messages-breadcrumb > span { flex-shrink: 0; }
+.messages-breadcrumb > h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.messages-header > .discussion-status { flex-shrink: 0; }
+
+.count-badge { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 999px; padding: 0.125rem 0.375rem; font-size: 0.75rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: normal; }
+
+/* Center the notification dot on the avatar's circular edge at every size. */
+.child-avatar-wrapper .messages-unread-dot {
+  top: 14.645%;
+  right: 14.645%;
+  transform: translate(50%, -50%);
+}
+@media (min-width: 640px) {
+  .messages-unread-dot {
+    width: 1.25rem;
+    height: 1.25rem;
+    border-width: 3px;
+  }
+}
+
+#grade-period-picker { position: relative; }
+#grade-period { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-height: 2rem; padding: 0.375rem 0.625rem; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); color: var(--day-ink); font-size: 0.875rem; cursor: pointer; list-style: none; }
+#grade-period::-webkit-details-marker { display: none; }
+#grade-period::marker { content: ""; }
+#grade-period > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#grade-period:focus-visible, #grade-period-picker[open] > summary { outline: 2px solid var(--day-ink); outline-offset: 2px; }
+.grade-period-options { position: absolute; right: 0; top: calc(100% + 0.5rem); z-index: 30; min-width: max(100%, 10rem); padding: 0.25rem; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); box-shadow: 0 8px 24px #00000018; }
+#grade-period-form .grade-period-option { position: relative; display: flex; justify-content: space-between; gap: 1rem; min-height: 2.75rem; padding: 0.625rem 0.75rem; border-radius: 0.25rem; color: var(--muted-ink); font-size: 0.875rem; cursor: pointer; }
+.grade-period-option input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.grade-period-check { visibility: hidden; }
+#grade-period-form .grade-period-option:has(input:checked), #grade-period-form .grade-period-option:hover { background: var(--day-tint); color: var(--day-ink); }
+.grade-period-option:has(input:checked) .grade-period-check { visibility: visible; }
+.grade-period-option:has(input:focus-visible) { outline: 2px solid var(--day-ink); outline-offset: -2px; }
+@media (max-width: 639px) { #grade-period { min-height: 1.875rem; padding: 0.25rem 0.5rem; font-size: 0.75rem; } }
