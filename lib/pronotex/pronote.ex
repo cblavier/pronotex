@@ -6,7 +6,7 @@ defmodule Pronotex.Pronote do
       {:ok, lessons} = Pronotex.Pronote.lessons(hd(children).id, ~D[2026-09-14], ~D[2026-09-20])
 
   Credentials are read from PRONOTE_URL, PRONOTE_USERNAME and PRONOTE_PASSWORD
-  at first use, not on Phoenix startup. Homework status is modified only through set_homework_done/4.
+  at first use, not on Phoenix startup. Homework and discussion statuses change only through their explicit write functions.
   """
   alias Pronotex.Pronote.{Error, Session}
 
@@ -60,6 +60,12 @@ defmodule Pronotex.Pronote do
   @doc "Reads upcoming school agenda events, including events shared with the family."
   def events(child_id, server \\ Session),
     do: GenServer.call(server, {:events, child_id}, :infinity)
+
+  def discussions(child_id, server \\ Session),
+    do: GenServer.call(server, {:discussions, child_id}, :infinity)
+
+  def set_discussion_read(child_id, id, read, server \\ Session) when is_boolean(read),
+    do: GenServer.call(server, {:set_discussion_read, child_id, id, read}, :infinity)
 
   @doc "Sets a previously read homework status and verifies it by reading Pronote again."
   def set_homework_done(child_id, homework_id, done, server \\ Session)

@@ -3,7 +3,7 @@ defmodule Pronotex.Pronote.Client do
   alias Pronotex.Pronote.{Crypto, Error, Homework, Lesson, Transport}
 
   @derive {Inspect, only: []}
-  defstruct [:transport, :general, :children, :tabs, homework_reads: %{}]
+  defstruct [:transport, :general, :children, :tabs, homework_reads: %{}, discussion_reads: %{}]
 
   def login(config, req_options) do
     {parameters, transport} = Transport.open(config, req_options)
@@ -202,6 +202,69 @@ defmodule Pronotex.Pronote.Client do
       do: raise(Error.new(:homework_unconfirmed))
 
     {tasks, client}
+  end
+
+  def discussions(client) do
+    unless client.transport.space == 3, do: raise(Error.new(:student_credentials_required))
+
+    {data, transport} =
+      Transport.call(client.transport, "ListeMessagerie", %{
+        "Signature" => %{"onglet" => 131},
+        "data" => %{"avecMessage" => true, "avecLu" => true}
+      })
+
+    labels = Map.new(get_in(data, ["listeEtiquettes", "V"]) || [], &{&1["N"], &1["G"]})
+
+    rows =
+      Enum.filter(get_in(data, ["listeMessagerie", "V"]) || [], fn row ->
+        row["estUneDiscussion"] == true and Map.get(row, "profondeur", 1) == 0 and
+          not Enum.any?(get_in(row, ["listeEtiquettes", "V"]) || [], &(labels[&1["N"]] in [4, 5]))
+      end)
+
+    {discussions, transport} =
+      Enum.map_reduce(rows, transport, fn raw, transport ->
+        {detail, transport} =
+          Transport.call(transport, "ListeMessages", %{
+            "Signature" => %{"onglet" => 131},
+            "data" => %{
+              "listePossessionsMessages" => get_in(raw, ["listePossessionsMessages", "V"]) || []
+            }
+          })
+
+        messages = Pronotex.Pronote.Discussion.messages(detail)
+        {Pronotex.Pronote.Discussion.parse(raw, messages), transport}
+      end)
+
+    reads =
+      Map.new(
+        rows,
+        &{Pronotex.Pronote.Discussion.id(&1), get_in(&1, ["listePossessionsMessages", "V"]) || []}
+      )
+
+    {discussions, %{client | transport: transport, discussion_reads: reads}}
+  end
+
+  def set_discussion_read(client, id, read) when is_boolean(read) do
+    unless client.transport.space == 3, do: raise(Error.new(:student_credentials_required))
+    possessions = Map.get(client.discussion_reads, id)
+    unless is_list(possessions) and possessions != [], do: raise(Error.new(:stale_discussion))
+
+    {_, transport} =
+      Transport.call(client.transport, "SaisieMessage", %{
+        "Signature" => %{"onglet" => 131},
+        "data" => %{
+          "commande" => "pourLu",
+          "lu" => read,
+          "listePossessionsMessages" => possessions
+        }
+      })
+
+    {discussions, client} = discussions(%{client | transport: transport})
+
+    unless Enum.any?(discussions, &(&1.id == id && &1.unread == 0 == read)),
+      do: raise(Error.new(:message_unconfirmed))
+
+    {discussions, client}
   end
 
   def grades(client, child_id, period_name) do

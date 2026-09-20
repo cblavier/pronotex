@@ -13,6 +13,25 @@ defmodule Pronotex.Pronote.Session do
   @impl true
   def handle_call(:logout, _from, state), do: {:reply, :ok, %{state | client: nil, students: %{}}}
 
+  def handle_call(operation, _from, state)
+      when elem(operation, 0) in [:discussions, :set_discussion_read] do
+    result = safely(fn -> execute(operation, state) end)
+
+    result =
+      case result do
+        {:error, %Error{reason: :session_expired}} when elem(operation, 0) == :discussions ->
+          safely(fn -> execute(operation, %{state | students: %{}}) end)
+
+        other ->
+          other
+      end
+
+    case result do
+      {:ok, reply, updated} -> {:reply, {:ok, reply}, updated}
+      {:error, error} -> {:reply, {:error, error}, %{state | students: %{}}}
+    end
+  end
+
   # Never retry a write automatically: its outcome may be unknown after a network error.
   def handle_call({:set_homework_done, _, _, _}, _from, %{client: nil} = state),
     do: {:reply, {:error, Error.new(:stale_homework)}, state}
@@ -38,6 +57,13 @@ defmodule Pronotex.Pronote.Session do
           {:ok, reply, state} -> {:reply, {:ok, reply}, state}
           {:error, error} -> {:reply, {:error, error}, %{state | client: nil}}
         end
+
+      {:error, %Error{reason: reason, code: nil} = error}
+      when reason in [:child_not_found, :outside_school_year, :forbidden] and
+             not is_nil(state.client) ->
+        # These validations run before any request: the numbered session is still valid.
+        # Dropping it would invalidate the child IDs held by the other dashboard reads.
+        {:reply, {:error, error}, state}
 
       {:error, error} ->
         {:reply, {:error, error}, %{state | client: nil}}
@@ -90,6 +116,64 @@ defmodule Pronotex.Pronote.Session do
   defp execute({:events, child_id}, state) do
     {events, client} = Client.events(state.client, child_id)
     {:ok, events, %{state | client: client}}
+  end
+
+  defp execute(operation, state)
+       when elem(operation, 0) in [:discussions, :set_discussion_read] do
+    child_id = elem(operation, 1)
+    child = Enum.find(Client.children(state.client), &(&1.id == child_id))
+    unless child, do: raise(Error.new(:child_not_found))
+
+    config_result =
+      case Keyword.get(state.options, :student_configs) do
+        nil ->
+          Config.student_from_env(child)
+
+        configs ->
+          case Map.fetch(configs, child_id) do
+            {:ok, config} -> Config.validate(config)
+            :error -> {:error, Error.new(:student_credentials_required)}
+          end
+      end
+
+    config =
+      case config_result do
+        {:ok, config} -> config
+        _ -> raise Error.new(:student_credentials_required)
+      end
+
+    student =
+      case Map.get(state.students, child_id) do
+        {^config, client} ->
+          client
+
+        _ ->
+          Client.login(
+            config,
+            Keyword.get(
+              state.options,
+              :student_req_options,
+              Keyword.get(state.options, :req_options, [])
+            )
+          )
+      end
+
+    case Client.children(student) do
+      [identity] ->
+        unless normalize_name(identity.name) == normalize_name(child.name),
+          do: raise(Error.new(:student_mismatch))
+
+      _ ->
+        raise(Error.new(:student_mismatch))
+    end
+
+    {reply, student} =
+      case operation do
+        {:discussions, _} -> Client.discussions(student)
+        {:set_discussion_read, _, id, read} -> Client.set_discussion_read(student, id, read)
+      end
+
+    {:ok, reply, %{state | students: Map.put(state.students, child_id, {config, student})}}
   end
 
   defp execute({:set_homework_done, child_id, homework_id, done}, state) do

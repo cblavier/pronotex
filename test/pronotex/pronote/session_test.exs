@@ -55,6 +55,44 @@ defmodule Pronotex.Pronote.SessionTest do
     end
   end
 
+  test "student discussions are read without marking and explicit changes are confirmed" do
+    {server, agent} = session(student: true)
+    assert {:ok, [discussion]} = Pronote.discussions("child-a", server)
+    assert discussion.unread == 2
+    assert hd(discussion.messages).content == "Bonjour"
+    refute Enum.any?(Agent.get(agent, & &1.calls), fn {name, _} -> name == "SaisieMessage" end)
+
+    assert {:ok, [%{unread: 0}]} =
+             Pronote.set_discussion_read("child-a", discussion.id, true, server)
+
+    assert {:ok, [%{unread: 2}]} =
+             Pronote.set_discussion_read("child-a", discussion.id, false, server)
+  end
+
+  test "discussion access requires matching student credentials" do
+    {server, _} = session(student: true, wrong_student: true)
+    assert {:error, %Error{reason: :student_mismatch}} = Pronote.discussions("child-a", server)
+
+    assert {:error, %Error{reason: :student_credentials_required}} =
+             Pronote.discussions("child-b", server)
+  end
+
+  test "unknown discussions cannot be marked and message writes are never retried" do
+    {server, agent} = session(student: true, write_error: 10)
+    assert {:ok, [_]} = Pronote.discussions("child-a", server)
+
+    assert {:error, %Error{reason: :stale_discussion}} =
+             Pronote.set_discussion_read("child-a", "other", true, server)
+
+    assert {:ok, [_]} = Pronote.discussions("child-a", server)
+
+    assert {:error, %Error{reason: :session_expired}} =
+             Pronote.set_discussion_read("child-a", "discussion", true, server)
+
+    assert Enum.count(Agent.get(agent, & &1.calls), fn {name, _} -> name == "SaisieMessage" end) ==
+             1
+  end
+
   test "both children reuse one session, concurrent reads remain correctly associated" do
     {server, agent} = session()
     parent = self()
@@ -119,6 +157,38 @@ defmodule Pronotex.Pronote.SessionTest do
 
     assert {:error, %Error{reason: :outside_school_year}} =
              Pronote.lessons("child-a", ~D[2025-09-14], ~D[2025-09-20], server)
+  end
+
+  test "local validation errors preserve the session for subsequent dashboard reads" do
+    {server, agent} = session()
+    assert {:ok, _} = Pronote.children(server)
+    client = :sys.get_state(server).client
+
+    assert {:error, %Error{reason: :outside_school_year}} =
+             Pronote.lessons("child-a", ~D[2026-08-17], ~D[2026-08-23], server)
+
+    assert :sys.get_state(server).client == client
+
+    assert {:error, %Error{reason: :child_not_found}} =
+             Pronote.events("unknown", server)
+
+    assert :sys.get_state(server).client == client
+    assert {:ok, _} = Pronote.events("child-a", server)
+
+    assert {:ok, [_]} =
+             Pronote.lessons("child-a", ~D[2026-09-14], ~D[2026-09-20], server)
+
+    assert Agent.get(agent, & &1.logins) == 1
+  end
+
+  test "a locally unavailable tab does not discard the parent session" do
+    {server, agent} = session(forbidden: true)
+    assert {:ok, children} = Pronote.children(server)
+    client = :sys.get_state(server).client
+    assert {:error, %Error{reason: :forbidden}} = Pronote.events("child-a", server)
+    assert :sys.get_state(server).client == client
+    assert {:ok, ^children} = Pronote.children(server)
+    assert Agent.get(agent, & &1.logins) == 1
   end
 
   test "does not access unauthorized tabs" do

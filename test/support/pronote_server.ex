@@ -9,6 +9,7 @@ defmodule Pronotex.Test.PronoteServer do
       options: options,
       calls: [],
       homework_status: %{},
+      discussion_read: false,
       logins: 0,
       expired?: false,
       order: 1,
@@ -75,7 +76,7 @@ defmodule Pronotex.Test.PronoteServer do
     state = %{state | calls: state.calls ++ [{function, payload}], order: state.order + 2}
 
     cond do
-      function == "SaisieTAFFaitEleve" and state.options[:write_error] ->
+      function in ["SaisieTAFFaitEleve", "SaisieMessage"] and state.options[:write_error] ->
         {{%{"Erreur" => %{"G" => state.options[:write_error]}}, false, true}, state}
 
       function == "PageEmploiDuTemps" and state.options[:expire] in [true, :always] and
@@ -165,7 +166,14 @@ defmodule Pronotex.Test.PronoteServer do
         else: [
           %{
             "G" => 7,
-            "Onglets" => [%{"G" => 16}, %{"G" => 88}, %{"G" => 10}, %{"G" => 198}, %{"G" => 9}]
+            "Onglets" => [
+              %{"G" => 16},
+              %{"G" => 88},
+              %{"G" => 10},
+              %{"G" => 198},
+              %{"G" => 9},
+              %{"G" => 131}
+            ]
           }
         ]
 
@@ -354,6 +362,55 @@ defmodule Pronotex.Test.PronoteServer do
     }
 
     {data, state, nil, false}
+  end
+
+  defp data("ListeMessagerie", payload, state) do
+    assert state.options[:space] == 3
+    assert payload["Signature"] == %{"onglet" => 131}
+
+    {%{
+       "listeEtiquettes" => %{"V" => []},
+       "listeMessagerie" => %{
+         "V" => [
+           %{
+             "N" => "discussion",
+             "estUneDiscussion" => true,
+             "profondeur" => 0,
+             "objet" => "Réunion",
+             "lu" => state.discussion_read,
+             "nbNonLus" => if(state.discussion_read, do: 0, else: 2),
+             "listePossessionsMessages" => %{"V" => [%{"N" => "possession"}]}
+           }
+         ]
+       }
+     }, state, nil, false}
+  end
+
+  defp data("ListeMessages", payload, state) do
+    assert payload["data"]["listePossessionsMessages"] == [%{"N" => "possession"}]
+
+    {%{
+       "listeMessages" => %{
+         "V" =>
+           for n <- 1..2 do
+             %{
+               "N" => "message-#{n}",
+               "public_gauche" => "Professeur",
+               "lu" => state.discussion_read,
+               "date" => %{"V" => "18/09/2026 10:00:00"},
+               "estHTML" => true,
+               "contenu" => %{"V" => "<p>Bonjour</p><script>secret</script>"}
+             }
+           end
+       }
+     }, state, nil, false}
+  end
+
+  defp data("SaisieMessage", payload, state) do
+    assert state.options[:space] == 3
+    assert payload["data"]["commande"] == "pourLu"
+    assert payload["data"]["listePossessionsMessages"] == [%{"N" => "possession"}]
+    {%{}, %{state | discussion_read: payload["data"]["lu"]}, nil, false}
   end
 
   defp data("PageAgenda", payload, state) do

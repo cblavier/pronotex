@@ -29,6 +29,12 @@ defmodule Pronotex.Pronote.Error do
         :child_not_found ->
           "Cet enfant n’est pas accessible depuis ce compte parent."
 
+        :stale_discussion ->
+          "Rechargez les messages avant de modifier leur statut."
+
+        :message_unconfirmed ->
+          "Pronote n’a pas confirmé le changement. Rechargez les messages pour vérifier leur statut."
+
         :stale_homework ->
           "Rechargez les devoirs avant de modifier leur statut."
 
