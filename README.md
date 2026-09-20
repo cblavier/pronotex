@@ -10,6 +10,22 @@ L'application a été développée dans un objectif de simplicité, toutes les f
 
 Développée avec Elixir et Phoenix LiveView. Ne nécessite pas de base de données.
 
+## Roadmap
+
+- [x] emploi du temps
+- [x] liste des devoirs 
+- [x] liste des notes
+- [x] menu de la cantine
+- [x] évènements
+- [x] version mobile
+- [x] thèmes jours / nuits
+- [x] marquer les devoirs faits
+- [x] sécurisation avec code PIN
+- [x] mode PWA (ajouter l'app à l'accueil du smartphone)
+- [x] consulter les messages des enfants
+- [ ] consulter les messages des parents (sécurisé)
+- [ ] consulter les resources associées aux devoirs
+
 ## Screenshots
 
 ### Desktop
