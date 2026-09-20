@@ -1,13 +1,24 @@
-export PRONOTE_URL="https://mon-college.index-education.net/pronote/parent.html"
-export PRONOTE_USERNAME=""
-export PRONOTE_PASSWORD=""
-export PINCODE="" # Facultatif : 8 chiffres ; vide = accès libre
+# URL de base HTTPS, sans parent.html ni eleve.html
+export PRONOTE_URL="https://mon-college.index-education.net/pronote/"
 
-# Facultatif : prénom exact renvoyé par Pronote (sans dépendre de son ordre).
-# Ajouter CHILD_2, CHILD_3, etc. pour les autres enfants.
+# Profil Famille : identifiants du compte parent, PIN applicatif de 8 chiffres
+export PRONOTE_FAMILY_USERNAME=""
+export PRONOTE_FAMILY_PASSWORD=""
+export PRONOTE_FAMILY_PIN_CODE=""
+
+# Profils parents facultatifs : répéter avec PARENT_2, PARENT_3, etc.
+export PRONOTE_PARENT_1_FIRST_NAME=""
+export PRONOTE_PARENT_1_USERNAME=""
+export PRONOTE_PARENT_1_PASSWORD=""
+export PRONOTE_PARENT_1_PIN_CODE=""
+
+# Prénom exact PRONOTE ; répéter avec CHILD_2, CHILD_3, etc.
+# Sans PIN, les identifiants élève restent utilisables depuis Famille/Parent,
+# mais aucune connexion individuelle n’est proposée à cet enfant.
 export PRONOTE_CHILD_1_FIRST_NAME="Alice"
-export PRONOTE_CHILD_1_THEME="blue" # blue ou green
-export PRONOTE_CHILD_1_AVATAR_BASE64="" # PNG, JPEG ou WebP encodé en Base64 brut
-# export PRONOTE_CHILD_1_AVATAR="/images/avatars/alice.png" # alternative locale
 export PRONOTE_CHILD_1_USERNAME=""
 export PRONOTE_CHILD_1_PASSWORD=""
+export PRONOTE_CHILD_1_PIN_CODE=""
+export PRONOTE_CHILD_1_THEME="blue"
+# PNG, JPEG ou WebP encodé en Base64 brut
+export PRONOTE_CHILD_1_AVATAR_BASE64=""

@@ -2,9 +2,9 @@
 
 ## Description du projet
 
-Une interface PRONOTE pour consulter l’agenda, les devoirs, les notes, les menus et les messages des enfants, avec un seul identifiant.
+Une interface PRONOTE pour consulter l’agenda, les devoirs, les notes, les menus et les messages des enfants, avec des profils Famille, Parent et Enfant.
 
-La motivation est de donnée l'accès avec un seul identifiant familial, aux données pronote de toute la famille, tout en donnant accès à certaines fonctionnalités normalement restreintes au compte des enfants (marquer les devoirs faits, lire les messages personnels...)
+Le profil Famille regroupe les données des enfants. Chaque enfant peut aussi se connecter à son propre espace ; les parents disposent en plus de leur messagerie personnelle. Les devoirs faits et les messages lus sont synchronisés avec PRONOTE.
 
 L'application a été développée dans un objectif de simplicité, toutes les fonctionnalités de pronote ne seront pas portées.
 
@@ -23,8 +23,10 @@ Développée avec Elixir et Phoenix LiveView. Ne nécessite pas de base de donn�
 - [x] sécurisation avec code PIN
 - [x] mode PWA (ajouter l'app à l'accueil du smartphone)
 - [x] consulter les messages des enfants
-- [ ] consulter les messages des parents (sécurisé)
+- [x] consulter les messages des parents
+- [x] comptes famille, enfants et parents séparés (pincode individuels)
 - [ ] consulter les resources associées aux devoirs
+- [ ] contacter la vie scolaire (parent)
 
 ## Screenshots
 
@@ -55,11 +57,18 @@ cp -n .envrc.example .envrc
 
 Compléter `.envrc` :
 
-- `PRONOTE_URL` : URL HTTPS directe vers `parent.html` (connexion sans ENT ni QR code).
-- `PRONOTE_USERNAME` et `PRONOTE_PASSWORD` : identifiants du compte parent.
-- `PINCODE` : facultatif, exactement 8 chiffres. Vide ou absent, l’application est accessible sans authentification. Une connexion est valable 12 heures.
+- `PRONOTE_URL` : URL HTTPS de base, par exemple `https://mon-college.index-education.net/pronote/`, **sans** `parent.html` ni `eleve.html` (connexion directe, sans ENT ni QR code).
+- `PRONOTE_FAMILY_USERNAME`, `PRONOTE_FAMILY_PASSWORD`, `PRONOTE_FAMILY_PIN_CODE` : compte parent utilisé par le profil **Famille**, qui permet de consulter tous ses enfants et leurs messages.
+- `PRONOTE_PARENT_n_USERNAME`, `_PASSWORD`, `_FIRST_NAME`, `_PIN_CODE` : un profil par parent. Il accède aux enfants rattachés à son compte PRONOTE et à **Messages suivi de son prénom** dans le menu utilisateur.
+- `PRONOTE_CHILD_n_USERNAME`, `_PASSWORD`, `_FIRST_NAME`, `_PIN_CODE` : un profil par enfant, limité à son propre compte élève. Son prénom doit correspondre à celui de PRONOTE. `_THEME` (`blue` ou `green`) et `_AVATAR_BASE64` restent facultatifs ; le thème affiché est toujours celui de l’enfant.
 
-Les variables `PRONOTE_CHILD_n_*` du fichier exemple permettent de personnaliser les enfants. Les identifiants élève sont facultatifs et nécessaires pour marquer les devoirs comme faits et consulter les messages. La rubrique Messages est accessible depuis le menu utilisateur ; le marquage lu/non lu est explicite et enregistré dans PRONOTE.
+Remplacer `n` par `1`, `2`, etc. Configurer uniquement les profils souhaités. Chaque profil proposé au login nécessite ses identifiants et un **PIN de 8 chiffres** ; les parents et enfants nécessitent aussi un prénom. Un profil incomplet n’est pas proposé. Sans aucun profil complet, l’accès reste fermé.
+
+Les identifiants élèves permettent aussi au profil Famille et aux parents de consulter les messages des enfants et de marquer leurs devoirs faits. Ils peuvent être renseignés sans PIN enfant si cet enfant ne doit pas avoir de connexion individuelle. Les messages des parents sont réservés à leur profil personnel. Tous les changements de statut lu/non lu ou fait/à faire restent explicites.
+
+Au login, choisir un profil puis saisir son PIN. **Rester connecté** est décoché par défaut : session de **1 heure**, ou **30 jours** si coché, à partir de la connexion, sans prolongation automatique. Après trois erreurs sur un profil, l’attente est d’une minute, puis augmente d’une minute à chaque nouvel échec. Ces compteurs sont en mémoire et remis à zéro au redémarrage ; les sessions navigateur restent valables si la configuration et le secret de signature ne changent pas.
+
+**Migration :** remplacer `PRONOTE_USERNAME` / `PRONOTE_PASSWORD` / `PINCODE` (ou `PIN_CODE`) par les trois variables `PRONOTE_FAMILY_*`, puis retirer `parent.html` de l’URL. Les anciennes sessions nécessiteront une nouvelle connexion.
 
 ```sh
 source .envrc
