@@ -113,6 +113,22 @@ document.addEventListener("visibilitychange", () => {
 // connect if there are any LiveViews on the page
 liveSocket.connect()
 
+// A short, silent salute from the captain, including keyboard activation.
+document.addEventListener("click", event => {
+  const button = event.target.closest("[data-logo-easter-egg]")
+  if (!button || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+  const skull = button.querySelector(".app-brand-skull")
+  if (!skull || skull.getAnimations().length) return
+  skull.animate([
+    {transform: "translateY(0) rotate(0deg)", offset: 0},
+    {transform: "translateY(8px) rotate(-8deg)", offset: 0.2},
+    {transform: "translateY(-45px) rotate(12deg)", offset: 0.45},
+    {transform: "translateY(0) rotate(-6deg)", offset: 0.7},
+    {transform: "translateY(-10px) rotate(3deg)", offset: 0.85},
+    {transform: "translateY(0) rotate(0deg)", offset: 1}
+  ], {duration: 800, easing: "ease-in-out"})
+})
+
 // expose liveSocket on window for web console debug logs and latency simulation:
 // >> liveSocket.enableDebug()
 // >> liveSocket.enableLatencySim(1000)  // enabled for duration of browser session

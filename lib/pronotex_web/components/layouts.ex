@@ -42,26 +42,36 @@ defmodule PronotexWeb.Layouts do
         {render_slot(@inner_block)}
       </main>
       <footer class="app-brand-footer">
-        <svg class="app-brand-logo" viewBox="0 0 1040 400" role="img" aria-label="Captain Notes">
-          <defs>
-            <mask
-              id="footer-logo-mask"
-              style="mask-type: alpha"
-              maskUnits="userSpaceOnUse"
-              x="0"
-              y="0"
-              width="1040"
-              height="400"
-            >
-              <image
-                href={~p"/images/brand/captain-notes-skull-login.png"}
+        <button
+          type="button"
+          class="app-brand-button"
+          data-logo-easter-egg
+          aria-label="Animer Captain Notes"
+        >
+          <svg class="app-brand-logo" viewBox="0 0 1040 400" role="img" aria-label="Captain Notes">
+            <defs>
+              <mask
+                id="footer-logo-mask"
+                style="mask-type: alpha"
+                maskUnits="userSpaceOnUse"
+                x="0"
+                y="0"
                 width="1040"
                 height="400"
-              />
-            </mask>
-          </defs>
-          <rect width="1040" height="400" fill="currentColor" mask="url(#footer-logo-mask)" />
-        </svg>
+              >
+                <image
+                  href={~p"/images/brand/captain-notes-skull-login.png"}
+                  width="1040"
+                  height="400"
+                />
+              </mask>
+            </defs>
+            <g class="app-brand-skull">
+              <rect width="365" height="400" fill="currentColor" mask="url(#footer-logo-mask)" />
+            </g>
+            <rect x="365" width="675" height="400" fill="currentColor" mask="url(#footer-logo-mask)" />
+          </svg>
+        </button>
       </footer>
     </div>
 

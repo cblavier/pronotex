@@ -417,6 +417,10 @@ html { touch-action: manipulation; }
 .page-shell > main { width: 100%; flex: 1; }
 .app-brand-footer { display: flex; justify-content: center; padding: 0.5rem 1rem 1.5rem; }
 .app-brand-logo { width: 104px; height: 40px; color: var(--day-ink); opacity: 0.75; }
+.app-brand-button { display: inline-flex; padding: 2px; border: 0; border-radius: 0.375rem; background: transparent; cursor: pointer; }
+.app-brand-button:focus-visible { outline: 2px solid var(--day-ink); outline-offset: 4px; }
+.app-brand-logo { overflow: visible; }
+.app-brand-skull { transform-origin: 195px 240px; }
 
 /* Single-column agenda switches panels without removing the LiveView streams. */
 #agenda-subnav { display: none; }
