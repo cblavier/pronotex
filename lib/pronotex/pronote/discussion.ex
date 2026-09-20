@@ -2,19 +2,30 @@ defmodule Pronotex.Pronote.Discussion do
   @moduledoc "Student discussions, rendered as plain text; reading never marks them as seen."
 
   def messages(data) do
-    for raw <- get_in(data, ["listeMessages", "V"]) || [] do
-      content = raw["contenu"]
-      content = if is_map(content), do: content["V"], else: content
+    messages =
+      for raw <- get_in(data, ["listeMessages", "V"]) || [] do
+        content = raw["contenu"]
+        content = if is_map(content), do: content["V"], else: content
 
-      %{
-        id: raw["N"],
-        author: if(raw["emetteur"] == true, do: "Moi", else: raw["public_gauche"] || ""),
-        own: raw["emetteur"] == true,
-        seen: Map.get(raw, "lu", true) == true,
-        date: get_in(raw, ["date", "V"]) || "",
-        content: if(raw["estHTML"] == true, do: plain_text(content || ""), else: content || "")
-      }
-    end
+        %{
+          id: raw["N"],
+          author: if(raw["emetteur"] == true, do: "Moi", else: raw["public_gauche"] || ""),
+          own: raw["emetteur"] == true,
+          seen: Map.get(raw, "lu", true) == true,
+          date: get_in(raw, ["date", "V"]) || "",
+          content: if(raw["estHTML"] == true, do: plain_text(content || ""), else: content || "")
+        }
+      end
+
+    Enum.sort_by(messages, &message_time/1)
+  end
+
+  defp message_time(message) do
+    message.date
+    |> Pronotex.Pronote.Lesson.datetime()
+    |> NaiveDateTime.diff(~N[0000-01-01 00:00:00], :second)
+  rescue
+    _ in [Pronotex.Pronote.Error, ArgumentError] -> 0
   end
 
   # PRONOTE can return the placeholder N=0 for multiple discussion roots.

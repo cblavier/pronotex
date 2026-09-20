@@ -441,7 +441,8 @@ html { touch-action: manipulation; }
 .messages-menu-item { margin-top: 0.5rem; }
 #messages-unread-count { margin-left: auto; }
 .messages-empty { padding: 1.5rem 0; color: var(--muted-ink); font-size: 0.875rem; }
-.discussion-list { display: grid; gap: 1rem; margin-top: 1rem; }
+.discussion-list, .discussion-messages { display: grid; gap: 1rem; }
+.discussion-list { margin-top: 1rem; }
 .discussion-card { position: relative; transition: background-color 150ms; border: 1px solid var(--color-base-300); border-radius: 0.5rem; background: var(--surface-background); overflow: hidden; }
 
 .discussion-summary { display: grid; gap: 0.5rem; width: 100%; padding: 1rem; text-align: left; cursor: pointer; background: transparent; border: 0; }
@@ -452,7 +453,8 @@ html { touch-action: manipulation; }
 .discussion-actions { display: flex; justify-content: flex-end; padding: 0.5rem 1rem; }
 .discussion-status:disabled { opacity: 0.6; cursor: wait; }
 .discussion-summary:focus-visible, .discussion-status:focus-visible { outline: 2px solid var(--day-ink); outline-offset: -2px; }
-.discussion-message { padding: 1rem; border-top: 1px solid var(--day-line); }
+.discussion-card[data-view="detail"] { border: 0; border-radius: 0; background: transparent; overflow: visible; }
+.discussion-message { padding: 1rem; border: 1px solid var(--color-base-300); border-radius: 0.5rem; background: var(--surface-background); }
 .discussion-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 0.75rem; font-size: 0.875rem; }
 
 /* Keep the retry action distinct from the error alert in both themes. */
