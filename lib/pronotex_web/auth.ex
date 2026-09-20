@@ -11,7 +11,14 @@ defmodule PronotexWeb.Auth do
     if Auth.valid?(get_session(conn)) do
       conn
     else
-      conn |> clear_session() |> Phoenix.Controller.redirect(to: "/login") |> halt()
+      # A late unauthenticated request must not overwrite the cookie belonging
+      # to an open login form (or a login that has just completed in another tab).
+      # Authentication is still checked on every request; successful login renews
+      # the session and clears its previous contents.
+      conn
+      |> configure_session(ignore: true)
+      |> Phoenix.Controller.redirect(to: "/login")
+      |> halt()
     end
   end
 

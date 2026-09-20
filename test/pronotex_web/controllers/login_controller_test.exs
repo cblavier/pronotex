@@ -15,6 +15,35 @@ defmodule PronotexWeb.LoginControllerTest do
     assert build_conn() |> get("/login") |> html_response(200) =~ "Code PIN"
   end
 
+  test "a protected request in another tab does not invalidate an open login form" do
+    for path <- ["/", "/avatars/1", "/images/avatars/private.png"] do
+      login = build_conn() |> put_private(:plug_skip_csrf_protection, false) |> get("/login")
+
+      token =
+        login
+        |> html_response(200)
+        |> Floki.parse_document!()
+        |> Floki.find("input[name=_csrf_token]")
+        |> Floki.attribute("value")
+        |> hd()
+
+      redirected =
+        login |> recycle() |> put_private(:plug_skip_csrf_protection, false) |> get(path)
+
+      assert redirected_to(redirected) == "/login"
+      assert get_resp_header(redirected, "set-cookie") == []
+
+      success =
+        redirected
+        |> recycle()
+        |> put_private(:plug_skip_csrf_protection, false)
+        |> post("/login", %{"account" => "family", "pin" => "01234567", "_csrf_token" => token})
+
+      assert redirected_to(success) == "/"
+      assert Pronotex.Auth.valid?(get_session(success))
+    end
+  end
+
   test "stale login form renews the session without checking the PIN, then accepts a fresh form" do
     conn =
       build_conn()
