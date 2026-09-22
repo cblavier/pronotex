@@ -943,7 +943,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     render_async(view)
     render_async(view)
     refute_received {:mark_discussion, _, _, _}
-    assert has_element?(view, ".discussion-status[aria-pressed=false]", "J’ai pris connaissance")
+    assert has_element?(view, ".discussion-status[aria-pressed=false]", "Non lu")
     view |> element(".communication-detail-header .discussion-status") |> render_click()
     render_async(view)
     assert_receive {:mark_discussion, "a", "information-a", true}
@@ -951,7 +951,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert has_element?(
              view,
              ".discussion-status[disabled][aria-pressed=true]",
-             "J’ai pris connaissance"
+             "Lu"
            )
 
     render_click(view, "mark-discussion", %{"id" => "information-a"})

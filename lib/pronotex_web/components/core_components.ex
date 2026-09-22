@@ -78,7 +78,7 @@ defmodule PronotexWeb.CoreComponents do
           <span class="sr-only">Enregistrement en cours</span>
         </span>
       <% else %>
-        {if @information, do: "J’ai pris connaissance", else: if(@confirmed, do: "Lu", else: "Non lu")}
+        {if @confirmed, do: "Lu", else: "Non lu"}
       <% end %>
     </button>
     """

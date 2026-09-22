@@ -597,9 +597,7 @@ html { touch-action: manipulation; }
 .child-picker-separator { margin: 0.5rem; border: 0; border-top: 1px solid var(--color-base-300); }
 
 /* Keep homework navigation stable while its unread count loads or disappears. */
-@media (min-width: 640px) {
-  #nav-devoirs { width: 9rem; }
-}
+
 
 /* The whole lesson card is a keyboard-accessible link to its published notes. */
 .lesson-with-content { position: relative; }
@@ -638,14 +636,9 @@ html { touch-action: manipulation; }
 }
 .survey-choices { margin-top: 0.75rem; padding-left: 1.25rem; list-style: disc; }
 
-.discussion-card[data-view="list"][data-kind="information"] { display: flex; flex-wrap: wrap; }
-.discussion-card[data-view="list"][data-kind="information"] .discussion-summary { flex: 1 1 16rem; min-width: 0; }
-.discussion-card[data-view="list"][data-kind="information"] .discussion-heading { padding-right: 0; }
-.discussion-card[data-view="list"][data-kind="information"] .discussion-actions { position: static; align-self: flex-start; margin: 1rem 1rem 1rem auto; }
 
 .communication-actions, .discussion-actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
 .discussion-card[data-view="list"] .discussion-heading { padding-right: 9.5rem; }
-.discussion-card[data-view="list"][data-kind="information"] .discussion-heading { padding-right: 0; }
 
 #messages-content { --communication-control-height: 2rem; --communication-control-radius: 0.25rem; }
 #messages-content .discussion-status, #messages-content .communication-badge {
@@ -664,7 +657,6 @@ html { touch-action: manipulation; }
 .discussion-card[data-view="detail"] .discussion-message + .discussion-message { border-top: 1px solid var(--day-line); }
 .discussion-card[data-view="detail"] .discussion-messages > .discussion-meta { padding: 1rem 1rem 0; }
 .discussion-card[data-view="list"] .discussion-heading { padding-right: 7.5rem; }
-.discussion-card[data-view="list"][data-kind="information"] .discussion-heading { padding-right: 0; }
 
 .communication-detail-header .communication-badge { border: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
 
