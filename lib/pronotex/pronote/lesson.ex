@@ -9,8 +9,10 @@ defmodule Pronotex.Pronote.Lesson do
     :start,
     :end,
     :status,
+    :evaluation,
     :memo,
     :child_id,
+    contents: [],
     teachers: [],
     classrooms: [],
     groups: [],
@@ -43,11 +45,25 @@ defmodule Pronotex.Pronote.Lesson do
       canceled: raw["estAnnule"] || false,
       priority: raw["P"] || 0,
       status: raw["Statut"],
+      evaluation: evaluation(raw),
       memo: raw["memo"]
     }
   end
 
   def date(value), do: value |> datetime() |> NaiveDateTime.to_date()
+
+  defp evaluation(raw) do
+    notebook = get_in(raw, ["cahierDeTextes", "V"]) || %{}
+
+    if notebook["estEval"] == true do
+      categories = get_in(notebook, ["originesCategorie", "V"]) || []
+
+      Enum.find_value(categories, fn
+        %{"libelleIcone" => "EVA", "L" => label} when is_binary(label) and label != "" -> label
+        _ -> nil
+      end) || "Évaluation"
+    end
+  end
 
   defp lunch_window(general, date) do
     times = get_in(general, ["ListeHeures", "V"]) || []

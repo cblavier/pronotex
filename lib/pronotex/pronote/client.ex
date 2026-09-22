@@ -131,7 +131,34 @@ defmodule Pronotex.Pronote.Client do
       |> Enum.uniq_by(&{&1.id, &1.start, &1.priority})
       |> Enum.sort_by(& &1.start, NaiveDateTime)
 
-    {lessons, client}
+    if contains?(client.tabs, 89) and lessons != [] do
+      {result, transport} =
+        Transport.call(client.transport, "PageCahierDeTexte", %{
+          "Signature" => signature(client, child_id, 89),
+          "data" => %{"domaine" => %{"_T" => 8, "V" => "[#{first_week}..#{last_week}]"}}
+        })
+
+      contents =
+        (get_in(result, ["ListeCahierDeTextes", "V"]) || [])
+        |> Enum.group_by(fn entry ->
+          {get_in(entry, ["cours", "V", "N"]), Lesson.datetime(entry["Date"]["V"])}
+        end)
+
+      lessons =
+        Enum.map(lessons, fn lesson ->
+          notes =
+            Map.get(contents, {lesson.id, lesson.start}, [])
+            |> Enum.flat_map(&(get_in(&1, ["listeContenus", "V"]) || []))
+            |> Enum.map(&Pronotex.Pronote.LessonContent.parse(&1, transport))
+            |> Enum.reject(&(&1.title == "" and &1.description == "" and &1.resources == []))
+
+          %{lesson | contents: notes}
+        end)
+
+      {lessons, %{client | transport: transport}}
+    else
+      {lessons, client}
+    end
   end
 
   def homework(client, child_id, from, to) do

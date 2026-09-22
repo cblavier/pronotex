@@ -2,6 +2,40 @@ defmodule Pronotex.Pronote.LessonTest do
   use ExUnit.Case, async: true
   alias Pronotex.Pronote.Lesson
 
+  test "reads evaluation categories independently of the lesson status" do
+    raw = %{
+      "N" => "lesson",
+      "DateDuCours" => %{"V" => "21/09/2026 08:10:00"},
+      "DateDuCoursFin" => %{"V" => "21/09/2026 09:05:00"},
+      "ListeContenus" => %{"V" => [%{"G" => 16, "L" => "Mathématiques"}]},
+      "Statut" => "Cours modifié"
+    }
+
+    notebook = %{
+      "estEval" => true,
+      "originesCategorie" => %{
+        "V" => [%{"G" => 7, "L" => "Évaluation de compétences", "libelleIcone" => "EVA"}]
+      }
+    }
+
+    lesson = Lesson.parse(Map.put(raw, "cahierDeTextes", %{"V" => notebook}), %{}, "child")
+    assert lesson.evaluation == "Évaluation de compétences"
+    assert lesson.status == "Cours modifié"
+    assert Lesson.parse(raw, %{}, "child").evaluation == nil
+
+    assert Lesson.parse(
+             Map.put(raw, "cahierDeTextes", %{"V" => %{"estEval" => true}}),
+             %{},
+             "child"
+           ).evaluation == "Évaluation"
+
+    assert Lesson.parse(
+             Map.put(raw, "cahierDeTextes", %{"V" => Map.put(notebook, "estEval", false)}),
+             %{},
+             "child"
+           ).evaluation == nil
+  end
+
   test "uses the explicit end date and preserves multiple teachers and rooms" do
     raw = %{
       "N" => "lesson",
