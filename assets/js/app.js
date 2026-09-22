@@ -150,20 +150,98 @@ document.addEventListener("visibilitychange", () => {
 // connect if there are any LiveViews on the page
 liveSocket.connect()
 
-// A short, silent salute from the captain, including keyboard activation.
-document.addEventListener("click", event => {
-  const button = event.target.closest("[data-logo-easter-egg]")
-  if (!button || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-  const skull = button.querySelector(".app-brand-skull")
-  if (!skull || skull.getAnimations().length) return
-  skull.animate([
+// Short surprises from the captain, including keyboard activation.
+const captainAnimations = [
+  // Spring: squash, jump, then two smaller rebounds.
+  {duration: 1300, frames: [
+    {transform: "translateY(0) scale(1, 1)", offset: 0},
+    {transform: "translateY(25px) scale(1.18, 0.72)", offset: 0.15},
+    {transform: "translateY(-100px) scale(0.9, 1.12)", offset: 0.32},
+    {transform: "translateY(15px) scale(1.12, 0.85)", offset: 0.48},
+    {transform: "translateY(-48px) scale(0.96, 1.05)", offset: 0.62},
+    {transform: "translateY(8px) scale(1.05, 0.94)", offset: 0.74},
+    {transform: "translateY(-18px) scale(1, 1)", offset: 0.86},
+    {transform: "translateY(0) scale(1, 1)", offset: 1}
+  ]},
+  // A reluctant shake of the head.
+  {duration: 900, frames: [
+    {transform: "translateX(0) rotate(0deg)", offset: 0},
+    {transform: "translateX(-28px) rotate(-10deg)", offset: 0.14},
+    {transform: "translateX(28px) rotate(10deg)", offset: 0.28},
+    {transform: "translateX(-22px) rotate(-8deg)", offset: 0.42},
+    {transform: "translateX(22px) rotate(8deg)", offset: 0.56},
+    {transform: "translateX(-12px) rotate(-4deg)", offset: 0.7},
+    {transform: "translateX(12px) rotate(4deg)", offset: 0.84},
+    {transform: "translateX(0) rotate(0deg)", offset: 1}
+  ]},
+  // Gently bob and roll on an imaginary wave.
+  {duration: 2000, frames: [
+    {transform: "translate(0, 0) rotate(0deg)", offset: 0},
+    {transform: "translate(-25px, -25px) rotate(-12deg)", offset: 0.2},
+    {transform: "translate(25px, 15px) rotate(12deg)", offset: 0.4},
+    {transform: "translate(-20px, -20px) rotate(-9deg)", offset: 0.6},
+    {transform: "translate(15px, 10px) rotate(6deg)", offset: 0.8},
+    {transform: "translate(0, 0) rotate(0deg)", offset: 1}
+  ]},
+  {duration: 800, frames: [
     {transform: "translateY(0) rotate(0deg)", offset: 0},
     {transform: "translateY(8px) rotate(-8deg)", offset: 0.2},
     {transform: "translateY(-45px) rotate(12deg)", offset: 0.45},
     {transform: "translateY(0) rotate(-6deg)", offset: 0.7},
     {transform: "translateY(-10px) rotate(3deg)", offset: 0.85},
     {transform: "translateY(0) rotate(0deg)", offset: 1}
-  ], {duration: 800, easing: "ease-in-out"})
+  ]},
+  {duration: 950, frames: [
+    {transform: "scale(1)", offset: 0},
+    {transform: "scale(1.2)", offset: 0.15},
+    {transform: "scale(1)", offset: 0.3},
+    {transform: "scale(1.3)", offset: 0.45},
+    {transform: "scale(1)", offset: 0.65},
+    {transform: "scale(1.12)", offset: 0.8},
+    {transform: "scale(1)", offset: 1}
+  ]},
+  {duration: 900, frames: [
+    {transform: "rotate(0deg)"},
+    {transform: "rotate(360deg)"}
+  ]},
+  {duration: 1100, frames: [
+    {opacity: 1, transform: "scale(1)", offset: 0},
+    {opacity: 0, transform: "scale(0.65)", offset: 0.35},
+    {opacity: 0, transform: "scale(0.65)", offset: 0.55},
+    {opacity: 1, transform: "scale(1.08)", offset: 0.85},
+    {opacity: 1, transform: "scale(1)", offset: 1}
+  ]},
+  {duration: 1600, frames: skull => {
+    const bounds = skull.getBoundingClientRect()
+    // SVG transforms use viewBox units, not screen pixels.
+    const scale = skull.getScreenCTM().a
+    const right = (document.documentElement.clientWidth - bounds.left + 8) / scale
+    const left = (-bounds.right - 8) / scale
+    return [
+      {transform: "translateX(0)", opacity: 1, offset: 0},
+      {transform: `translateX(${right}px)`, opacity: 1, offset: 0.48},
+      {transform: `translateX(${right}px)`, opacity: 0, offset: 0.49},
+      {transform: `translateX(${left}px)`, opacity: 0, offset: 0.51},
+      {transform: `translateX(${left}px)`, opacity: 1, offset: 0.52},
+      {transform: "translateX(0)", opacity: 1, offset: 1}
+    ]
+  }}
+]
+const lastCaptainAnimation = new WeakMap()
+document.addEventListener("click", event => {
+  const button = event.target.closest("[data-logo-easter-egg]")
+  if (!button || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+  const skull = button.querySelector(".app-brand-skull")
+  if (!skull || skull.getAnimations().length) return
+  // Optional haptic feedback; unsupported or blocked vibration must not interrupt the animation.
+  if (typeof navigator.vibrate === "function") {
+    try { navigator.vibrate(12) } catch { /* Browser or device policy may block vibration. */ }
+  }
+  const choices = captainAnimations.filter(animation => animation !== lastCaptainAnimation.get(button))
+  const animation = choices[Math.floor(Math.random() * choices.length)]
+  lastCaptainAnimation.set(button, animation)
+  const frames = typeof animation.frames === "function" ? animation.frames(skull) : animation.frames
+  skull.animate(frames, {duration: animation.duration, easing: "ease-in-out"})
 })
 
 // expose liveSocket on window for web console debug logs and latency simulation:

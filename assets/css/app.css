@@ -424,7 +424,7 @@ html { touch-action: manipulation; }
 #child-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .page-shell { display: flex; flex-direction: column; }
 .page-shell > main { width: 100%; flex: 1; }
-.app-brand-footer { display: flex; justify-content: center; padding: 0.5rem 1rem 1.5rem; }
+.app-brand-footer { display: flex; justify-content: center; padding: 0.5rem 1rem 1.5rem; overflow-x: clip; }
 .app-brand-logo { width: 104px; height: 40px; color: var(--day-ink); opacity: 0.75; }
 .app-brand-button { display: inline-flex; padding: 2px; border: 0; border-radius: 0.375rem; background: transparent; cursor: pointer; }
 .app-brand-button:focus-visible { outline: 2px solid var(--day-ink); outline-offset: 4px; }
@@ -667,3 +667,52 @@ html { touch-action: manipulation; }
 .discussion-card[data-view="list"][data-kind="information"] .discussion-heading { padding-right: 0; }
 
 .communication-detail-header .communication-badge { border: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
+
+/* Immediate touch feedback, without delaying activation or intercepting scrolling. */
+@media (any-pointer: coarse) {
+  .page-shell .btn:not(:disabled):active {
+    background-color: var(--day-tint);
+    color: var(--day-ink);
+    border-color: var(--day-line);
+  }
+  #homework .btn[data-homework-status]:not(:disabled):active,
+  #messages-content .discussion-status:not(:disabled):active {
+    background-color: color-mix(in srgb, var(--status-tint), var(--status-ink) 12%);
+    color: var(--status-ink);
+    border-color: var(--status-line);
+  }
+  .lesson-with-content:has(.lesson-detail-link:active),
+  .discussion-card[data-view="list"]:has(.discussion-summary:active) {
+    background-color: var(--day-tint);
+    transition-duration: 0s;
+  }
+  .navigation-tab:not(:disabled):active,
+  #agenda-subnav button:not(:disabled):active,
+  #child-picker-toggle:active,
+  .child-picker-option:not(:disabled):active,
+  .themed-dropdown > summary:active,
+  .dropdown-option:has(input:not(:disabled)):active,
+  .lesson-back-link:active,
+  .lesson-resource-link:active {
+    background-color: var(--day-tint);
+    color: var(--day-ink);
+  }
+  #agenda-subnav button:not(:disabled):active {
+    background-color: color-mix(in srgb, var(--day-tint), var(--day-ink) 12%);
+  }
+  #login-screen .login-submit:not(:disabled):active {
+    background-color: color-mix(in srgb, var(--login-primary), black 15%);
+    color: white;
+  }
+  #login-screen .pin-key:not(:disabled):active {
+    background-color: color-mix(in srgb, var(--login-primary) 28%, transparent);
+  }
+  #flash-error .error-retry:not(:disabled):active { background: #b91c1c; color: white; }
+}
+@media (any-pointer: coarse) and (prefers-reduced-motion: no-preference) {
+  .page-shell .btn:not(:disabled):active,
+  #login-screen button:not(:disabled):active,
+  .app-brand-button:active {
+    scale: 0.97;
+  }
+}
