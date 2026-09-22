@@ -31,6 +31,78 @@ defmodule PronotexWeb.CoreComponents do
 
   alias Phoenix.LiveView.JS
 
+  @doc "Shared read status and acknowledgement button for communications."
+  attr :discussion, :map, required: true
+  attr :saving, :string, default: nil
+  attr :loading, :boolean, default: false
+
+  def communication_status_button(assigns) do
+    information = Map.get(assigns.discussion, :kind) == :information
+
+    confirmed =
+      if information,
+        do: Map.get(assigns.discussion, :acknowledged, false),
+        else: assigns.discussion.unread == 0
+
+    assigns =
+      assign(assigns,
+        information: information,
+        confirmed: confirmed,
+        available: !information || Map.get(assigns.discussion, :acknowledgement_required, false)
+      )
+
+    ~H"""
+    <button
+      :if={@available}
+      type="button"
+      class="btn btn-sm btn-ghost gap-2 shrink-0 discussion-status"
+      aria-pressed={to_string(@confirmed)}
+      aria-label={
+        if @information,
+          do: "J’ai pris connaissance de cette information",
+          else: if(@confirmed, do: "Marquer comme non lu", else: "Marquer comme lu")
+      }
+      data-unread={to_string(!@confirmed)}
+      phx-click="mark-discussion"
+      phx-value-id={@discussion.id}
+      disabled={
+        @saving != nil || @loading || (@information && !Map.get(@discussion, :can_acknowledge, false))
+      }
+    >
+      <.icon
+        name={if @confirmed, do: "hero-check-circle", else: "hero-minus-circle"}
+        class="size-5"
+      />
+      <%= if @saving == @discussion.id do %>
+        <span class="loading loading-spinner loading-xs" role="status">
+          <span class="sr-only">Enregistrement en cours</span>
+        </span>
+      <% else %>
+        {if @information, do: "J’ai pris connaissance", else: if(@confirmed, do: "Lu", else: "Non lu")}
+      <% end %>
+    </button>
+    """
+  end
+
+  attr :kind, :atom, default: :discussion
+
+  def communication_badge(assigns) do
+    {label, icon} =
+      case assigns.kind do
+        :information -> {"Informations", "hero-information-circle"}
+        :survey -> {"Sondage", "hero-clipboard-document-check"}
+        _ -> {"Discussion", "hero-chat-bubble-left-right"}
+      end
+
+    assigns = assign(assigns, label: label, icon: icon)
+
+    ~H"""
+    <span class="communication-badge" data-kind={@kind} role="img" aria-label={@label} title={@label}>
+      <.icon name={@icon} class="communication-icon" />
+    </span>
+    """
+  end
+
   @doc "A shared count badge for unread messages and homework statuses."
   attr :id, :string, default: nil
   attr :count, :any, required: true
@@ -38,9 +110,13 @@ defmodule PronotexWeb.CoreComponents do
   attr :class, :string, default: nil
   attr :rest, :global
 
+  slot :inner_block
+
   def count_badge(assigns) do
     ~H"""
-    <span id={@id} class={["count-badge", @class]} data-status={@status} {@rest}>{@count}</span>
+    <span id={@id} class={["count-badge", @class]} data-status={@status} {@rest}>
+      {if @inner_block == [], do: @count, else: render_slot(@inner_block)}
+    </span>
     """
   end
 
@@ -493,6 +569,107 @@ defmodule PronotexWeb.CoreComponents do
       aria-hidden="true"
     >
       <path d="M4 3v5a3 3 0 0 0 6 0V3M7 3v18M18 3c-3 3-4 6-4 10h4M18 3v18" />
+    </svg>
+    """
+  end
+
+  def icon(%{name: "hero-check"} = assigns) do
+    ~H"""
+    <svg
+      class={["icon-check shrink-0", @class]}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.5"
+      aria-hidden="true"
+    >
+      <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+    </svg>
+    """
+  end
+
+  def icon(%{name: "hero-chat-bubble-left-right"} = assigns) do
+    ~H"""
+    <svg
+      class={@class}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke-width="1.5"
+      stroke="currentColor"
+      aria-hidden="true"
+      data-slot="icon"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 0 1-.825-.242m9.345-8.334a2.126 2.126 0 0 0-.476-.095 48.64 48.64 0 0 0-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0 0 11.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155"
+      />
+    </svg>
+    """
+  end
+
+  def icon(%{name: "hero-information-circle"} = assigns) do
+    ~H"""
+    <svg
+      class={@class}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke-width="1.5"
+      stroke="currentColor"
+      aria-hidden="true"
+      data-slot="icon"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"
+      />
+    </svg>
+    """
+  end
+
+  def icon(%{name: "hero-clipboard-document-check"} = assigns) do
+    ~H"""
+    <svg
+      class={@class}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke-width="1.5"
+      stroke="currentColor"
+      aria-hidden="true"
+      data-slot="icon"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0 1 18 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375m-8.25-3 1.5 1.5 3-3.75"
+      />
+    </svg>
+    """
+  end
+
+  def icon(%{name: "hero-paper-clip"} = assigns) do
+    ~H"""
+    <svg
+      width="18"
+      height="18"
+      class={@class}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke-width="1.5"
+      stroke="currentColor"
+      aria-hidden="true"
+      data-slot="icon"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13"
+      />
     </svg>
     """
   end

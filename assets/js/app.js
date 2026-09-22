@@ -64,10 +64,47 @@ document.addEventListener("keydown", event => {
 })
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+const AgendaScroll = {
+  mounted() {
+    this.savedAgendaScroll = null
+    this.saveAgendaScroll = event => {
+      if (!event.target.closest(".lesson-detail-link")) return
+      this.savedAgendaScroll = {
+        key: this.el.dataset.agendaKey,
+        x: window.scrollX,
+        y: window.scrollY
+      }
+    }
+    this.el.addEventListener("click", this.saveAgendaScroll, true)
+  },
+  updated() {
+    const saved = this.savedAgendaScroll
+    if (!saved) return
+    if (saved.key !== this.el.dataset.agendaKey) {
+      this.savedAgendaScroll = null
+      return
+    }
+    const agenda = this.el.querySelector("#agenda-content")
+    if (this.el.hidden || !agenda || agenda.hidden) return
+    this.savedAgendaScroll = null
+    // Wait for the restored agenda and LiveView's navigation scroll to settle.
+    this.scrollFrame = requestAnimationFrame(() => {
+      this.scrollFrame = requestAnimationFrame(() => {
+        if (this.el.isConnected && !agenda.hidden && this.el.dataset.agendaKey === saved.key) {
+          window.scrollTo({left: saved.x, top: saved.y, behavior: "instant"})
+        }
+      })
+    })
+  },
+  destroyed() {
+    cancelAnimationFrame(this.scrollFrame)
+    this.el.removeEventListener("click", this.saveAgendaScroll, true)
+  }
+}
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, AgendaScroll},
 })
 
 // Show progress bar on live navigation and form submits

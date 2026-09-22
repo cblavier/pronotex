@@ -47,7 +47,10 @@ defmodule PronotexWeb.DashboardLive do
         homework_saving: nil,
         homework_save_error: nil,
         homework_error: nil,
+        agenda_from: today,
         lesson_count: 0,
+        lessons: [],
+        open_lesson: nil,
         menu_count: 0,
         menu_error: nil,
         homework_count: 0,
@@ -75,7 +78,13 @@ defmodule PronotexWeb.DashboardLive do
         stream_insert(socket, :lesson_days, day)
       end)
 
-    {:noreply, socket}
+    if socket.assigns.section == "agenda" and socket.assigns.mode == :today and
+         !socket.assigns.loading and
+         socket.assigns.agenda_from != agenda_start(today(), socket.assigns.now) do
+      handle_event("refresh", %{}, socket)
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -109,6 +118,7 @@ defmodule PronotexWeb.DashboardLive do
         week: week,
         mode: mode,
         section: section,
+        open_lesson: if(section == "agenda", do: params["lesson"]),
         open_discussion: if(section in ["messages", "parent-messages"], do: params["discussion"]),
         grade_period: period,
         today: today,
@@ -140,21 +150,24 @@ defmodule PronotexWeb.DashboardLive do
     discussion = Enum.find(socket.assigns.discussions, &(&1.id == id))
 
     if (socket.assigns.section in ["messages", "parent-messages"] and discussion) &&
-         is_nil(socket.assigns.message_saving) && !socket.assigns.messages_loading do
+         is_nil(socket.assigns.message_saving) && !socket.assigns.messages_loading &&
+         (Map.get(discussion, :kind) != :information ||
+            Map.get(discussion, :can_acknowledge, false)) do
       api = socket.assigns.api
       account = socket.assigns.account
       child_id = socket.assigns.child.id
       generation = socket.assigns.messages_generation
       parent_inbox = socket.assigns.section == "parent-messages"
+      target_read = Map.get(discussion, :kind) == :information || discussion.unread > 0
 
       {:noreply,
        socket
        |> assign(:message_saving, id)
        |> start_async({:message_save, generation}, fn ->
          if parent_inbox do
-           api_call(api, account, :set_parent_discussion_read, [id, discussion.unread > 0])
+           api_call(api, account, :set_parent_discussion_read, [id, target_read])
          else
-           api_call(api, account, :set_discussion_read, [child_id, id, discussion.unread > 0])
+           api_call(api, account, :set_discussion_read, [child_id, id, target_read])
          end
        end)}
     else
@@ -388,7 +401,7 @@ defmodule PronotexWeb.DashboardLive do
 
     {lessons_from, lessons_to} =
       if mode == :today do
-        start = if Date.day_of_week(from) > 5, do: Date.add(Date.end_of_week(from), 1), else: from
+        start = agenda_start(from, now())
         {start, Date.add(Date.beginning_of_week(start), 4)}
       else
         {from, to}
@@ -400,6 +413,7 @@ defmodule PronotexWeb.DashboardLive do
     |> clear_flash(:error)
     |> assign(
       loading: true,
+      agenda_from: lessons_from,
       messages_generation: make_ref(),
       discussions: [],
       messages_unread: 0,
@@ -424,6 +438,7 @@ defmodule PronotexWeb.DashboardLive do
       homework_save_error: nil,
       homework_error: nil,
       lesson_count: 0,
+      lessons: [],
       menu_count: 0,
       menu_error: nil,
       homework_count: 0,
@@ -608,6 +623,15 @@ defmodule PronotexWeb.DashboardLive do
     |> cache_homework_badge(pending_count(urgent))
   end
 
+  defp agenda_start(date, clock) do
+    date =
+      if Time.compare(NaiveDateTime.to_time(clock), ~T[18:00:00]) != :lt,
+        do: Date.add(date, 1),
+        else: date
+
+    if Date.day_of_week(date) > 5, do: Date.add(Date.end_of_week(date), 1), else: date
+  end
+
   defp now do
     Application.get_env(:pronotex, :now, fn ->
       {date, time} = :calendar.local_time()
@@ -712,39 +736,36 @@ defmodule PronotexWeb.DashboardLive do
 
     query = if mode == :week, do: [{"week", Date.to_iso8601(week)}], else: []
     query = if period, do: query ++ [{"period", period}], else: query
+    lesson = if overrides == [], do: socket.assigns.open_lesson
+    query = if section == "agenda" and lesson, do: query ++ [{"lesson", lesson}], else: query
     path <> if(query == [], do: "", else: "?" <> URI.encode_query(query))
   end
 
-  attr :discussion, :map, required: true
-  attr :saving, :string, default: nil
-  attr :loading, :boolean, default: false
-
-  defp discussion_read_button(assigns) do
-    ~H"""
-    <button
-      type="button"
-      class="btn btn-sm btn-ghost gap-2 shrink-0 discussion-status"
-      aria-pressed={to_string(@discussion.unread == 0)}
-      aria-label={if @discussion.unread > 0, do: "Marquer comme lu", else: "Marquer comme non lu"}
-      data-unread={to_string(@discussion.unread > 0)}
-      phx-click="mark-discussion"
-      phx-value-id={@discussion.id}
-      disabled={@saving != nil || @loading}
-    >
-      <.icon
-        name={if @discussion.unread == 0, do: "hero-check-circle", else: "hero-minus-circle"}
-        class="size-5"
-      />
-      <%= if @saving == @discussion.id do %>
-        <span class="loading loading-spinner loading-xs" role="status">
-          <span class="sr-only">Enregistrement en cours</span>
-        </span>
-      <% else %>
-        {if @discussion.unread == 0, do: "Lu", else: "Non lu"}
-      <% end %>
-    </button>
-    """
+  defp lesson_key(lesson) do
+    :crypto.hash(:sha256, lesson.id <> NaiveDateTime.to_iso8601(lesson.start))
+    |> Base.url_encode64(padding: false)
   end
+
+  defp lesson_url(url, key) do
+    uri = URI.parse(url)
+    query = URI.decode_query(uri.query || "") |> Map.put("lesson", key)
+    URI.to_string(%{uri | query: URI.encode_query(query)})
+  end
+
+  defp agenda_url(url) do
+    uri = URI.parse(url)
+    query = URI.decode_query(uri.query || "") |> Map.delete("lesson")
+    URI.to_string(%{uri | query: if(map_size(query) > 0, do: URI.encode_query(query))})
+  end
+
+  defp lesson_notes?(lesson),
+    do: Enum.any?(Map.get(lesson, :contents, []), &(&1.title != "" or &1.description != ""))
+
+  defp lesson_resources?(lesson),
+    do: Enum.any?(Map.get(lesson, :contents, []), &(&1.resources != []))
+
+  defp lesson_details?(lesson, now),
+    do: NaiveDateTime.compare(lesson.end, now) != :gt and Map.get(lesson, :contents, []) != []
 
   defp discussion_url(slug, mode, week, period, discussion, inbox) do
     path = if discussion, do: ~p"/#{slug}/#{inbox}/#{discussion}", else: ~p"/#{slug}/#{inbox}"
@@ -828,7 +849,7 @@ defmodule PronotexWeb.DashboardLive do
       |> Enum.map(fn day -> %{day | entries: Pronotex.Agenda.entries(day.entries)} end)
 
     days =
-      if socket.assigns.mode == :today and Date.day_of_week(socket.assigns.today) <= 5 and
+      if socket.assigns.mode == :today and socket.assigns.agenda_from == socket.assigns.today and
            not Enum.any?(days, &(&1.date == socket.assigns.today)) do
         [
           %{id: Date.to_iso8601(socket.assigns.today), date: socket.assigns.today, entries: []}
@@ -839,7 +860,7 @@ defmodule PronotexWeb.DashboardLive do
       end
 
     socket
-    |> assign(lesson_count: length(lessons), lesson_error: nil)
+    |> assign(lesson_count: length(lessons), lesson_error: nil, lessons: lessons)
     |> assign(:now, now())
     |> put_private(:lesson_days, days)
     |> stream(:lesson_days, days, reset: true)
@@ -910,6 +931,19 @@ defmodule PronotexWeb.DashboardLive do
 
     "#{start_label}–#{last.day} #{Enum.at(months, last.month - 1)}"
   end
+
+  defp communication_date(value) when is_binary(value) and value != "" do
+    date = Pronotex.Pronote.Lesson.datetime(value)
+    label = date |> NaiveDateTime.to_date() |> day_label() |> String.downcase()
+
+    if String.contains?(value, " "),
+      do: label <> Calendar.strftime(date, " à %Hh%M"),
+      else: label
+  rescue
+    _ in [Pronotex.Pronote.Error, ArgumentError] -> value
+  end
+
+  defp communication_date(_), do: ""
 
   defp day_label(date) do
     day =

@@ -65,6 +65,19 @@ defmodule PronotexWeb.DashboardLiveTest do
            [
              %Pronotex.Pronote.Lesson{
                id: "course",
+               contents:
+                 if(Application.get_env(:pronotex, :dashboard_test_mode) == :lesson_content,
+                   do: [
+                     %{
+                       title: "Fractions",
+                       description: "Comparer des fractions",
+                       resources: [
+                         %{name: "Exercice", type: :link, url: "https://example.org/exercice"}
+                       ]
+                     }
+                   ],
+                   else: []
+                 ),
                child_id: id,
                subject: "Maths #{id}",
                canceled: Application.get_env(:pronotex, :dashboard_test_mode) == :canceled,
@@ -121,44 +134,74 @@ defmodule PronotexWeb.DashboardLiveTest do
     end
 
     def discussions(id) do
-      if Application.get_env(:pronotex, :dashboard_test_mode) == :messages do
+      mode = Application.get_env(:pronotex, :dashboard_test_mode)
+
+      if mode == :communications do
         {:ok,
-         [
+         for kind <- [:discussion, :information, :survey] do
            %{
-             id: "thread-#{id}",
-             subject: "Discussion #{id}",
-             author: "Professeur",
-             date: "18/09/2026",
-             unread: 2,
-             preview: "Bonjour",
+             id: "#{kind}-#{id}",
+             kind: kind,
+             acknowledgement_required: kind == :information,
+             acknowledged: false,
+             can_acknowledge: kind == :information,
+             subject: "Sujet #{kind}",
+             author: "Établissement",
+             date: "09/09/2026 11:22:35",
+             unread: 1,
+             preview: "Contenu",
              messages: [
                %{
-                 id: "m1",
-                 author: "Professeur",
-                 date: "18/09/2026",
-                 content: "<script>privé</script>"
-               }
-             ]
-           },
-           %{
-             id: "other-#{id}",
-             subject: "Autre discussion",
-             author: "Autre professeur",
-             date: "18/09/2026",
-             unread: 0,
-             preview: "Autre contenu",
-             messages: [
-               %{
-                 id: "m2",
-                 author: "Autre professeur",
-                 date: "18/09/2026",
-                 content: "Autre contenu"
+                 id: "entry",
+                 author: "Établissement",
+                 date: "09/09/2026 11:22:35",
+                 content: "Contenu #{kind}",
+                 resources: [%{name: "Fichier", url: "https://school.test/file.pdf"}],
+                 choices: ["Oui", "Non"]
                }
              ]
            }
-         ]}
+         end}
       else
-        {:ok, []}
+        if mode == :messages do
+          {:ok,
+           [
+             %{
+               id: "thread-#{id}",
+               subject: "Discussion #{id}",
+               author: "Professeur",
+               date: "18/09/2026",
+               unread: 2,
+               preview: "Bonjour",
+               messages: [
+                 %{
+                   id: "m1",
+                   author: "Professeur",
+                   date: "18/09/2026",
+                   content: "<script>privé</script>"
+                 }
+               ]
+             },
+             %{
+               id: "other-#{id}",
+               subject: "Autre discussion",
+               author: "Autre professeur",
+               date: "18/09/2026",
+               unread: 0,
+               preview: "Autre contenu",
+               messages: [
+                 %{
+                   id: "m2",
+                   author: "Autre professeur",
+                   date: "18/09/2026",
+                   content: "Autre contenu"
+                 }
+               ]
+             }
+           ]}
+        else
+          {:ok, []}
+        end
       end
     end
 
@@ -173,7 +216,16 @@ defmodule PronotexWeb.DashboardLiveTest do
 
       {:ok,
        Enum.map(rows, fn row ->
-         if row.id == thread, do: %{row | unread: if(read, do: 0, else: 2)}, else: row
+         cond do
+           row.id != thread ->
+             row
+
+           Map.get(row, :kind) == :information ->
+             %{row | acknowledged: true, can_acknowledge: false, unread: 0}
+
+           true ->
+             %{row | unread: if(read, do: 0, else: 2)}
+         end
        end)}
     end
 
@@ -183,7 +235,16 @@ defmodule PronotexWeb.DashboardLiveTest do
 
       {:ok,
        Enum.map(rows, fn row ->
-         if row.id == thread, do: %{row | unread: if(read, do: 0, else: 2)}, else: row
+         cond do
+           row.id != thread ->
+             row
+
+           Map.get(row, :kind) == :information ->
+             %{row | acknowledged: true, can_acknowledge: false, unread: 0}
+
+           true ->
+             %{row | unread: if(read, do: 0, else: 2)}
+         end
        end)}
     end
 
@@ -343,6 +404,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     keys = [:pronote_client, :dashboard_test_pid, :dashboard_test_mode, :today, :now]
     previous = Map.new(keys, &{&1, Application.fetch_env(:pronotex, &1)})
     Application.put_env(:pronotex, :today, fn -> ~D[2026-09-18] end)
+    Application.put_env(:pronotex, :now, fn -> ~N[2026-09-18 12:00:00] end)
     Application.put_env(:pronotex, :pronote_client, API)
     Application.put_env(:pronotex, :dashboard_test_pid, self())
     Application.delete_env(:pronotex, :dashboard_test_mode)
@@ -517,6 +579,33 @@ defmodule PronotexWeb.DashboardLiveTest do
         assert has_element?(view, "#lesson-days", "Maths a")
       end
     end
+  end
+
+  test "today agenda advances at 18h and skips the weekend", %{conn: conn} do
+    for {date, first, last} <- [
+          {~D[2026-09-16], ~D[2026-09-17], ~D[2026-09-18]},
+          {~D[2026-09-18], ~D[2026-09-21], ~D[2026-09-25]},
+          {~D[2026-09-20], ~D[2026-09-21], ~D[2026-09-25]}
+        ] do
+      Application.put_env(:pronotex, :today, fn -> date end)
+      Application.put_env(:pronotex, :now, fn -> NaiveDateTime.new!(date, ~T[18:00:00]) end)
+      {:ok, view, _} = live(conn, "/alice")
+      render_async(view)
+      assert_receive {:lessons, "a", ^first, ^last}
+      refute has_element?(view, "#no-lessons-today")
+    end
+  end
+
+  test "an open agenda advances when the clock reaches 18h", %{conn: conn} do
+    Application.put_env(:pronotex, :now, fn -> ~N[2026-09-18 17:59:59] end)
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    assert_receive {:lessons, "a", ~D[2026-09-18], ~D[2026-09-18]}
+    Application.put_env(:pronotex, :now, fn -> ~N[2026-09-18 18:00:00] end)
+    send(view.pid, :update_lesson_clock)
+    render(view)
+    render_async(view)
+    assert_receive {:lessons, "a", ~D[2026-09-21], ~D[2026-09-25]}
   end
 
   test "today and week modes retain the child and support browser navigation", %{conn: conn} do
@@ -820,8 +909,8 @@ defmodule PronotexWeb.DashboardLiveTest do
     refute has_element?(view, "#discussion-thread-a")
     view |> element("#discussion-thread-parent a") |> render_click()
     assert_patch(view, "/alice/parent-messages/thread-parent")
-    assert has_element?(view, "#messages-breadcrumb a", "Messages Camille")
-    view |> element(".messages-header .discussion-status") |> render_click()
+    assert has_element?(view, "#messages-breadcrumb a", "Retour aux messages")
+    view |> element(".communication-detail-header .discussion-status") |> render_click()
     render_async(view)
     assert_receive {:mark_parent_discussion, "thread-parent", true}
     refute_received {:mark_discussion, _, _, _}
@@ -836,7 +925,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     render_async(view)
     assert has_element?(view, "#messages-title", "Messages Alice")
     view |> element("#discussion-thread-a a") |> render_click()
-    assert has_element?(view, "#messages-breadcrumb a", "Messages Alice")
+    assert has_element?(view, "#messages-breadcrumb a", "Retour aux messages")
   end
 
   test "family cannot open a parent's inbox even with a forged URL", %{conn: conn} do
@@ -846,6 +935,79 @@ defmodule PronotexWeb.DashboardLiveTest do
     refute has_element?(view, "#open-parent-messages")
     refute has_element?(view, "#messages-content")
     refute_received :parent_discussions
+  end
+
+  test "information button acknowledges explicitly and cannot undo confirmation", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :communications)
+    {:ok, view, _} = live(conn, "/alice/messages/information-a")
+    render_async(view)
+    render_async(view)
+    refute_received {:mark_discussion, _, _, _}
+    assert has_element?(view, ".discussion-status[aria-pressed=false]", "J’ai pris connaissance")
+    view |> element(".communication-detail-header .discussion-status") |> render_click()
+    render_async(view)
+    assert_receive {:mark_discussion, "a", "information-a", true}
+
+    assert has_element?(
+             view,
+             ".discussion-status[disabled][aria-pressed=true]",
+             "J’ai pris connaissance"
+           )
+
+    render_click(view, "mark-discussion", %{"id" => "information-a"})
+    refute_received {:mark_discussion, _, _, _}
+  end
+
+  test "all communication categories share the inbox and open separately", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :communications)
+    {:ok, view, _} = live(conn, "/alice/messages")
+    render_async(view)
+    render_async(view)
+
+    assert has_element?(
+             view,
+             ".communication-heading .communication-badge[data-kind=discussion][aria-label=Discussion] svg"
+           )
+
+    assert has_element?(
+             view,
+             ".communication-heading .communication-badge[data-kind=information][aria-label=Informations] svg"
+           )
+
+    assert has_element?(
+             view,
+             ".communication-heading .communication-badge[data-kind=survey][aria-label=Sondage] svg"
+           )
+
+    assert has_element?(view, "#messages-unread-count", "3")
+
+    for kind <- [:discussion, :information, :survey] do
+      assert has_element?(
+               view,
+               "#discussion-#{kind}-a .discussion-meta",
+               "mercredi 09/09 à 11h22"
+             )
+    end
+
+    view |> element("#discussion-survey-a .discussion-summary") |> render_click()
+    assert has_element?(view, ".communication-detail-header", "Sujet survey")
+    assert has_element?(view, "#discussion-body-survey-a", "Contenu survey")
+
+    assert has_element?(
+             view,
+             "#discussion-body-survey-a .discussion-meta",
+             "mercredi 09/09 à 11h22"
+           )
+
+    assert has_element?(
+             view,
+             ".lesson-resource-link[href='https://school.test/file.pdf']",
+             "Fichier"
+           )
+
+    refute has_element?(view, "#discussion-information-a")
+    refute has_element?(view, ".discussion-summary")
+    assert has_element?(view, ".communication-detail-header .discussion-status", "Non lu")
   end
 
   test "messages are reached from dropdown with explicit read actions and badge updates", %{
@@ -865,7 +1027,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     refute has_element?(view, "#date-navigation")
     view |> element("#discussion-thread-a .discussion-summary") |> render_click()
     assert_patch(view, "/alice/messages/thread-a")
-    assert has_element?(view, "#messages-breadcrumb", "Discussion a")
+    assert has_element?(view, ".communication-detail-header", "Discussion a")
     refute has_element?(view, ".discussion-summary")
     assert has_element?(view, ".discussion-status", "Non lu")
     refute_received {:mark_discussion, _, _, _}
@@ -873,17 +1035,17 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert has_element?(view, "#discussion-body-thread-a:not([hidden])")
     refute has_element?(view, "#discussion-other-a")
     refute has_element?(view, "#messages-content", "Autre contenu")
-    view |> element(".messages-header .discussion-status") |> render_click()
+    view |> element(".communication-detail-header .discussion-status") |> render_click()
     render_async(view)
     assert_receive {:mark_discussion, "a", "thread-a", true}
     refute has_element?(view, "#messages-avatar-dot")
     assert has_element?(view, ".discussion-status[aria-pressed=true]", "Lu")
     refute has_element?(view, "#messages-unread-count")
-    view |> element(".messages-header .discussion-status") |> render_click()
+    view |> element(".communication-detail-header .discussion-status") |> render_click()
     render_async(view)
     assert_receive {:mark_discussion, "a", "thread-a", false}
     assert has_element?(view, "#messages-unread-count", "2")
-    view |> element("#messages-breadcrumb a", "Messages") |> render_click()
+    view |> element("#messages-breadcrumb a", "Retour aux messages") |> render_click()
     assert_patch(view, "/alice/messages")
     assert has_element?(view, ".discussion-summary")
     refute has_element?(view, "#discussion-body-thread-a")
@@ -909,7 +1071,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     render_async(view)
     render_async(view)
     assert has_element?(view, "#discussion-body-thread-a")
-    assert has_element?(view, "#messages-breadcrumb", "Discussion a")
+    assert has_element?(view, ".communication-detail-header", "Discussion a")
     refute has_element?(view, ".discussion-summary")
     render_patch(view, "/alice/messages/missing")
     assert has_element?(view, "#messages-content", "Cette discussion n’est plus disponible.")
@@ -1077,6 +1239,48 @@ defmodule PronotexWeb.DashboardLiveTest do
     refute has_element?(view, ".agenda-pause[data-state=current]")
     assert has_element?(view, "#lesson-days article[data-state=current]")
     refute_received {:lessons, _, _, _}
+  end
+
+  test "past lesson notes open separately and return to the same agenda", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :lesson_content)
+    Application.put_env(:pronotex, :now, fn -> ~N[2026-09-18 12:00:00] end)
+    {:ok, view, _} = live(conn, "/alice?week=2026-09-14")
+    render_async(view)
+    assert has_element?(view, "svg[aria-label='Contenu du cours']")
+    assert has_element?(view, "svg[aria-label='Ressources du cours']")
+    view |> element(".lesson-detail-link") |> render_click()
+    assert has_element?(view, "#lesson-detail", "Comparer des fractions")
+
+    assert view
+           |> render()
+           |> Floki.parse_document!()
+           |> Floki.find(".lesson-content-text")
+           |> Floki.text() == "Comparer des fractions"
+
+    assert has_element?(view, "#lesson-detail h2", "Maths a")
+    assert has_element?(view, "#agenda-content[hidden]")
+    assert has_element?(view, "#lesson-detail a[href='https://example.org/exercice']")
+    view |> element("#lesson-breadcrumb a", "Retour à l’agenda") |> render_click()
+    refute has_element?(view, "#lesson-detail")
+    assert has_element?(view, "#agenda-content:not([hidden])")
+    assert has_element?(view, ".lesson-detail-link[href*='week=2026-09-14']")
+  end
+
+  test "future lessons do not expose content links", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :lesson_content)
+    Application.put_env(:pronotex, :now, fn -> ~N[2026-09-18 07:00:00] end)
+    {:ok, view, _} = live(conn, "/alice?week=2026-09-21")
+    render_async(view)
+    refute has_element?(view, ".lesson-detail-link")
+    refute has_element?(view, "svg[aria-label='Contenu du cours']")
+  end
+
+  test "a detail URL cannot show a lesson outside the selected agenda", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :lesson_content)
+    {:ok, view, _} = live(conn, "/alice?week=2026-09-14&lesson=unknown")
+    render_async(view)
+    assert has_element?(view, "#lesson-detail-empty")
+    refute has_element?(view, "#lesson-detail article")
   end
 
   test "homework badge stays visible during navigation without leaking to another child", %{

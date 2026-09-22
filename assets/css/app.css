@@ -211,6 +211,9 @@ html { touch-action: manipulation; }
 #grade-period-form .fieldset { padding: 0; margin: 0; gap: 0; }
 
 #grade-period-form label { display: flex; align-items: center; }
+@media (min-width: 640px) {
+  #grade-period { height: 2rem; min-height: 2rem; padding: 0.25rem 0.625rem; line-height: 1.25rem; }
+}
 
 /* Underlined section navigation, distinct from date controls. */
 .navigation-tab {
@@ -322,8 +325,14 @@ html { touch-action: manipulation; }
 }
 
 .count-badge[data-status="done"] { color: var(--done-ink); background-color: var(--done-tint); }
+#homework-nav-badge { width: 1.5rem; min-width: 1.5rem; height: 1.25rem; padding: 0.125rem 0.375rem; }
+#homework-nav-badge[data-expanded="true"] { width: auto; }
 .count-badge[data-status="due"] { color: var(--due-ink); background-color: var(--due-tint); }
 .count-badge[data-status="future"] { color: var(--future-ink); background-color: var(--future-tint); }
+.lesson-evaluation-badge { color: #9a3412; background-color: #ffedd5; border-color: transparent; }
+@media (prefers-color-scheme: dark) {
+  .lesson-evaluation-badge { color: #fdba74; background-color: #431f12; }
+}
 
 :root {
   --page-background: #fdfdfd;
@@ -473,7 +482,7 @@ html { touch-action: manipulation; }
 .discussion-actions { display: flex; justify-content: flex-end; padding: 0.5rem 1rem; }
 .discussion-status:disabled { opacity: 0.6; cursor: wait; }
 .discussion-summary:focus-visible, .discussion-status:focus-visible { outline: 2px solid var(--day-ink); outline-offset: -2px; }
-.discussion-card[data-view="detail"] { border: 0; border-radius: 0; background: transparent; overflow: visible; }
+.discussion-card[data-view="detail"] { border: 1px solid var(--day-line); border-radius: 0.6rem; background: var(--surface-background); overflow: hidden; }
 .discussion-message { padding: 1rem; border: 1px solid var(--color-base-300); border-radius: 0.5rem; background: var(--surface-background); }
 .discussion-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 0.75rem; font-size: 0.875rem; }
 
@@ -519,7 +528,7 @@ html { touch-action: manipulation; }
 .discussion-card[data-view="list"] .discussion-actions { position: absolute; top: 1rem; right: 1rem; padding: 0; }
 .discussion-card[data-view="detail"] .discussion-actions { padding: 1rem; }
 @media (hover: hover) {
-  .discussion-card[data-view="list"]:hover { background: color-mix(in srgb, var(--surface-background), var(--color-base-content) 5%); }
+  .discussion-card[data-view="list"]:hover { background: var(--day-tint); }
 }
 
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5rem; padding: 2.5rem 1rem; color: #737373; text-align: center; font-size: 0.875rem; }
@@ -591,3 +600,70 @@ html { touch-action: manipulation; }
 @media (min-width: 640px) {
   #nav-devoirs { width: 9rem; }
 }
+
+/* The whole lesson card is a keyboard-accessible link to its published notes. */
+.lesson-with-content { position: relative; }
+.lesson-detail-link { position: absolute; inset: 0; z-index: 1; border-radius: 0.25rem; }
+.lesson-with-content:hover { background-color: var(--day-tint); }
+.lesson-detail-link:focus-visible { outline: 2px solid var(--day-ink); outline-offset: -2px; }
+
+.lesson-content-card { overflow: hidden; border: 1px solid var(--day-line); border-radius: 0.6rem; background: var(--surface-background); }
+.lesson-content-title { margin: 0; padding: 0.75rem 1rem; background: var(--day-tint); color: var(--day-ink); border-bottom: 1px solid var(--day-line); font-weight: 600; }
+.lesson-content-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem 1rem; }
+.lesson-content-header > h2 { min-width: 0; overflow-wrap: anywhere; }
+.lesson-content-header > p { margin-left: auto; text-align: right; }
+ .lesson-content-body { padding: 1rem; }
+.lesson-content-block + .lesson-content-block { margin-top: 1rem; }
+.lesson-content-block h3 { color: var(--day-ink); margin-bottom: 0.5rem; }
+.lesson-content-text { margin: 0; padding: 0; overflow-wrap: anywhere; }
+.lesson-resources { display: grid; gap: 0.75rem; margin: 1rem 0 0; padding: 0; color: var(--day-ink); background: transparent; list-style: none; }
+.lesson-resources:first-child { margin-top: 0; }
+.lesson-resource-link, .lesson-back-link { display: inline-flex; align-items: center; gap: 0.5rem; }
+.lesson-resource-link { overflow-wrap: anywhere; max-width: 100%; }
+.lesson-resource-link span { min-width: 0; }
+.lesson-resource-link svg, .lesson-back-link svg { flex-shrink: 0; }
+.lesson-resource-link:hover span { text-decoration: underline; }
+
+/* Communication categories share one badge component. */
+.communication-badge { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 var(--communication-control-height); width: var(--communication-control-height); padding: 0; color: #9a3412; background: #ffedd5; }
+.communication-icon { display: block; width: 1rem; height: 1rem; }
+.discussion-heading.communication-heading { flex-wrap: nowrap; justify-content: flex-start; }
+.communication-heading strong { min-width: 0; overflow-wrap: anywhere; }
+.communication-badge[data-kind="information"] { color: #1e40af; background: #dbeafe; }
+.communication-badge[data-kind="survey"] { color: #9d174d; background: #fce7f3; }
+@media (prefers-color-scheme: dark) {
+.communication-badge { color: #fed7aa; background: #7c2d12; }
+.communication-badge[data-kind="information"] { color: #bfdbfe; background: #1e3a8a; }
+.communication-badge[data-kind="survey"] { color: #fbcfe8; background: #831843; }
+}
+.survey-choices { margin-top: 0.75rem; padding-left: 1.25rem; list-style: disc; }
+
+.discussion-card[data-view="list"][data-kind="information"] { display: flex; flex-wrap: wrap; }
+.discussion-card[data-view="list"][data-kind="information"] .discussion-summary { flex: 1 1 16rem; min-width: 0; }
+.discussion-card[data-view="list"][data-kind="information"] .discussion-heading { padding-right: 0; }
+.discussion-card[data-view="list"][data-kind="information"] .discussion-actions { position: static; align-self: flex-start; margin: 1rem 1rem 1rem auto; }
+
+.communication-actions, .discussion-actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.discussion-card[data-view="list"] .discussion-heading { padding-right: 9.5rem; }
+.discussion-card[data-view="list"][data-kind="information"] .discussion-heading { padding-right: 0; }
+
+#messages-content { --communication-control-height: 2rem; --communication-control-radius: 0.25rem; }
+#messages-content .discussion-status, #messages-content .communication-badge {
+  box-sizing: border-box;
+  height: var(--communication-control-height);
+  min-height: var(--communication-control-height);
+  border-radius: var(--communication-control-radius);
+}
+
+.communication-detail-header { border: 0; border-bottom: 1px solid var(--day-line); border-radius: 0; margin-bottom: 0; }
+.communication-detail-title { display: flex; align-items: center; gap: 0.75rem; flex: 1 1 12rem; min-width: 0; }
+.communication-detail-title h2 { min-width: 0; overflow-wrap: anywhere; font-size: 1.125rem; }
+.communication-detail-header .discussion-status { margin-left: auto; }
+.discussion-card[data-view="detail"] .discussion-message { border: 0; border-radius: 0; }
+.discussion-card[data-view="detail"] .discussion-messages { gap: 0; }
+.discussion-card[data-view="detail"] .discussion-message + .discussion-message { border-top: 1px solid var(--day-line); }
+.discussion-card[data-view="detail"] .discussion-messages > .discussion-meta { padding: 1rem 1rem 0; }
+.discussion-card[data-view="list"] .discussion-heading { padding-right: 7.5rem; }
+.discussion-card[data-view="list"][data-kind="information"] .discussion-heading { padding-right: 0; }
+
+.communication-detail-header .communication-badge { border: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
