@@ -10,6 +10,8 @@ defmodule Pronotex.Test.PronoteServer do
       calls: [],
       homework_status: %{},
       discussion_read: false,
+      notice_reads: %{},
+      notice_acknowledged: false,
       logins: 0,
       expired?: false,
       order: 1,
@@ -172,7 +174,8 @@ defmodule Pronotex.Test.PronoteServer do
               %{"G" => 10},
               %{"G" => 198},
               %{"G" => 9},
-              %{"G" => 131}
+              %{"G" => 131},
+              %{"G" => if(state.options[:notices], do: 8, else: -1)}
             ]
           }
         ]
@@ -380,6 +383,111 @@ defmodule Pronotex.Test.PronoteServer do
     }
 
     {data, state, nil, false}
+  end
+
+  defp data("PageActualites", payload, state) do
+    assert payload["Signature"]["onglet"] == 8
+    genre = if state.options[:space] == 3, do: 4, else: 2
+    public = %{"N" => "recipient", "G" => genre}
+
+    if payload["data"]["genreRequeteActualite"] == 1 do
+      assert payload["data"]["actualite"]["public"] == public
+      assert payload["data"]["actualite"]["genrePublic"] == genre
+
+      {%{
+         "detailsActualite" => %{
+           "listeQuestions" => %{
+             "V" => [
+               %{
+                 "N" => "question",
+                 "genreReponse" => 0,
+                 "reponse" => %{
+                   "V" => %{
+                     "N" => "response",
+                     "avecReponse" => state.notice_acknowledged,
+                     "estRepondant" => true
+                   }
+                 },
+                 "titre" => "Présentation",
+                 "texte" => %{"V" => "<p>Information publiée</p><script>unsafe</script>"},
+                 "listeChoix" => %{"V" => [%{"L" => "Oui"}, %{"L" => "Non"}]},
+                 "listePiecesJointes" => %{
+                   "V" => [
+                     %{"G" => 0, "L" => "Document", "url" => "https://school.test/document"}
+                   ]
+                 }
+               }
+             ]
+           }
+         }
+       }, state, nil, false}
+    else
+      assert payload["data"]["modesAffActus"]["V"] == "[0..3]"
+
+      rows =
+        for {id, survey} <- [{"info", false}, {"survey", true}] do
+          %{
+            "N" => id,
+            "L" => id,
+            "auteur" => "Établissement",
+            "estSondage" => survey,
+            "genrePublic" => genre,
+            "public" => %{"V" => public},
+            "lue" => Map.get(state.notice_reads, id, false),
+            "dateCreation" => %{"V" => "20/09/2026 12:00:00"}
+          }
+        end
+
+      {%{
+         "listeModesAff" => [
+           %{"G" => 0, "listeActualites" => %{"V" => rows}},
+           %{"G" => 1, "listeActualites" => %{"V" => rows}}
+         ]
+       }, state, nil, false}
+    end
+  end
+
+  defp data("SaisieActualites", payload, state) do
+    assert payload["Signature"]["onglet"] == 8
+    assert payload["data"]["saisieActualite"] == false
+    assert payload["data"]["genreSaisie"] == 0
+    [notice] = payload["data"]["listeActualites"]
+    genre = if state.options[:space] == 3, do: 4, else: 2
+    assert notice["public"] == %{"N" => "recipient", "G" => genre}
+    assert notice["genrePublic"] == genre
+    assert notice["validationDirecte"] == true
+
+    if notice["N"] == "info" do
+      assert notice["marqueLueSeulement"] == false
+
+      assert notice["listeQuestions"] == [
+               %{
+                 "N" => "question",
+                 "E" => 2,
+                 "genreReponse" => 0,
+                 "reponse" => %{
+                   "N" => "response",
+                   "E" => 2,
+                   "avecReponse" => true,
+                   "valeurReponse" => ""
+                 }
+               }
+             ]
+    else
+      assert notice["marqueLueSeulement"] == true
+      refute Map.has_key?(notice, "listeQuestions")
+    end
+
+    assert notice["saisieActualite"] == false
+    assert notice["supprimee"] == false
+    refute Map.has_key?(notice, "reponse")
+
+    {%{},
+     %{
+       state
+       | notice_reads: Map.put(state.notice_reads, notice["N"], notice["lue"]),
+         notice_acknowledged: state.notice_acknowledged || notice["N"] == "info"
+     }, nil, false}
   end
 
   defp data("ListeMessagerie", payload, state) do

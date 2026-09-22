@@ -46,6 +46,32 @@ defmodule Pronotex.Pronote.SessionTest do
     {server, if(options[:student], do: student_agent, else: agent)}
   end
 
+  test "inbox combines and deduplicates notices without implicitly marking them read" do
+    {server, agent} = session(direct_student: true, notices: true)
+    assert {:ok, items} = Pronote.discussions("child-a", server)
+    assert Enum.map(items, & &1.kind) == [:information, :survey, :discussion]
+    assert Enum.sum(Enum.map(items, & &1.unread)) == 4
+    assert Agent.get(agent, & &1.notice_reads) == %{}
+    information = hd(items)
+
+    assert [%{content: "Information publiée", resources: [%{name: "Document"}]}] =
+             information.messages
+
+    assert {:ok, updated} = Pronote.set_discussion_read("child-a", information.id, true, server)
+    assert Enum.find(updated, &(&1.id == information.id)).unread == 0
+    assert Enum.find(updated, &(&1.id == information.id)).acknowledged
+    refute Enum.find(updated, &(&1.id == information.id)).can_acknowledge
+    before = Agent.get(agent, & &1.calls)
+
+    assert {:error, %Error{reason: :stale_discussion}} =
+             Pronote.set_discussion_read("child-a", information.id, false, server)
+
+    assert Agent.get(agent, & &1.calls) == before
+
+    assert {:error, %Error{reason: :stale_discussion}} =
+             Pronote.set_discussion_read("child-a", "notice-unknown", true, server)
+  end
+
   test "direct child profile reads only its own data and writes through its own session" do
     {server, agent} = session(direct_student: true)
     assert {:ok, [%{id: "child-a"}]} = Pronote.children(server)
@@ -77,6 +103,14 @@ defmodule Pronotex.Pronote.SessionTest do
     end
 
     assert Agent.get(agent, & &1.calls) == before
+  end
+
+  test "parent notices retain the parent recipient when changing their read status" do
+    {server, _} = session(account: "parent-1", notices: true)
+    assert {:ok, items} = Pronote.parent_discussions(server)
+    notice = Enum.find(items, &(&1.kind == :information))
+    assert {:ok, updated} = Pronote.set_parent_discussion_read(notice.id, true, server)
+    assert Enum.find(updated, &(&1.id == notice.id)).unread == 0
   end
 
   test "parent inbox is separate from child inbox and requires a parent profile" do

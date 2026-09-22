@@ -235,7 +235,7 @@ defmodule Pronotex.Pronote.Client do
   # parent's own mailbox. The authenticated PRONOTE account owns the messages.
   defp discussion_signature(client), do: signature(client, hd(client.children)["N"], 131)
 
-  def discussions(client) do
+  defp discussion_threads(client) do
     unless client.transport.space in [2, 3], do: raise(Error.new(:forbidden))
 
     {data, transport} =
@@ -275,7 +275,150 @@ defmodule Pronotex.Pronote.Client do
     {discussions, %{client | transport: transport, discussion_reads: reads}}
   end
 
+  def discussions(client) do
+    {threads, client} =
+      if contains?(client.tabs, 131),
+        do: discussion_threads(client),
+        else: {[], %{client | discussion_reads: %{}}}
+
+    {notices, client} = information_and_surveys(client)
+    {Enum.sort_by(threads ++ notices, &communication_time/1, :desc), client}
+  end
+
+  defp communication_time(item) do
+    date =
+      case List.last(item.messages) do
+        nil -> item.date
+        message -> message.date
+      end
+
+    Lesson.datetime(date) |> NaiveDateTime.to_gregorian_seconds() |> elem(0)
+  rescue
+    _ in [Error, ArgumentError] -> 0
+  end
+
+  defp information_signature(client), do: signature(client, hd(client.children)["N"], 8)
+
+  defp information_and_surveys(client) do
+    if contains?(client.tabs, 8) do
+      {data, transport} =
+        Transport.call(client.transport, "PageActualites", %{
+          "Signature" => information_signature(client),
+          "data" => %{"modesAffActus" => %{"_T" => 26, "V" => "[0..3]"}}
+        })
+
+      rows =
+        for mode <- data["listeModesAff"] || [],
+            raw <- get_in(mode, ["listeActualites", "V"]) || [],
+            raw["estModele"] != true,
+            do: {raw, mode["G"]}
+
+      rows = Enum.uniq_by(rows, fn {raw, _} -> Pronotex.Pronote.Information.id(raw) end)
+
+      {notices, transport} =
+        Enum.map_reduce(rows, transport, fn {raw, mode}, transport ->
+          {detail, transport} =
+            Transport.call(transport, "PageActualites", %{
+              "Signature" => information_signature(client),
+              "data" => %{
+                "actualite" => Pronotex.Pronote.Information.reference(raw),
+                "genreRequeteActualite" => 1,
+                "modeAffActu" => mode
+              }
+            })
+
+          notice = Pronotex.Pronote.Information.parse(raw, detail, transport)
+          reference = Pronotex.Pronote.Information.reference(raw)
+
+          action =
+            if notice.kind == :information,
+              do:
+                {:acknowledgement, reference,
+                 Pronotex.Pronote.Information.acknowledgement_payload(detail)},
+              else: {:information, reference}
+
+          {{notice, action}, transport}
+        end)
+
+      reads = Map.new(notices, fn {notice, action} -> {notice.id, action} end)
+      notices = Enum.map(notices, &elem(&1, 0))
+
+      {notices,
+       %{
+         client
+         | transport: transport,
+           discussion_reads: Map.merge(client.discussion_reads, reads)
+       }}
+    else
+      {[], client}
+    end
+  end
+
   def set_discussion_read(client, id, read) when is_boolean(read) do
+    case Map.get(client.discussion_reads, id) do
+      {:acknowledgement, reference, questions} ->
+        unless read and questions != [], do: raise(Error.new(:stale_discussion))
+
+        {_, transport} =
+          Transport.call(client.transport, "SaisieActualites", %{
+            "Signature" => information_signature(client),
+            "data" => %{
+              "genreSaisie" => 0,
+              "saisieActualite" => false,
+              "listeActualites" => [
+                Map.merge(reference, %{
+                  "validationDirecte" => true,
+                  "marqueLueSeulement" => false,
+                  "saisieActualite" => false,
+                  "supprimee" => false,
+                  "lue" => true,
+                  "listeQuestions" => questions
+                })
+              ]
+            }
+          })
+
+        {items, client} = discussions(%{client | transport: transport})
+
+        unless Enum.any?(items, &(&1.id == id && Map.get(&1, :acknowledged, false))),
+          do: raise(Error.new(:message_unconfirmed))
+
+        {items, client}
+
+      {:information, reference} ->
+        {_, transport} =
+          Transport.call(client.transport, "SaisieActualites", %{
+            "Signature" => information_signature(client),
+            "data" => %{
+              "genreSaisie" => 0,
+              "listeActualites" => [
+                # Same operation as PRONOTE's explicit read/unread menu action.
+                # Do not send question responses or acknowledge receipt here.
+                Map.merge(reference, %{
+                  "validationDirecte" => true,
+                  "marqueLueSeulement" => true,
+                  "saisieActualite" => false,
+                  "supprimee" => false,
+                  "lue" => read
+                })
+              ],
+              "saisieActualite" => false
+            }
+          })
+
+        {items, client} = discussions(%{client | transport: transport})
+
+        unless Enum.any?(items, &(&1.id == id && &1.unread == 0 == read)),
+          do: raise(Error.new(:message_unconfirmed))
+
+        {items, client}
+
+      _ ->
+        set_thread_read(client, id, read)
+    end
+  end
+
+  defp set_thread_read(client, id, read) do
     unless client.transport.space in [2, 3], do: raise(Error.new(:forbidden))
     possessions = Map.get(client.discussion_reads, id)
     unless is_list(possessions) and possessions != [], do: raise(Error.new(:stale_discussion))

@@ -49,9 +49,10 @@ defmodule Pronotex.Pronote.Discussion do
   def parse(raw, messages) do
     %{
       id: id(raw),
+      kind: :discussion,
       subject: if(raw["objet"] in [nil, ""], do: "Sans objet", else: raw["objet"]),
       author: raw["initiateur"] || "",
-      date: raw["libelleDate"] || "",
+      date: messages |> List.last(%{date: raw["libelleDate"] || ""}) |> Map.fetch!(:date),
       unread:
         Map.get(
           raw,
