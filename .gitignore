@@ -85,6 +85,7 @@ id_ed25519
 *.dmp
 
 # Local Docker image exports
+/deploy.sh
 /pronotex-image.tar
 /pronotex-image*.tar.gz
 
