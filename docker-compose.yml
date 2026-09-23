@@ -1,8 +1,8 @@
-version: "3.8"
 services:
   pronotex:
     image: pronotex:local
-    platform: linux/amd64
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    user: "${APP_UID:-65534}:${APP_GID:-65534}"
     restart: unless-stopped
     init: true
     env_file:
@@ -11,6 +11,13 @@ services:
       PHX_SERVER: "true"
       PORT: "4123"
       TZ: Europe/Paris
+      DATABASE_PATH: /app/data/pronotex.db
+    volumes:
+      - type: bind
+        source: ${DATA_DIR:-.}
+        target: /app/data
+        bind:
+          create_host_path: false
     ports:
       - "127.0.0.1:4123:4123"
     logging:

@@ -80,6 +80,72 @@ defmodule Pronotex.Pronote.SessionTest do
     assert Agent.get(agent, & &1.logins) == 2
   end
 
+  test "background refresh forces remote reads without marking messages read" do
+    {server, agent} = session(direct_student: true)
+    Phoenix.PubSub.subscribe(Pronotex.PubSub, "pronote:refresh")
+    account = %{id: "child-1", role: :child}
+
+    for _ <- 1..2 do
+      assert :ok =
+               Pronotex.Pronote.BackgroundRefresh.refresh_account(account,
+                 server: server,
+                 today: ~D[2026-09-16]
+               )
+
+      assert_receive {:pronote_refreshed, "child-1"}
+    end
+
+    calls = Agent.get(agent, & &1.calls)
+
+    for function <- ["PageEmploiDuTemps", "DernieresNotes"] do
+      assert Enum.count(calls, &(elem(&1, 0) == function)) == 2
+    end
+
+    refute Enum.any?(calls, fn {name, _} -> String.starts_with?(name, "Saisie") end)
+  end
+
+  test "only fresh grade responses persist history, shared by parent and student" do
+    import Ecto.Query
+    alias Pronotex.GradeHistory.{Scope, AverageSnapshot}
+
+    {server, _} = session()
+    assert {:ok, report} = Pronote.grades("child-a", nil, server)
+
+    scope =
+      Pronotex.Repo.get_by!(Scope,
+        school_url: "https://school.test/pronote",
+        student_id: "child-a",
+        school_year: "2026-2027",
+        period: "semester1"
+      )
+
+    snapshots = from(s in AverageSnapshot, where: s.scope_id == ^scope.id)
+    assert Pronotex.Repo.exists?(snapshots)
+
+    Pronotex.Repo.delete_all(snapshots)
+    assert {:ok, ^report} = Pronote.grades("child-a", nil, server)
+    refute Pronotex.Repo.exists?(snapshots)
+
+    Pronote.clear_cache(server)
+    assert {:ok, ^report} = Pronote.grades("child-a", nil, server)
+    assert Pronotex.Repo.exists?(snapshots)
+
+    client = %Pronotex.Pronote.Client{
+      transport: %Pronotex.Pronote.Transport{
+        root: "https://school.test/pronote/",
+        space: 3,
+        session: 999
+      },
+      general: %{
+        "PremierLundi" => %{"V" => "31/08/2026"},
+        "DerniereDate" => %{"V" => "04/07/2027"}
+      }
+    }
+
+    context = Pronotex.GradeHistory.context(client, "child-a", report)
+    assert Pronotex.Repo.get_by!(Scope, context).id == scope.id
+  end
+
   test "writes invalidate all cached date ranges and other profile entries" do
     {server, agent} = session(direct_student: true)
     read = fn -> Pronote.homework("child-a", ~D[2026-09-15], ~D[2026-09-21], server) end

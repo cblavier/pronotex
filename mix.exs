@@ -40,6 +40,7 @@ defmodule Pronotex.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:ecto_sqlite3, "~> 0.24.1"},
       {:req, "~> 0.7"},
       {:floki, "~> 0.38"},
       {:phoenix, "~> 1.8.5"},

@@ -7,6 +7,16 @@
 # General application configuration
 import Config
 
+config :pronotex, ecto_repos: [Pronotex.Repo]
+
+config :pronotex, Pronotex.Repo,
+  database: Path.expand("../data/pronotex_#{config_env()}.db", __DIR__),
+  pool_size: 1,
+  log: false,
+  journal_mode: :wal,
+  default_transaction_mode: :immediate,
+  busy_timeout: 5_000
+
 config :phoenix, :filter_parameters, ["password", "pin", "token", "secret"]
 
 # Configure the endpoint

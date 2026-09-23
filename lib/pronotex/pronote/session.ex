@@ -364,10 +364,29 @@ defmodule Pronotex.Pronote.Session do
             else: {kind, args}
 
         {reply, updated} = apply(Client, function, [client | args])
-        ReadCache.put(key, reply, ReadCache.ttl(kind), generation)
+
+        if persist_read(updated, operation, reply) == :ok do
+          ReadCache.put(key, reply, ReadCache.ttl(kind), generation)
+        end
+
         {reply, updated}
     end
   end
+
+  defp persist_read(client, {:grades, child_id, _period}, report) do
+    context = Pronotex.GradeHistory.context(client, child_id, report)
+    {:ok, _} = Pronotex.GradeHistory.record(context, report)
+    :ok
+  rescue
+    _ ->
+      # A storage failure must not roll back the already advanced PRONOTE transport.
+      # Do not cache this response: the next read will retry the observation.
+      require Logger
+      Logger.error("Unable to persist PRONOTE grade history; next fresh read will retry")
+      :error
+  end
+
+  defp persist_read(_client, _operation, _reply), do: :ok
 
   defp authorize_parent!(state) do
     unless match?(%{role: :parent}, Pronotex.Accounts.get(Keyword.get(state.options, :account))),

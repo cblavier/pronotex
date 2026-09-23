@@ -1,5 +1,11 @@
 import Config
 
+if config_env() != :test do
+  config :pronotex,
+         :background_refresh,
+         System.get_env("PRONOTE_BACKGROUND_REFRESH", "true") != "false"
+end
+
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
 # system starts, so it is typically used to load production configuration
@@ -24,6 +30,9 @@ config :pronotex, PronotexWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 if config_env() == :prod do
+  config :pronotex, Pronotex.Repo,
+    database: System.get_env("DATABASE_PATH", "/app/data/pronotex.db")
+
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
   # want to use a different value for prod and you most likely don't want

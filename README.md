@@ -16,7 +16,7 @@ La simplicité est la priorité, toutes les fonctionnalités de pronote ne seron
 
 ## Techno
 
-Développée avec Elixir et Phoenix LiveView. Ne nécessite pas de base de données.
+Développée avec Elixir et Phoenix LiveView. L'historique des notes et moyennes utilise SQLite, sans serveur de base de données séparé.
 Code massivement généré par intelligence artificielle (OpenAI Codex).
 Prévu pour tourner avec Docker en production.
 
@@ -37,7 +37,7 @@ Prévu pour tourner avec Docker en production.
 - [x] comptes famille, enfants et parents séparés (pincode individuels)
 - [x] consulter les resources associées aux devoirs
 - [x] mettre un cache en lecture sur les API pronote
-- [ ] améliorer les écrans de notes et moyennes
+- [x] améliorer les écrans de notes et moyennes
 - [ ] contacter la vie scolaire (parent)
 - [ ] push notif prof absent
 - [ ] push notif nouvelle note
@@ -94,11 +94,9 @@ Pour lancer les vérifications : `mix precommit`.
 
 ### Cache des lectures PRONOTE
 
-Les réponses réussies sont conservées uniquement en mémoire : 5 minutes pour les cours, événements, devoirs, messages, notes et moyennes, 30 minutes pour les menus. Une entrée expirée est rechargée lors de la prochaine lecture, sans mise à jour en arrière-plan. Les données peuvent donc refléter l'état de PRONOTE au moment de la dernière lecture pendant cette durée.
+Les réponses réussies sont conservées uniquement en mémoire : 5 minutes pour les cours, événements, devoirs, messages, notes et moyennes, 30 minutes pour les menus. Une entrée expirée est rechargée lors de la prochaine lecture. Un traitement supervisé relit aussi toutes les cinq minutes les cours de la semaine courante, les événements, les notes de la période courante et les messages accessibles de tous les profils configurés, même sans navigateur connecté. Le premier cycle commence cinq minutes après le démarrage. Les devoirs et menus restent chargés à la demande. Les données peuvent donc refléter l'état de PRONOTE au moment de la dernière lecture pendant cette durée.
 
-Le cache est isolé par processus de profil, session PRONOTE et paramètres de lecture. Il contient au maximum 256 réponses au total ; les entrées expirées ou liées à un processus arrêté sont supprimées au prochain accès. Il est perdu au redémarrage. Les erreurs ne sont jamais mises en cache.
-
-Toute tentative de modification invalide uniquement la catégorie concernée pour tous les profils : devoirs, messages enfants ou messages parents. Toutes les plages de dates de cette catégorie sont invalidées, même en cas d'erreur, pour éviter les anciens statuts entre Famille, Parent et Enfant. Les autres catégories restent en cache ; une session perdue ou invalide entraîne toutefois la purge du cache de ce profil. Les vérifications des écritures interrogent toujours PRONOTE. L'action de rafraîchissement de l'application vide le cache du profil ; un simple rechargement du navigateur peut réutiliser les réponses encore valides. Les écrans déjà ouverts ne sont pas automatiquement mis à jour.
+Les cycles ne se chevauchent pas ; un cycle encore en cours fait sauter le prochain déclenchement. Les requêtes passent par les sessions sérialisées habituelles. Les erreurs sont isolées par profil et retentées au prochain cycle ; les messages ne sont jamais marqués lus automatiquement. Les caches agenda, notes et messages du profil sont invalidés avant la relecture. Les pages ouvertes de ce profil se rechargent à la fin du cycle, sauf si un chargement ou une écriture est en cours. Pour désactiver ce traitement : `PRONOTE_BACKGROUND_REFRESH=false`, puis redémarrer l'application.
 
 ## Construire et lancer en production avec Docker
 
@@ -118,6 +116,9 @@ Compléter le fichier **`env`** (nom attendu par `docker-compose.yml`) avec les 
 Les secrets ne sont pas intégrés à l’image. Ne pas versionner `env`. Pour les avatars, utiliser les variables `PRONOTE_CHILD_n_AVATAR_BASE64` décrites dans le fichier exemple.
 
 ```sh
+# Avant le premier lancement : configurer le stockage (voir section ci-dessous).
+cp .env.example .env
+# Adapter DATA_DIR, APP_UID et APP_GID dans .env avant de continuer.
 docker compose up -d
 docker compose ps
 docker compose logs --tail=100 -f pronotex
@@ -131,11 +132,54 @@ Pour déployer sur une autre machine, exporter l’image :
 docker save -o pronotex-image.tar pronotex:local
 ```
 
-Transférer l’archive, `docker-compose.yml` et le fichier `env` sur la machine cible, puis exécuter dans leur dossier :
+Transférer l’archive, `docker-compose.yml`, le fichier `env` et la configuration `.env` sur la machine cible, puis exécuter dans leur dossier :
 
 ```sh
 docker load -i pronotex-image.tar
 docker compose up -d --force-recreate
 ```
 
-Pour une mise à jour, reconstruire l’image (et la transférer si nécessaire), puis relancer `docker compose up -d --force-recreate`. Cette commande est également nécessaire après une modification de `env`. Aucun volume de base de données n’est requis.
+Pour une mise à jour, reconstruire l’image et transférer aussi le `docker-compose.yml` à jour, puis relancer `docker compose up -d --force-recreate`. Cette commande est également nécessaire après une modification de `env`.
+
+### Historique des notes et des moyennes
+
+SQLite et Ecto enregistrent chaque réponse fraîche de PRONOTE, y compris celles du rafraîchissement périodique. Les lectures du cache ne créent pas d'observation. L'historique est partagé entre les profils consultant le même identifiant d'élève PRONOTE, et séparé par établissement, année scolaire et période.
+
+- Chaque note conserve obligatoirement `graded_on` (date de l'évaluation), `published_at` (publication) et `first_seen_at` (première découverte, en UTC). La réponse actuellement exploitée ne fournit pas de date de publication vérifiée : on utilise la première découverte avec `publication_estimated = true`. Cette date ne change pas à chaque lecture. Une date fiable fournie ultérieurement pourra remplacer l'estimation.
+- Les corrections de notes conservent une révision. Une note absente d'une réponse ultérieure reste dans l'historique : son absence ne prouve pas une suppression.
+- Les moyennes officielles générales, par matière et de classe sont enregistrées ensemble, à la date de leur observation, uniquement lorsqu'elles changent. Le premier import est donc daté du jour de sa récupération, sans reconstituer un passé fictif. Les valeurs PRONOTE sont conservées telles quelles, y compris les valeurs manquantes et les notes non numériques.
+
+Les migrations s'exécutent automatiquement avant les sessions PRONOTE au démarrage. En développement, la base est `data/pronotex_dev.db` (ignorée par Git) ; les tests utilisent une base en mémoire. Après ajout d'une dépendance ou du dépôt, redémarrer le serveur de développement.
+
+En Docker, le dossier `DATA_DIR` du serveur est monté sur `/app/data`. Avec `DATA_DIR=.` et le Compose dans `/volume1/docker/pronotex`, la base se trouve exactement dans **`/volume1/docker/pronotex/pronotex.db`**. Le dossier entier est monté pour que SQLite puisse aussi créer `pronotex.db-wal` et `pronotex.db-shm`. Utiliser un disque local au serveur, pas un partage SMB/NFS.
+
+#### Configuration du stockage
+
+Copier `.env.example` vers `.env`, à côté de `docker-compose.yml`, sur le serveur. Ce fichier configure Compose ; le fichier `env` contient toujours les secrets de l'application.
+
+```dotenv
+DATA_DIR=.
+APP_UID=1000
+APP_GID=1000
+DOCKER_PLATFORM=linux/amd64
+```
+
+Remplacer `APP_UID` et `APP_GID` par les résultats de `id -u` et `id -g` du compte qui possède le dossier sur le serveur. Pour un autre emplacement, renseigner par exemple `DATA_DIR=/srv/pronotex/data`, créer ce dossier et donner à ce compte le droit d'y écrire. Le conteneur utilise cette identité non privilégiée ; aucun changement récursif de propriétaire n'est effectué. Le dossier doit exister : Compose refuse de le créer implicitement avec des permissions inadaptées. La base garde son chemin interne `/app/data/pronotex.db`.
+
+Le script local `deploy.sh` crée automatiquement `.env` au premier déploiement, avec `DATA_DIR=.` et l'UID/GID du compte SSH ; il préserve ensuite ce fichier. Ses destinations sont configurables via `DEPLOY_SHARED_DIR` (défaut `/Volumes/docker/pronotex`), `DEPLOY_REMOTE_DIR` (`/volume1/docker/pronotex`), `DEPLOY_HOST`, `DEPLOY_PORT` et `DOCKER_PLATFORM`. Les deux dossiers doivent désigner le même emplacement, vu depuis le poste local et depuis le serveur. Ce script local est ignoré par Git ; le déploiement manuel utilise directement les fichiers Compose et les exemples versionnés.
+
+#### Migration du volume SQLite existant
+
+Si un précédent déploiement utilise déjà le volume nommé, `deploy.sh` s'arrête avant de recréer le conteneur. Pour conserver l'historique, depuis le dossier du projet sur le serveur :
+
+```sh
+container=$(sudo docker compose ps -aq pronotex)
+sudo docker compose stop pronotex
+# Choisir un dossier temporaire neuf ; ne pas écraser une base déjà présente.
+mkdir sqlite-migration
+sudo docker cp "$container:/app/data/." ./sqlite-migration/
+```
+
+Déplacer les fichiers `pronotex.db`, `pronotex.db-wal` et `pronotex.db-shm` présents dans ce dossier vers `DATA_DIR`, sans écraser de fichiers existants. Donner uniquement à ces fichiers l'UID/GID configurés dans `.env`. Puis exécuter `sudo docker compose up -d --force-recreate`. Conserver l'ancien volume jusqu'à vérification de l'historique ; ne pas le supprimer pendant la migration.
+
+Pour sauvegarder simplement : arrêter le service (`docker compose stop pronotex`), sauvegarder **la base et les éventuels fichiers WAL/SHM du dossier**, puis redémarrer (`docker compose start pronotex`). Restaurer service arrêté en conservant les permissions. Les sauvegardes contiennent des données scolaires personnelles. Les fichiers du dossier restent présents après suppression ou recréation des conteneurs.

@@ -1,4 +1,7 @@
 import Config
+config :pronotex, :background_refresh, false
+
+config :pronotex, Pronotex.Repo, database: ":memory:"
 
 config :pronotex, :accounts, [
   %{

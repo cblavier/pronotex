@@ -30,6 +30,15 @@ defmodule Pronotex.Pronote.ReadCache do
   end
 
   @impl true
+  def handle_call({:invalidate, {:owner_kinds, owner, kinds}}, _from, state) do
+    entries =
+      Map.reject(state.entries, fn {{pid, _} = key, _} ->
+        pid == owner and kind(key) in kinds
+      end)
+
+    {:reply, :ok, %{state | entries: entries, generation: make_ref()}}
+  end
+
   def handle_call({:fetch, key}, _from, state) do
     state = prune(state)
 
