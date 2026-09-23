@@ -183,3 +183,9 @@ sudo docker cp "$container:/app/data/." ./sqlite-migration/
 Déplacer les fichiers `pronotex.db`, `pronotex.db-wal` et `pronotex.db-shm` présents dans ce dossier vers `DATA_DIR`, sans écraser de fichiers existants. Donner uniquement à ces fichiers l'UID/GID configurés dans `.env`. Puis exécuter `sudo docker compose up -d --force-recreate`. Conserver l'ancien volume jusqu'à vérification de l'historique ; ne pas le supprimer pendant la migration.
 
 Pour sauvegarder simplement : arrêter le service (`docker compose stop pronotex`), sauvegarder **la base et les éventuels fichiers WAL/SHM du dossier**, puis redémarrer (`docker compose start pronotex`). Restaurer service arrêté en conservant les permissions. Les sauvegardes contiennent des données scolaires personnelles. Les fichiers du dossier restent présents après suppression ou recréation des conteneurs.
+
+## Licence
+
+Captain Notes est distribué sous [licence MIT](LICENSE). Elle autorise l'utilisation, la modification et la redistribution, y compris commerciales, sous réserve de conserver la notice de copyright et la licence. Le logiciel est fourni sans garantie. Les dépendances et éléments tiers restent soumis à leurs licences respectives.
+
+Ce projet est un développement indépendant, réalisé sans l'accord d'Index Éducation, à des fins personnelles et non commerciales. Il n'est ni affilié à Index Éducation, ni approuvé ou soutenu par cette société.
