@@ -5,6 +5,7 @@ defmodule PronotexWeb.DashboardLive do
   def mount(_params, _session, socket) do
     today = today()
     if connected?(socket), do: Process.send_after(self(), :update_lesson_clock, 30_000)
+    if connected?(socket), do: Phoenix.PubSub.subscribe(Pronotex.PubSub, "pronote:refresh")
 
     socket =
       socket
@@ -20,12 +21,14 @@ defmodule PronotexWeb.DashboardLive do
         message_saving: nil,
         open_discussion: nil,
         agenda_panel: "timetable",
+        grades_panel: "latest",
         grade_period: nil,
         grade_periods: [],
         grades_error: nil,
         grade_count: 0,
         average_count: 0,
         overall: nil,
+        grade_trend: [],
         class_overall: nil,
         overall_out_of: nil,
         children: [],
@@ -69,6 +72,15 @@ defmodule PronotexWeb.DashboardLive do
   end
 
   @impl true
+  def handle_info({:pronote_refreshed, account_id}, socket) do
+    if socket.assigns.account.id == account_id and not socket.assigns.loading and
+         is_nil(socket.assigns.message_saving) and is_nil(socket.assigns.homework_saving) do
+      {:noreply, load(socket)}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_info(:update_lesson_clock, socket) do
     Process.send_after(self(), :update_lesson_clock, 30_000)
     socket = assign(socket, :now, now())
@@ -144,6 +156,11 @@ defmodule PronotexWeb.DashboardLive do
   def handle_event("agenda-panel", %{"panel" => panel}, socket)
       when panel in ["timetable", "events"] do
     {:noreply, assign(socket, :agenda_panel, panel)}
+  end
+
+  def handle_event("grades-panel", %{"panel" => panel}, socket)
+      when panel in ["latest", "averages"] do
+    {:noreply, assign(socket, :grades_panel, panel)}
   end
 
   def handle_event("mark-discussion", %{"id" => id}, socket) do
@@ -431,6 +448,7 @@ defmodule PronotexWeb.DashboardLive do
       grade_count: 0,
       average_count: 0,
       overall: nil,
+      grade_trend: [],
       class_overall: nil,
       overall_out_of: nil,
       error: nil,
@@ -822,6 +840,7 @@ defmodule PronotexWeb.DashboardLive do
       grade_count: length(report.grades),
       average_count: length(report.averages),
       overall: report.overall,
+      grade_trend: Pronotex.Pronote.GradeTrend.points(report.grades),
       class_overall: report.class_overall,
       overall_out_of: report.overall_out_of
     )

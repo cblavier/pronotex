@@ -735,6 +735,15 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert has_element?(view, "#grade-list", "Moy. classe : 11")
     assert has_element?(view, "#grade-list", "Min. : 3")
     assert has_element?(view, "#grade-list", "Max. : 19")
+    assert has_element?(view, "#grades-content[data-panel=latest]")
+    view |> element("#grades-panel-averages") |> render_click()
+    assert has_element?(view, "#grades-content[data-panel=averages]")
+    assert has_element?(view, "#grades-panel-averages[aria-pressed=true]")
+    assert has_element?(view, "#subject-averages", "Maths a")
+    view |> element("#grades-panel-latest") |> render_click()
+    assert has_element?(view, "#grades-content[data-panel=latest]")
+    assert has_element?(view, "#grade-list", "Maths a")
+    refute_received {:grades, _, _}
     view |> form("#grade-period-form", %{"period" => "semester2"}) |> render_change()
     render_async(view)
     assert_receive {:grades, "a", "semester2"}

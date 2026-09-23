@@ -276,94 +276,122 @@
       aria-labelledby="nav-notes"
       hidden={@section != "notes"}
       class="space-y-6"
+      data-panel={@grades_panel}
     >
-      <div class="grid items-stretch gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <div
-          :if={!@loading && !@grades_error && !@error}
-          class="card min-w-0 border border-base-300 bg-base-100"
+      <nav id="grades-subnav" aria-label="Affichage des notes">
+        <button
+          :for={{panel, label} <- [{"latest", "Dernières notes"}, {"averages", "Moyennes"}]}
+          id={"grades-panel-#{panel}"}
+          type="button"
+          phx-click="grades-panel"
+          phx-value-panel={panel}
+          aria-pressed={to_string(@grades_panel == panel)}
+          aria-controls={if panel == "latest", do: "latest-grades", else: "grade-averages"}
+          disabled={@loading}
         >
-          <div class="card-body gap-5 p-5 sm:p-6">
-            <h3 class="card-title text-lg font-semibold">Moyenne générale</h3>
-            <div class="space-y-3">
-              <p id="overall-average" class="text-3xl font-semibold text-[var(--day-ink)]">
-                {mark(@overall, @overall_out_of)}
-              </p>
-              <p id="class-overall-average" class="text-sm text-base-content/60">
-                Moyenne de classe : {mark(@class_overall, @overall_out_of)}
-              </p>
-            </div>
-          </div>
-        </div>
-        <div class="card min-w-0 border border-base-300 bg-base-100">
-          <div class="card-body gap-5 p-5 sm:p-6">
-            <h3 class="card-title text-lg font-semibold">Moyennes par matière</h3>
-            <.empty_state
-              :if={!@loading && !@grades_error && !@error && @average_count == 0}
-              id="no-averages"
-              text="Aucune moyenne publiée pour cette période."
-            />
-            <div class="overflow-x-auto">
-              <table class="table table-sm">
-                <thead :if={@average_count > 0}>
-                  <tr>
-                    <th>Matière</th>
-                    <th>Moyenne</th>
-                    <th>Classe</th>
-                    <th>Min. classe</th>
-                    <th>Max. classe</th>
-                  </tr>
-                </thead>
-                <tbody id="subject-averages" phx-update="stream">
-                  <tr :for={{dom_id, average} <- @streams.averages} id={dom_id}>
-                    <th scope="row" class="font-normal text-[var(--muted-ink)]">
-                      {average.subject}
-                    </th>
-                    <td class="font-semibold text-[var(--day-ink)]">
-                      {mark(average.score, average.out_of)}
-                    </td>
-                    <td>{average.average || "—"}</td>
-                    <td>{average.min || "—"}</td>
-                    <td>{average.max || "—"}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="card border border-base-300 bg-base-100">
-        <div class="card-body gap-5 p-5 sm:p-6">
-          <h3 class="card-title text-lg font-semibold">Dernières notes</h3>
-          <.empty_state
-            :if={!@loading && !@grades_error && !@error && @grade_count == 0}
-            id="no-grades"
-            text="Aucune note publiée pour cette période."
-          />
-          <div id="grade-list" phx-update="stream" class="space-y-4">
-            <article :for={{dom_id, grade} <- @streams.grades} id={dom_id} class="day-group">
-              <div class="day-heading flex flex-wrap items-center justify-between gap-2">
-                <h4 class="text-sm font-semibold">{grade.subject}</h4>
-                <time class="text-xs" datetime={Date.to_iso8601(grade.date)}>
-                  {Calendar.strftime(grade.date, "%d/%m/%Y")}
-                </time>
-              </div>
-              <div class="space-y-3 p-4">
-                <div class="flex flex-wrap items-center justify-between gap-3">
-                  <p class="text-xl font-semibold text-[var(--day-ink)]">
-                    {mark(grade.score, grade.out_of)}
+          {label}
+        </button>
+      </nav>
+      <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div id="grade-averages" class="min-w-0 space-y-6">
+          <div
+            :if={!@loading && !@grades_error && !@error}
+            class="card min-w-0 border border-base-300 bg-base-100"
+          >
+            <div class="card-body overall-summary gap-5 p-5 sm:p-6">
+              <PronotexWeb.GradeTrendChart.chart points={@grade_trend} />
+              <div class="overall-summary-text space-y-3">
+                <div class="flex items-baseline gap-3">
+                  <h3 class="text-lg font-medium text-neutral-700 dark:text-neutral-300">
+                    Moyenne générale
+                  </h3>
+                  <p
+                    id="overall-average"
+                    class="whitespace-nowrap text-3xl font-semibold text-[var(--day-ink)]"
+                  >
+                    <% [score | scale] =
+                      String.split(mark(@overall, @overall_out_of), " / ", parts: 2) %>
+                    {score}<span :for={out_of <- scale} class="text-lg font-medium"> / {out_of}</span>
                   </p>
-                  <span :if={grade.coefficient} class="text-xs text-base-content/60">
-                    Coefficient {grade.coefficient}
-                  </span>
                 </div>
-                <p :if={grade.comment && grade.comment != ""} class="text-sm">{grade.comment}</p>
-                <div class="flex flex-wrap gap-x-5 gap-y-2 text-xs text-base-content/60">
-                  <span>Moy. classe : {grade.average || "—"}</span><span>Min. : {grade.min || "—"}</span><span>Max. : {grade.max || "—"}</span>
-                  <span :if={grade.bonus} class="badge badge-soft badge-xs">Bonus</span>
-                  <span :if={grade.optional} class="badge badge-soft badge-xs">Facultatif</span>
-                </div>
+                <p id="class-overall-average" class="text-sm text-base-content/60">
+                  Moyenne de classe : {mark(@class_overall, @overall_out_of)}
+                </p>
               </div>
-            </article>
+            </div>
+          </div>
+          <div class="card min-w-0 border border-base-300 bg-base-100">
+            <div class="card-body gap-5 p-5 sm:p-6">
+              <h3 class="card-title text-lg font-semibold">Moyennes par matière</h3>
+              <.empty_state
+                :if={!@loading && !@grades_error && !@error && @average_count == 0}
+                id="no-averages"
+                text="Aucune moyenne publiée pour cette période."
+              />
+              <div class="overflow-x-auto">
+                <table class="table table-sm">
+                  <thead :if={@average_count > 0}>
+                    <tr>
+                      <th>Matière</th>
+                      <th>Moyenne</th>
+                      <th>Classe</th>
+                      <th>Min. classe</th>
+                      <th>Max. classe</th>
+                    </tr>
+                  </thead>
+                  <tbody id="subject-averages" phx-update="stream">
+                    <tr :for={{dom_id, average} <- @streams.averages} id={dom_id}>
+                      <th scope="row" class="font-normal text-[var(--muted-ink)]">
+                        {average.subject}
+                      </th>
+                      <td class="font-semibold text-[var(--day-ink)]">
+                        {mark(average.score, average.out_of)}
+                      </td>
+                      <td>{average.average || "—"}</td>
+                      <td>{average.min || "—"}</td>
+                      <td>{average.max || "—"}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="latest-grades" class="min-w-0">
+          <div class="space-y-5">
+            <.empty_state
+              :if={!@loading && !@grades_error && !@error && @grade_count == 0}
+              id="no-grades"
+              text="Aucune note publiée pour cette période."
+            />
+            <div id="grade-list" phx-update="stream" class="space-y-4">
+              <article :for={{dom_id, grade} <- @streams.grades} id={dom_id} class="day-group">
+                <div class="day-heading flex flex-wrap items-center justify-between gap-2">
+                  <h4 class="text-sm font-semibold">{grade.subject}</h4>
+                  <time class="text-xs" datetime={Date.to_iso8601(grade.date)}>
+                    {Calendar.strftime(grade.date, "%d/%m/%Y")}
+                  </time>
+                </div>
+                <div class="space-y-3 p-4">
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <p class="text-xl font-semibold text-[var(--day-ink)]">
+                      {mark(grade.score, grade.out_of)}
+                    </p>
+                    <span :if={grade.coefficient} class="text-xs text-base-content/60">
+                      Coefficient {grade.coefficient}
+                    </span>
+                  </div>
+                  <p :if={grade.comment && grade.comment != ""} class="text-sm">
+                    {grade.comment}
+                  </p>
+                  <div class="flex flex-wrap gap-x-5 gap-y-2 text-xs text-base-content/60">
+                    <span>Moy. classe : {grade.average || "—"}</span><span>Min. : {grade.min || "—"}</span><span>Max. : {grade.max || "—"}</span>
+                    <span :if={grade.bonus} class="badge badge-soft badge-xs">Bonus</span>
+                    <span :if={grade.optional} class="badge badge-soft badge-xs">Facultatif</span>
+                  </div>
+                </div>
+              </article>
+            </div>
           </div>
         </div>
       </div>
