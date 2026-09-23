@@ -37,6 +37,36 @@ defmodule PronotexWeb.Layouts do
 
   def app(assigns) do
     ~H"""
+    <div id="startup-splash" phx-hook="StartupSplash" role="status" aria-label="Connexion en cours">
+      <svg viewBox="40 45 320 320" aria-hidden="true" focusable="false">
+        <defs>
+          <mask
+            id="startup-skull-mask"
+            style="mask-type: alpha"
+            maskUnits="userSpaceOnUse"
+            x="40"
+            y="45"
+            width="320"
+            height="320"
+          >
+            <image href={~p"/images/brand/captain-notes-skull-login.png"} width="1040" height="400" />
+          </mask>
+        </defs>
+        <rect
+          x="40"
+          y="45"
+          width="320"
+          height="320"
+          fill="currentColor"
+          mask="url(#startup-skull-mask)"
+        />
+      </svg>
+    </div>
+    <noscript>
+      <style>
+        #startup-splash { display: none; }
+      </style>
+    </noscript>
     <div class="page-shell min-h-screen" data-child-theme={@child_theme}>
       <main class="mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-12">
         {render_slot(@inner_block)}

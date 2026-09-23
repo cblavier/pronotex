@@ -107,8 +107,29 @@
 /* Keep scrolling and pinch zoom, without double-tap zoom on touch screens. */
 html { touch-action: manipulation; }
 
+:root { --brand-green: #3c987f; }
+
+#startup-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: none;
+  place-items: center;
+  background: var(--brand-green);
+  color: #a8dcc8;
+}
+#startup-splash svg { width: 8rem; height: 8rem; }
+@media (display-mode: standalone) {
+  html:not(.app-ready) #startup-splash { display: grid; }
+  html:has(#startup-splash):not(.app-ready) { overflow: hidden; }
+}
+@media (scripting: none) {
+  html:not(.app-ready) #startup-splash { display: none; }
+  html:has(#startup-splash) { overflow: auto; }
+}
+
 #login-screen {
-  --login-primary: #3c987f;
+  --login-primary: var(--brand-green);
   min-height: 100svh;
 }
 
