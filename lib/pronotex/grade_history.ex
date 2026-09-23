@@ -6,22 +6,53 @@ defmodule Pronotex.GradeHistory do
   alias Pronotex.Pronote.{Grades, Lesson}
 
   def context(client, student_id, report) do
-    # PRONOTE resource identifiers belong to the school, not the login session.
+    # Resource IDs rotate on login; identify an unambiguous child by full name.
     first_day = Lesson.date(client.general["PremierLundi"]["V"])
     last_day = Lesson.date(client.general["DerniereDate"]["V"])
 
     %{
       school_url: String.trim_trailing(client.transport.root, "/"),
-      student_id: student_id,
+      student_id: stable_student_id(client, student_id),
       school_year: "#{first_day.year}-#{last_day.year}",
       period: Grades.period_key(report.period)
     }
   end
 
+  defp stable_student_id(client, raw_id) do
+    children = client.children || []
+    child = Enum.find(children, &(&1["N"] == raw_id))
+    name = if child, do: normalize_name(child["L"])
+
+    if name && name != "" && Enum.count(children, &(normalize_name(&1["L"]) == name)) == 1 do
+      "name:" <> Base.url_encode64(:crypto.hash(:sha256, name), padding: false)
+    else
+      raw_id
+    end
+  end
+
+  defp normalize_name(name),
+    do:
+      (name || "")
+      |> String.normalize(:nfc)
+      |> String.downcase()
+      |> String.split()
+      |> Enum.sort()
+      |> Enum.join(" ")
+
   @doc "Record one fresh remote response atomically; repeat observations do not duplicate history."
-  def record(context, report, observed_at \\ DateTime.utc_now()) do
+  def record(context, report, observed_at \\ DateTime.utc_now(), options \\ []) do
     Repo.transaction(fn ->
-      scope = Repo.get_by(Scope, context) || Repo.insert!(struct!(Scope, context))
+      legacy = Keyword.get(options, :legacy_context)
+
+      scope =
+        Repo.get_by(Scope, context) ||
+          (legacy && Repo.get_by(Scope, legacy)) || Repo.insert!(struct!(Scope, context))
+
+      scope =
+        if scope.student_id != context.student_id,
+          do: scope |> Ecto.Changeset.change(student_id: context.student_id) |> Repo.update!(),
+          else: scope
+
       Enum.each(report.grades, &record_grade(scope.id, &1, observed_at))
       record_averages(scope.id, report, observed_at)
       scope.id

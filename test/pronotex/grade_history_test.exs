@@ -25,6 +25,32 @@ defmodule Pronotex.GradeHistoryTest do
     %{context: context, report: report}
   end
 
+  test "official history survives rotated student IDs and adopts a matching legacy scope", %{
+    context: original,
+    report: report
+  } do
+    client = %{
+      transport: %{root: original.school_url},
+      general: %{
+        "PremierLundi" => %{"V" => "31/08/2026"},
+        "DerniereDate" => %{"V" => "04/07/2027"}
+      },
+      children: [%{"N" => original.student_id, "L" => "HISTORY Unique Child"}]
+    }
+
+    report = Map.put(report, :period, "Semestre 1")
+    context = GradeHistory.context(client, original.student_id, report)
+    {:ok, old_id} = GradeHistory.record(original, report, @now)
+    assert {:ok, ^old_id} = GradeHistory.record(context, report, @later, legacy_context: original)
+    assert [snapshot] = GradeHistory.averages(context)
+    assert snapshot.observed_at == @now
+    rotated = %{client | children: [%{"N" => "new-session", "L" => "HISTORY Unique Child"}]}
+    assert GradeHistory.context(rotated, "new-session", report) == context
+    other_period = GradeHistory.context(rotated, "new-session", %{report | period: "Semestre 2"})
+    assert GradeHistory.averages(other_period) == []
+    assert GradeHistory.averages(%{context | school_year: "2027-2028"}) == []
+  end
+
   test "initial import fills all dates and dates official averages at observation time", %{
     context: context,
     report: report

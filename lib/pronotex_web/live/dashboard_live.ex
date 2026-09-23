@@ -853,7 +853,7 @@ defmodule PronotexWeb.DashboardLive do
       grade_count: length(report.grades),
       average_count: length(report.averages),
       overall: report.overall,
-      grade_trend: Pronotex.Pronote.GradeTrend.points(report.grades),
+      grade_trend: Pronotex.Pronote.GradeTrend.points(Map.get(report, :average_history, [])),
       class_overall: report.class_overall,
       overall_out_of: report.overall_out_of
     )

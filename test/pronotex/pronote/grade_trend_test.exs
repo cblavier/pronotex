@@ -2,76 +2,46 @@ defmodule Pronotex.Pronote.GradeTrendTest do
   use ExUnit.Case, async: true
   alias Pronotex.Pronote.GradeTrend
 
-  defp grade(overrides) do
-    Map.merge(
-      %{
-        date: ~D[2026-09-01],
-        subject: "Maths",
-        score: "10",
-        out_of: "20",
-        coefficient: nil,
-        bonus: false,
-        optional: false
-      },
-      overrides
-    )
+  defp snapshot(id, time, score, scale \\ "20"),
+    do: %{id: id, observed_at: time, data: %{"overall" => score, "overall_out_of" => scale}}
+
+  test "uses official values in observation order, including intraday changes" do
+    first = ~U[2026-09-01 08:00:00Z]
+    second = ~U[2026-09-01 12:00:00Z]
+
+    assert GradeTrend.points([snapshot(2, second, "7,5", "10"), snapshot(1, first, "14,25")]) ==
+             [{first, 14.25}, {second, 15.0}]
   end
 
-  test "normalizes scales, applies coefficients and weights subjects equally" do
-    marks = [
-      grade(%{date: ~D[2026-09-03], score: "20", coefficient: "3"}),
-      grade(%{}),
-      grade(%{date: ~D[2026-09-02], subject: "Français", score: "7,5", out_of: "10"})
-    ]
-
-    assert GradeTrend.points(marks) == [
-             {~D[2026-09-01], 10.0},
-             {~D[2026-09-02], 12.5},
-             {~D[2026-09-03], 16.25}
-           ]
-  end
-
-  test "same-day grades produce one point independent of input order" do
-    marks = [grade(%{}), grade(%{score: "20"})]
-    assert GradeTrend.points(marks) == [{~D[2026-09-01], 15.0}]
-    assert GradeTrend.points(Enum.reverse(marks)) == GradeTrend.points(marks)
-  end
-
-  test "ignores unsupported marks and treats explicit zero statuses as zero" do
-    marks =
-      for fields <- [
-            %{score: "Absent"},
-            %{score: "18", bonus: true},
-            %{score: "18", optional: true},
-            %{out_of: "0"},
-            %{coefficient: "0"},
-            %{coefficient: "inconnu"},
-            %{score: nil},
-            %{score: "Absent (zéro)"},
-            %{score: "Non rendu (zéro)"}
-          ],
-          do: grade(fields)
-
-    assert GradeTrend.points(marks) == [{~D[2026-09-01], 0.0}]
+  test "does not invent values and ignores unchanged averages" do
+    first = ~U[2026-09-01 08:00:00Z]
+    later = ~U[2026-09-02 08:00:00Z]
     assert GradeTrend.points([]) == []
+
+    assert GradeTrend.points([snapshot(1, first, "15"), snapshot(2, later, "15")]) == [
+             {first, 15.0}
+           ]
+
+    for {score, scale} <- [{nil, "20"}, {"Absent", "20"}, {"12", nil}, {"12", "0"}] do
+      assert GradeTrend.points([snapshot(1, first, score, scale)]) == []
+    end
   end
 
-  test "chart has no axes or tooltips and is omitted without two distinct dates" do
+  test "chart displays one official point without an invented past" do
     import Phoenix.LiveViewTest
     alias PronotexWeb.GradeTrendChart
     refute render_component(&GradeTrendChart.chart/1, points: []) =~ "overall-trend"
-
-    refute render_component(&GradeTrendChart.chart/1, points: [{~D[2026-09-01], 15.0}]) =~
-             "overall-trend"
+    html = render_component(&GradeTrendChart.chart/1, points: [{~U[2026-09-01 08:00:00Z], 15.0}])
+    assert html =~ "trend-point-0"
+    assert html =~ "moyenne officielle 15,00"
+    refute html =~ "estimée"
 
     html =
       render_component(&GradeTrendChart.chart/1,
-        points: [{~D[2026-09-01], 10.0}, {~D[2026-09-03], 15.0}]
+        points: [{~U[2026-09-01 08:00:00Z], 10.0}, {~U[2026-09-01 12:00:00Z], 15.0}]
       )
 
-    assert html =~ "Évolution estimée"
-    assert html =~ "<path"
-    refute html =~ "<text"
-    refute html =~ "<title"
+    assert html =~ "M 12.0"
+    assert html =~ "588.0"
   end
 end

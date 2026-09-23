@@ -33,12 +33,12 @@ defmodule PronotexWeb.GradeTrendChart do
     assigns = assign(assigns, path: path(coordinates), markers: markers)
 
     ~H"""
-    <div :if={length(@points) >= 2} id="overall-trend" class="overall-trend">
+    <div :if={@points != []} id="overall-trend" class="overall-trend">
       <svg
         viewBox="0 0 600 140"
         preserveAspectRatio="none"
         role="img"
-        aria-label="Évolution estimée de la moyenne générale sur la période"
+        aria-label="Évolution de la moyenne générale sur la période"
       >
         <path
           d={@path}
@@ -57,7 +57,7 @@ defmodule PronotexWeb.GradeTrendChart do
         phx-click={Phoenix.LiveView.JS.focus(to: "#trend-point-#{point.index}")}
         class={["trend-point", point.last? && "trend-point-last"]}
         style={"left: #{point.x}%; top: #{point.y}%"}
-        aria-label={"#{point.date} : moyenne estimée #{point.value} sur 20"}
+        aria-label={"#{point.date} : moyenne officielle #{point.value} sur 20"}
         aria-describedby={"trend-tooltip-#{point.index}"}
         data-placement={point.placement}
       >
@@ -76,14 +76,19 @@ defmodule PronotexWeb.GradeTrendChart do
   defp coordinates(points) do
     {first, _} = hd(points)
     {last, _} = List.last(points)
-    days = max(Date.diff(last, first), 1)
-    lower_bound = points |> Enum.map(&elem(&1, 1)) |> Enum.min() |> Kernel.-(5)
+    duration = max(elapsed(last, first), 1)
+    lower_bound = points |> Enum.map(&elem(&1, 1)) |> Enum.min() |> Kernel.-(2)
 
     Enum.map(points, fn {date, value} ->
-      {Float.round(12 + Date.diff(date, first) / days * 576, 2),
+      {Float.round(12 + elapsed(date, first) / duration * 576, 2),
        Float.round(128 - (value - lower_bound) / (20 - lower_bound) * 116, 2)}
     end)
   end
+
+  defp elapsed(%DateTime{} = last, %DateTime{} = first),
+    do: DateTime.diff(last, first, :microsecond)
+
+  defp elapsed(%Date{} = last, %Date{} = first), do: Date.diff(last, first)
 
   defp path([]), do: ""
 

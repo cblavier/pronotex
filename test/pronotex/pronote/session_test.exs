@@ -112,26 +112,26 @@ defmodule Pronotex.Pronote.SessionTest do
     {server, _} = session()
     assert {:ok, report} = Pronote.grades("child-a", nil, server)
 
-    scope =
-      Pronotex.Repo.get_by!(Scope,
-        school_url: "https://school.test/pronote",
-        student_id: "child-a",
-        school_year: "2026-2027",
-        period: "semester1"
-      )
+    client = :sys.get_state(server).client
+    context = Pronotex.GradeHistory.context(client, "child-a", report)
+    scope = Pronotex.Repo.get_by!(Scope, context)
 
     snapshots = from(s in AverageSnapshot, where: s.scope_id == ^scope.id)
     assert Pronotex.Repo.exists?(snapshots)
 
     Pronotex.Repo.delete_all(snapshots)
-    assert {:ok, ^report} = Pronote.grades("child-a", nil, server)
+    assert {:ok, cached} = Pronote.grades("child-a", nil, server)
+    assert cached.average_history == []
+    assert Map.delete(cached, :average_history) == Map.delete(report, :average_history)
     refute Pronotex.Repo.exists?(snapshots)
 
     Pronote.clear_cache(server)
-    assert {:ok, ^report} = Pronote.grades("child-a", nil, server)
+    assert {:ok, refreshed} = Pronote.grades("child-a", nil, server)
+    assert [_ | _] = refreshed.average_history
     assert Pronotex.Repo.exists?(snapshots)
 
     client = %Pronotex.Pronote.Client{
+      children: client.children,
       transport: %Pronotex.Pronote.Transport{
         root: "https://school.test/pronote/",
         space: 3,

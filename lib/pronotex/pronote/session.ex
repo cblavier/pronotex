@@ -169,7 +169,8 @@ defmodule Pronotex.Pronote.Session do
         Keyword.get(state.options, :account, "family")
       )
 
-    {:ok, grades, %{state | client: client}}
+    history = average_history(client, child_id, grades)
+    {:ok, Map.put(grades, :average_history, history), %{state | client: client}}
   end
 
   defp execute({:events, child_id}, state) do
@@ -379,10 +380,22 @@ defmodule Pronotex.Pronote.Session do
     end
   end
 
+  defp average_history(client, child_id, report) do
+    client |> Pronotex.GradeHistory.context(child_id, report) |> Pronotex.GradeHistory.averages()
+  rescue
+    _ ->
+      require Logger
+      Logger.warning("Unable to read official average history")
+      []
+  end
+
   defp persist_read(client, {:grades, child_id, _period}, report, account_id) do
     context = Pronotex.GradeHistory.context(client, child_id, report)
 
-    {:ok, _} = Pronotex.GradeHistory.record(context, report)
+    {:ok, _} =
+      Pronotex.GradeHistory.record(context, report, DateTime.utc_now(),
+        legacy_context: %{context | student_id: child_id}
+      )
 
     children = Client.children(client)
     child = Enum.find(children, &(&1.id == child_id))
