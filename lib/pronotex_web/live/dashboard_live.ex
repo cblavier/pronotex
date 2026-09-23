@@ -644,7 +644,7 @@ defmodule PronotexWeb.DashboardLive do
       NaiveDateTime.compare(now, entry.end) != :lt ->
         "past"
 
-      !Map.get(entry, :canceled, false) and NaiveDateTime.compare(now, entry.start) != :lt ->
+      NaiveDateTime.compare(now, entry.start) != :lt ->
         "current"
 
       true ->

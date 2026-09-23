@@ -1199,13 +1199,19 @@ defmodule PronotexWeb.DashboardLiveTest do
     refute_received {:lessons, _, _, _}
   end
 
-  test "canceled lessons are never highlighted as current", %{conn: conn} do
+  test "canceled lessons highlight the current time slot while keeping their status", %{
+    conn: conn
+  } do
     Application.put_env(:pronotex, :dashboard_test_mode, :canceled)
     Application.put_env(:pronotex, :now, fn -> ~N[2026-09-18 08:30:00] end)
     {:ok, view, _} = live(conn, "/alice")
     render_async(view)
+    assert has_element?(view, "#lesson-days article[data-state=current]", "Annulé")
+
+    Application.put_env(:pronotex, :now, fn -> ~N[2026-09-18 09:00:00] end)
+    send(view.pid, :update_lesson_clock)
     refute has_element?(view, "#lesson-days article[data-state=current]")
-    assert has_element?(view, "#lesson-days", "Annulé")
+    assert has_element?(view, "#lesson-days article[data-state=past]", "Annulé")
   end
 
   test "highlight moves from lesson to pause to lunch and back without refetching", %{conn: conn} do
