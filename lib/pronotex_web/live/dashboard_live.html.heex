@@ -425,10 +425,11 @@
         <article class="lesson-content-card">
           <header class="lesson-content-title lesson-content-header">
             <h2 class="text-lg font-semibold uppercase">{lesson.subject || "Cours"}</h2>
-            <p class="text-sm font-normal">
-              {Calendar.strftime(lesson.start, "%d/%m/%Y")} · {clock(lesson.start)}–{clock(
-                lesson.end
-              )}
+            <p class="lesson-content-date text-sm font-normal">
+              <time datetime={Date.to_iso8601(NaiveDateTime.to_date(lesson.start))}>
+                {Calendar.strftime(lesson.start, "%d/%m/%Y")}
+              </time>
+              <span>· {clock(lesson.start)}–{clock(lesson.end)}</span>
             </p>
           </header>
           <div class="lesson-content-body">
