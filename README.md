@@ -16,8 +16,10 @@ La simplicité est la priorité, toutes les fonctionnalités de pronote ne seron
 
 ## Techno
 
-Développée avec Elixir et Phoenix LiveView. L'historique des notes et moyennes utilise SQLite, sans serveur de base de données séparé.
+Développée avec Elixir et Phoenix LiveView. L'historique des notes et moyennes utilise SQLite.
+
 Code massivement généré par intelligence artificielle (OpenAI Codex).
+
 Prévu pour tourner avec Docker en production.
 
 ## Roadmap
@@ -38,9 +40,9 @@ Prévu pour tourner avec Docker en production.
 - [x] consulter les resources associées aux devoirs
 - [x] mettre un cache en lecture sur les API pronote
 - [x] améliorer les écrans de notes et moyennes
+- [x] push notif nouvelle note
 - [ ] contacter la vie scolaire (parent)
 - [ ] push notif prof absent
-- [ ] push notif nouvelle note
 - [ ] push notif nouveau message
 
 ## Screenshots
@@ -149,8 +151,6 @@ SQLite et Ecto enregistrent chaque réponse fraîche de PRONOTE, y compris celle
 - Les corrections de notes conservent une révision. Une note absente d'une réponse ultérieure reste dans l'historique : son absence ne prouve pas une suppression.
 - Les moyennes officielles générales, par matière et de classe sont enregistrées ensemble, à la date de leur observation, uniquement lorsqu'elles changent. Le premier import est donc daté du jour de sa récupération, sans reconstituer un passé fictif. Les valeurs PRONOTE sont conservées telles quelles, y compris les valeurs manquantes et les notes non numériques.
 
-Les migrations s'exécutent automatiquement avant les sessions PRONOTE au démarrage. En développement, la base est `data/pronotex_dev.db` (ignorée par Git) ; les tests utilisent une base en mémoire. Après ajout d'une dépendance ou du dépôt, redémarrer le serveur de développement.
-
 En Docker, le dossier `DATA_DIR` du serveur est monté sur `/app/data`. Avec `DATA_DIR=.` et le Compose dans `/volume1/docker/pronotex`, la base se trouve exactement dans **`/volume1/docker/pronotex/pronotex.db`**. Le dossier entier est monté pour que SQLite puisse aussi créer `pronotex.db-wal` et `pronotex.db-shm`. Utiliser un disque local au serveur, pas un partage SMB/NFS.
 
 #### Configuration du stockage
@@ -186,27 +186,11 @@ Pour sauvegarder simplement : arrêter le service (`docker compose stop pronotex
 
 ## Notifications de nouvelles notes
 
-Activer **Réglages → Activer les notifications** sur chaque appareil, puis accepter l'autorisation du navigateur. Sur iPhone/iPad, utiliser l'application ajoutée à l'écran d'accueil (iOS/iPadOS 16.4 minimum) ; en production, HTTPS est requis. Le corps de la notification liste les matières concernées, sans les suffixes après `>` et sans doublons. Une notification « Edgar a eu de nouvelles notes » regroupe les notes découvertes dans une même réponse pour cet enfant. Un clic ouvre sa page Notes ; si la session a expiré, il faut se reconnecter.
+Activer **Réglages → Activer les notifications** sur chaque appareil, puis accepter l'autorisation du navigateur. Sur iPhone/iPad, utiliser l'application ajoutée à l'écran d'accueil (iOS/iPadOS 16.4 minimum) ; en production, HTTPS est requis. 
 
-Le serveur relève les données toutes les cinq minutes, uniquement **entre 07 h et 22 h**, dans le fuseau `TZ` (Europe/Paris par défaut dans Docker, configurable dans `.env`). Une requête déjà en cours peut finir après 22 h, mais les lectures suivantes attendront le matin. Les consultations manuelles restent disponibles. `PRONOTE_BACKGROUND_REFRESH=false` désactive ce relevé automatique. L'envoi des notifications utilise les services Web Push du navigateur (Apple, Google, Mozilla ou Microsoft) et fonctionne même avec l'app fermée ; il n'exige aucun compte Firebase. Le serveur doit pouvoir les joindre en HTTPS. La réception dépend aussi du réseau et des réglages de notifications de l'appareil.
+Le serveur relève les données toutes les cinq minutes, uniquement **entre 07 h et 22 h**, dans le fuseau `TZ` (Europe/Paris par défaut dans Docker, configurable dans `.env`). Une requête déjà en cours peut finir après 22 h, mais les lectures suivantes attendront le matin. Les consultations manuelles restent disponibles. `PRONOTE_BACKGROUND_REFRESH=false` désactive ce relevé automatique. L'envoi des notifications utilise les services Web Push du navigateur (Apple, Google, Mozilla ou Microsoft) et fonctionne même avec l'app fermée ; il n'exige aucun compte Firebase. Le serveur doit pouvoir les joindre en HTTPS. 
 
 Les abonnements, les références de comparaison, la file d'envoi et les clés VAPID sont conservés dans **la même base SQLite persistante**. Les migrations et la génération initiale des clés sont automatiques : aucune commande supplémentaire après déploiement. Sauvegarder cette base protège aussi l'identité du serveur push. Le contact VAPID utilise `https://PHX_HOST` ; on peut définir `WEB_PUSH_SUBJECT=mailto:admin@example.com` dans le fichier `env`. Ne pas partager la base : elle contient la clé privée et les abonnements.
-
-Le premier relevé d'un enfant pour un profil et une période constitue une référence silencieuse. Les identifiants PRONOTE pouvant changer à la reconnexion, la détection compare le nombre de notes par matière et date d'évaluation, sans alerter lors d'une correction de score ou de commentaire. Elle conserve le maximum observé : une suppression suivie d'un remplacement à la même date et dans la même matière peut donc passer inaperçue. Les noms complets ambigus au sein d'un profil ne déclenchent pas d'alertes. Les profils ont des abonnements séparés ; un appareil est lié au dernier profil pour lequel les notifications ont été activées. Une déconnexion ou une nouvelle connexion désactive cet abonnement : réactiver ensuite l'option dans Réglages.
-
-Les échecs d'envoi temporaires sont réessayés avec un délai croissant (huit tentatives maximum, expiration après 24 h). Les abonnements révoqués sont supprimés. Le même identifiant de notification est conservé lors des tentatives pour limiter les doublons à l'affichage ; une livraison exactement une fois n'est pas garantie par Web Push. Le service worker sert uniquement aux notifications et ne met aucune page privée en cache.
-
-### Déclencher manuellement une notification
-
-Depuis le dossier Compose du serveur (par exemple `/volume1/docker/pronotex`), après déploiement :
-
-```sh
-docker compose exec pronotex /app/bin/pronotex rpc 'IO.inspect(Pronotex.Push.notify_grades("family", "Edgar"))'
-```
-
-La fonction vérifie qu'Edgar appartient au profil `family`, puis met une notification en file pour chacun de ses appareils abonnés et réveille immédiatement le service d'envoi. `{:ok, %{queued: 1}}` signifie qu'un appareil est ciblé, pas que la réception est déjà confirmée. `{:error, :no_subscriptions}` indique qu'il faut activer les notifications dans Réglages pour ce profil. Remplacer `family` par l'identifiant du profil voulu (`child-1`, `parent-1`, etc.) et utiliser le nom complet en cas de prénoms identiques. Une indisponibilité PRONOTE est signalée par `{:error, :pronote_unavailable}`.
-
-L'appel ne lit ni ne modifie les notes, l'historique ou la référence de comparaison. Chaque appel volontaire déclenche une nouvelle notification, y compris la nuit ; seule la collecte automatique est suspendue de 22 h à 7 h. Pour cibler une période précise : `Pronotex.Push.notify_grades("family", "Edgar", period: "semester1")`. Sans cette option, le lien ouvre la période courante. Pour renseigner le texte de la notification manuelle, passer `subjects: ["MATHÉMATIQUES", "ESPAGNOL LV2 > Compréhension"]` ; sans cette liste, le corps reste vide.
 
 ## Licence
 
