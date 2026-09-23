@@ -13,7 +13,11 @@ defmodule Pronotex.Pronote.Discussion do
           own: raw["emetteur"] == true,
           seen: Map.get(raw, "lu", true) == true,
           date: get_in(raw, ["date", "V"]) || "",
-          content: if(raw["estHTML"] == true, do: plain_text(content || ""), else: content || "")
+          content:
+            if(raw["estHTML"] == true,
+              do: Pronotex.Pronote.HTMLText.parse(content || ""),
+              else: content || ""
+            )
         }
       end
 
@@ -66,20 +70,5 @@ defmodule Pronotex.Pronote.Discussion do
       preview:
         messages |> List.last(%{content: ""}) |> Map.fetch!(:content) |> String.slice(0, 160)
     }
-  end
-
-  defp plain_text(text) do
-    text
-    |> Floki.parse_fragment!()
-    |> Floki.filter_out("script, style")
-    |> Floki.traverse_and_update(fn
-      {tag, attrs, children} when tag in ["p", "div", "li", "br"] ->
-        {tag, attrs, children ++ ["\n"]}
-
-      node ->
-        node
-    end)
-    |> Floki.text(sep: "")
-    |> String.trim()
   end
 end

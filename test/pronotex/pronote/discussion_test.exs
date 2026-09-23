@@ -2,6 +2,24 @@ defmodule Pronotex.Pronote.DiscussionTest do
   use ExUnit.Case, async: true
   alias Pronotex.Pronote.Discussion
 
+  test "HTML messages use compact paragraphs while plain text keeps intentional spacing" do
+    html = "<div><p>Bonjour<br></p></div>\n<p>&nbsp;</p><div><p>À demain</p></div>"
+    plain = "Bonjour\n\nÀ demain"
+
+    messages =
+      Discussion.messages(%{
+        "listeMessages" => %{
+          "V" => [
+            %{"N" => "html", "contenu" => html, "estHTML" => true},
+            %{"N" => "plain", "contenu" => plain, "estHTML" => false}
+          ]
+        }
+      })
+
+    assert Enum.find(messages, &(&1.id == "html")).content == "Bonjour\nÀ demain"
+    assert Enum.find(messages, &(&1.id == "plain")).content == plain
+  end
+
   test "messages are chronological across months and preview uses the newest message" do
     raw =
       for {id, date} <- [

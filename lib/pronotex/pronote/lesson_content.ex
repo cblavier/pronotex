@@ -6,17 +6,7 @@ defmodule Pronotex.Pronote.LessonContent do
     html = get_in(raw, ["descriptif", "V"]) || ""
     tree = html |> Floki.parse_fragment!() |> Floki.filter_out("script, style")
 
-    description =
-      tree
-      |> Floki.traverse_and_update(fn
-        {tag, attrs, children} when tag in ["p", "div", "li", "br"] ->
-          {tag, attrs, children ++ ["\n"]}
-
-        node ->
-          node
-      end)
-      |> Floki.text(sep: "")
-      |> String.trim()
+    description = Pronotex.Pronote.HTMLText.from_tree(tree)
 
     links =
       for {"a", attrs, _} = node <- Floki.find(tree, "a[href]"),

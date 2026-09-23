@@ -2,6 +2,37 @@ defmodule Pronotex.Pronote.HomeworkTest do
   use ExUnit.Case, async: true
   alias Pronotex.Pronote.Homework
 
+  test "homework paragraphs do not accumulate blank lines from nested HTML blocks" do
+    raw = %{
+      "N" => "task",
+      "PourLe" => %{"V" => "18/09/2026"},
+      "descriptif" => %{
+        "V" => """
+        <div><p>Revoir la <strong>leçon</strong>.<br></p></div>
+        <p>&nbsp;</p>
+        <div><p>Finir les ex 8 et 36.</p></div>
+        <div><p>Faire l'ex 37</p></div>
+        """
+      }
+    }
+
+    assert Homework.parse(raw, "child").description ==
+             "Revoir la leçon.\nFinir les ex 8 et 36.\nFaire l'ex 37"
+  end
+
+  test "homework keeps line breaks and removes hidden HTML content" do
+    raw = %{
+      "N" => "task",
+      "PourLe" => %{"V" => "18/09/2026"},
+      "descriptif" => %{
+        "V" =>
+          "<style>hidden</style><script>hidden</script>Lire<br>Apprendre<br><ul><li>Un</li><li>Deux</li></ul>"
+      }
+    }
+
+    assert Homework.parse(raw, "child").description == "Lire\nApprendre\nUn\nDeux"
+  end
+
   test "homework uses its API color and keeps missing or invalid colors neutral" do
     raw = %{
       "N" => "task",

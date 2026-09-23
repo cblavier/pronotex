@@ -2,6 +2,20 @@ defmodule Pronotex.Pronote.LessonContentTest do
   use ExUnit.Case, async: true
   alias Pronotex.Pronote.{LessonContent, Crypto, Transport}
 
+  test "nested blocks and empty paragraphs do not add blank lines" do
+    content =
+      LessonContent.parse(
+        %{
+          "descriptif" => %{
+            "V" => "<div><p>Révision<br></p></div>\n<p>&nbsp;</p><div><p>Exercices</p></div>"
+          }
+        },
+        nil
+      )
+
+    assert content.description == "Révision\nExercices"
+  end
+
   test "preserves text and safe links while stripping executable markup" do
     content =
       LessonContent.parse(

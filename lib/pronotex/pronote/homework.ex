@@ -11,17 +11,7 @@ defmodule Pronotex.Pronote.Homework do
   def parse(raw, child_id) do
     description =
       (get_in(raw, ["descriptif", "V"]) || "")
-      |> Floki.parse_fragment!()
-      |> Floki.filter_out("script, style")
-      |> Floki.traverse_and_update(fn
-        {tag, attrs, children} when tag in ["p", "div", "li", "br"] ->
-          {tag, attrs, children ++ ["\n"]}
-
-        node ->
-          node
-      end)
-      |> Floki.text(sep: "")
-      |> String.trim()
+      |> Pronotex.Pronote.HTMLText.parse()
 
     %__MODULE__{
       id: Map.fetch!(raw, "N"),
