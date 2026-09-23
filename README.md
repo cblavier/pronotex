@@ -36,7 +36,7 @@ Prévu pour tourner avec Docker en production.
 - [x] consulter les messages des parents
 - [x] comptes famille, enfants et parents séparés (pincode individuels)
 - [x] consulter les resources associées aux devoirs
-- [ ] mettre un cache en lecture sur les API pronote
+- [x] mettre un cache en lecture sur les API pronote
 - [ ] améliorer les écrans de notes et moyennes
 - [ ] contacter la vie scolaire (parent)
 - [ ] push notif prof absent
@@ -91,6 +91,14 @@ mix phx.server
 Ouvrir [localhost:4000](http://localhost:4000). Après modification des variables, les recharger et redémarrer le serveur. Avec direnv, `direnv allow` remplace `source .envrc`.
 
 Pour lancer les vérifications : `mix precommit`.
+
+### Cache des lectures PRONOTE
+
+Les réponses réussies sont conservées uniquement en mémoire : 5 minutes pour les cours, événements, devoirs, messages, notes et moyennes, 30 minutes pour les menus. Une entrée expirée est rechargée lors de la prochaine lecture, sans mise à jour en arrière-plan. Les données peuvent donc refléter l'état de PRONOTE au moment de la dernière lecture pendant cette durée.
+
+Le cache est isolé par processus de profil, session PRONOTE et paramètres de lecture. Il contient au maximum 256 réponses au total ; les entrées expirées ou liées à un processus arrêté sont supprimées au prochain accès. Il est perdu au redémarrage. Les erreurs ne sont jamais mises en cache.
+
+Toute tentative de modification invalide uniquement la catégorie concernée pour tous les profils : devoirs, messages enfants ou messages parents. Toutes les plages de dates de cette catégorie sont invalidées, même en cas d'erreur, pour éviter les anciens statuts entre Famille, Parent et Enfant. Les autres catégories restent en cache ; une session perdue ou invalide entraîne toutefois la purge du cache de ce profil. Les vérifications des écritures interrogent toujours PRONOTE. L'action de rafraîchissement de l'application vide le cache du profil ; un simple rechargement du navigateur peut réutiliser les réponses encore valides. Les écrans déjà ouverts ne sont pas automatiquement mis à jour.
 
 ## Construire et lancer en production avec Docker
 

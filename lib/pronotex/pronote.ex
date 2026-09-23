@@ -20,6 +20,7 @@ defmodule Pronotex.Pronote do
   def login(server \\ Session), do: GenServer.call(server, :login, :infinity)
   def children(server \\ Session), do: GenServer.call(server, :children, :infinity)
   def logout(server \\ Session), do: GenServer.call(server, :logout)
+  def clear_cache(server \\ Session), do: GenServer.call(server, :clear_cache, :infinity)
 
   @doc "Reads an inclusive date range. Each lesson retains its child ID and local school times."
   def lessons(child_id, from, to, server \\ Session)

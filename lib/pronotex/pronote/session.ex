@@ -1,7 +1,7 @@
 defmodule Pronotex.Pronote.Session do
   @moduledoc "Serializes PRONOTE's numbered requests. Connects only when first used."
   use GenServer
-  alias Pronotex.Pronote.{Client, Config, Error}
+  alias Pronotex.Pronote.{Client, Config, Error, ReadCache}
 
   def start_link(options) do
     GenServer.start_link(__MODULE__, options, name: Keyword.get(options, :name, __MODULE__))
@@ -25,15 +25,46 @@ defmodule Pronotex.Pronote.Session do
   def init(options), do: {:ok, %{options: options, client: nil, students: %{}}}
 
   @impl true
-  def handle_call(:logout, _from, state), do: {:reply, :ok, %{state | client: nil, students: %{}}}
+  def handle_call(:clear_cache, _from, state) do
+    ReadCache.invalidate(self())
+    {:reply, :ok, state}
+  end
 
-  def handle_call(operation, _from, state)
-      when elem(operation, 0) in [
-             :discussions,
-             :set_discussion_read,
-             :parent_discussions,
-             :set_parent_discussion_read
-           ] do
+  def handle_call(operation, from, state) do
+    affected =
+      case operation do
+        {:set_homework_done, _, _, _} -> :homework
+        {:set_discussion_read, _, _, _} -> :discussions
+        {:set_parent_discussion_read, _, _} -> :parent_discussions
+        _ -> nil
+      end
+
+    if affected, do: ReadCache.invalidate({:kind, affected})
+
+    try do
+      result = handle_operation(operation, from, state)
+
+      if operation == :logout or match?({:reply, {:error, _}, _}, result),
+        do: ReadCache.invalidate(self())
+
+      result
+    after
+      # Even an uncertain write may have reached PRONOTE. Also discard reads
+      # that started before or during the write in another profile.
+      if affected, do: ReadCache.invalidate({:kind, affected})
+    end
+  end
+
+  defp handle_operation(:logout, _from, state),
+    do: {:reply, :ok, %{state | client: nil, students: %{}}}
+
+  defp handle_operation(operation, _from, state)
+       when elem(operation, 0) in [
+              :discussions,
+              :set_discussion_read,
+              :parent_discussions,
+              :set_parent_discussion_read
+            ] do
     result = safely(fn -> execute(operation, state) end)
 
     result =
@@ -53,10 +84,10 @@ defmodule Pronotex.Pronote.Session do
   end
 
   # Never retry a write automatically: its outcome may be unknown after a network error.
-  def handle_call({:set_homework_done, _, _, _}, _from, %{client: nil} = state),
+  defp handle_operation({:set_homework_done, _, _, _}, _from, %{client: nil} = state),
     do: {:reply, {:error, Error.new(:stale_homework)}, state}
 
-  def handle_call({:set_homework_done, _, _, _} = operation, _from, state) do
+  defp handle_operation({:set_homework_done, _, _, _} = operation, _from, state) do
     case safely(fn -> execute(operation, state) end) do
       {:ok, reply, state} ->
         {:reply, {:ok, reply}, state}
@@ -66,7 +97,7 @@ defmodule Pronotex.Pronote.Session do
     end
   end
 
-  def handle_call(operation, _from, state) do
+  defp handle_operation(operation, _from, state) do
     case safely(fn -> execute(operation, state) end) do
       {:ok, reply, state} ->
         {:reply, {:ok, reply}, state}
@@ -94,6 +125,8 @@ defmodule Pronotex.Pronote.Session do
   def format_status(status), do: %{status | state: :redacted}
 
   defp execute(operation, %{client: nil} = state) do
+    ReadCache.invalidate(self())
+
     config =
       case Keyword.get(state.options, :config) do
         nil -> Config.from_account(Keyword.get(state.options, :account, "family"))
@@ -114,33 +147,33 @@ defmodule Pronotex.Pronote.Session do
     do: {:ok, Client.children(state.client), state}
 
   defp execute({:lessons, child_id, from, to}, state) do
-    {lessons, client} = Client.lessons(state.client, child_id, from, to)
+    {lessons, client} = cached_read(state.client, {:lessons, child_id, from, to})
     {:ok, lessons, %{state | client: client}}
   end
 
   defp execute({:homework, child_id, from, to}, state) do
-    {homework, client} = Client.homework(state.client, child_id, from, to)
+    {homework, client} = cached_read(state.client, {:homework, child_id, from, to})
     {:ok, homework, %{state | client: client}}
   end
 
   defp execute({:menus, child_id, from, to}, state) do
-    {menus, client} = Client.menus(state.client, child_id, from, to)
+    {menus, client} = cached_read(state.client, {:menus, child_id, from, to})
     {:ok, menus, %{state | client: client}}
   end
 
   defp execute({:grades, child_id, period_name}, state) do
-    {grades, client} = Client.grades(state.client, child_id, period_name)
+    {grades, client} = cached_read(state.client, {:grades, child_id, period_name})
     {:ok, grades, %{state | client: client}}
   end
 
   defp execute({:events, child_id}, state) do
-    {events, client} = Client.events(state.client, child_id)
+    {events, client} = cached_read(state.client, {:events, child_id})
     {:ok, events, %{state | client: client}}
   end
 
   defp execute({:parent_discussions}, state) do
     authorize_parent!(state)
-    {reply, client} = Client.discussions(state.client)
+    {reply, client} = cached_read(state.client, {:parent_discussions})
     {:ok, reply, %{state | client: client}}
   end
 
@@ -160,7 +193,7 @@ defmodule Pronotex.Pronote.Session do
     {reply, client} =
       case operation do
         {:discussions, _} ->
-          Client.discussions(state.client)
+          cached_read(state.client, operation)
 
         {:set_discussion_read, _, id, read} ->
           Client.set_discussion_read(state.client, id, read)
@@ -223,7 +256,7 @@ defmodule Pronotex.Pronote.Session do
 
     {reply, student} =
       case operation do
-        {:discussions, _} -> Client.discussions(student)
+        {:discussions, _} -> cached_read(student, operation)
         {:set_discussion_read, _, id, read} -> Client.set_discussion_read(student, id, read)
       end
 
@@ -305,6 +338,35 @@ defmodule Pronotex.Pronote.Session do
 
     {:ok, tasks,
      %{state | client: parent, students: Map.put(state.students, child_id, {config, student})}}
+  end
+
+  defp cached_read(client, operation) do
+    # Never cache or restore a Client: its ordered transport and write-validation
+    # state must remain the current state of this serialized session.
+    transport = client.transport
+
+    identity =
+      {transport.root, transport.session, transport.space, transport.key, client.children,
+       client.tabs}
+
+    key = {self(), {:crypto.hash(:sha256, :erlang.term_to_binary(identity)), operation}}
+
+    case ReadCache.fetch(key) do
+      {:hit, reply} ->
+        {reply, client}
+
+      {:miss, generation} ->
+        [kind | args] = Tuple.to_list(operation)
+
+        {function, args} =
+          if kind in [:discussions, :parent_discussions],
+            do: {:discussions, []},
+            else: {kind, args}
+
+        {reply, updated} = apply(Client, function, [client | args])
+        ReadCache.put(key, reply, ReadCache.ttl(kind), generation)
+        {reply, updated}
+    end
   end
 
   defp authorize_parent!(state) do

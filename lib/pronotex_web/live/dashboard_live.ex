@@ -250,6 +250,10 @@ defmodule PronotexWeb.DashboardLive do
   end
 
   def handle_event("refresh", _, socket) do
+    if socket.assigns.api == Pronotex.Pronote do
+      api_call(socket.assigns.api, socket.assigns.account, :clear_cache, [])
+    end
+
     current_date = today()
     socket = assign(socket, :today, current_date)
 

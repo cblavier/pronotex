@@ -10,6 +10,7 @@ defmodule Pronotex.Application do
     children = [
       PronotexWeb.Telemetry,
       Pronotex.Auth,
+      Pronotex.Pronote.ReadCache,
       Pronotex.Pronote.Session,
       {Registry, keys: :unique, name: Pronotex.Pronote.Registry},
       {DynamicSupervisor, strategy: :one_for_one, name: Pronotex.Pronote.Supervisor},

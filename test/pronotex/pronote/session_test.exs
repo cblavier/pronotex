@@ -1,5 +1,5 @@
 defmodule Pronotex.Pronote.SessionTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   alias Pronotex.Pronote
   alias Pronotex.Pronote.{Config, Error, Session}
   alias Pronotex.Test.PronoteServer
@@ -44,6 +44,78 @@ defmodule Pronotex.Pronote.SessionTest do
     Req.Test.allow(__MODULE__, self(), server)
     Req.Test.allow(__MODULE__.Student, self(), server)
     {server, if(options[:student], do: student_agent, else: agent)}
+  end
+
+  test "repeated reads use the cache without rolling back ordered transport state" do
+    {server, agent} = session(direct_student: true)
+
+    reads = [
+      fn -> Pronote.lessons("child-a", ~D[2026-09-14], ~D[2026-09-20], server) end,
+      fn -> Pronote.homework("child-a", ~D[2026-09-14], ~D[2026-09-21], server) end,
+      fn -> Pronote.menus("child-a", ~D[2026-09-14], ~D[2026-09-20], server) end,
+      fn -> Pronote.grades("child-a", nil, server) end,
+      fn -> Pronote.events("child-a", server) end,
+      fn -> Pronote.discussions("child-a", server) end
+    ]
+
+    results = Enum.map(reads, & &1.())
+    assert Enum.all?(results, &match?({:ok, _}, &1))
+    calls = Agent.get(agent, & &1.calls)
+    assert Enum.map(reads, & &1.()) == results
+    assert Agent.get(agent, & &1.calls) == calls
+    assert {:ok, _} = Pronote.lessons("child-a", ~D[2026-09-21], ~D[2026-09-27], server)
+    assert length(Agent.get(agent, & &1.calls)) > length(calls)
+  end
+
+  test "manual refresh and logout force fresh reads" do
+    {server, agent} = session()
+    read = fn -> Pronote.events("child-a", server) end
+    assert {:ok, _} = read.()
+    calls = Agent.get(agent, & &1.calls)
+    assert :ok = Pronote.clear_cache(server)
+    assert {:ok, _} = read.()
+    assert length(Agent.get(agent, & &1.calls)) > length(calls)
+    assert :ok = Pronote.logout(server)
+    assert {:ok, _} = read.()
+    assert Agent.get(agent, & &1.logins) == 2
+  end
+
+  test "writes invalidate all cached date ranges and other profile entries" do
+    {server, agent} = session(direct_student: true)
+    read = fn -> Pronote.homework("child-a", ~D[2026-09-15], ~D[2026-09-21], server) end
+    assert {:ok, [task]} = read.()
+    assert {:ok, _} = Pronote.homework("child-a", ~D[2026-09-15], ~D[2026-09-24], server)
+    other_key = {self(), {:other_profile, {:homework, "other-child", :from, :to}}}
+    {:miss, generation} = Pronotex.Pronote.ReadCache.fetch(other_key)
+    Pronotex.Pronote.ReadCache.put(other_key, :old_status, 30_000, generation)
+    assert {:ok, events} = Pronote.events("child-a", server)
+    assert {:ok, _} = Pronote.set_homework_done("child-a", task.id, false, server)
+    assert {:miss, _} = Pronotex.Pronote.ReadCache.fetch(other_key)
+    calls = Agent.get(agent, & &1.calls)
+    assert {:ok, ^events} = Pronote.events("child-a", server)
+    assert Agent.get(agent, & &1.calls) == calls
+    assert {:ok, [%{done: false}]} = read.()
+
+    assert {:ok, [%{done: false}]} =
+             Pronote.homework("child-a", ~D[2026-09-15], ~D[2026-09-24], server)
+
+    assert length(Agent.get(agent, & &1.calls)) > length(calls)
+  end
+
+  test "session renewal discards cached reads and errors are not cached" do
+    {server, agent} = session(expire: true)
+    assert {:ok, _} = Pronote.events("child-a", server)
+    assert {:ok, _} = Pronote.lessons("child-a", ~D[2026-09-14], ~D[2026-09-20], server)
+    assert Agent.get(agent, & &1.logins) == 2
+    calls = Agent.get(agent, & &1.calls)
+    assert {:ok, _} = Pronote.events("child-a", server)
+    assert length(Agent.get(agent, & &1.calls)) > length(calls)
+    assert {:error, _} = Pronote.events("unknown", server)
+
+    refute Enum.any?(:sys.get_state(Pronotex.Pronote.ReadCache).entries, fn
+             {{owner, {_, operation}}, _} -> owner == server and operation == {:events, "unknown"}
+             _ -> false
+           end)
   end
 
   test "inbox combines and deduplicates notices without implicitly marking them read" do
