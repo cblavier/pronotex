@@ -3,11 +3,15 @@ defmodule PronotexWeb.LoginController do
   alias Pronotex.Auth
 
   def index(conn, params) do
+    conn = assign(conn, :return_to, PronotexWeb.NotesDestination.validate(params["return_to"]))
+
     error =
       if params["session_expired"] == "1",
         do: "Le formulaire de connexion a expiré. Veuillez saisir votre code à nouveau."
 
-    if Auth.valid?(get_session(conn)), do: redirect(conn, to: "/"), else: page(conn, error)
+    if Auth.valid?(get_session(conn)),
+      do: redirect(conn, to: conn.assigns[:return_to] || "/"),
+      else: page(conn, error)
   end
 
   def delete(conn, _) do
@@ -16,6 +20,7 @@ defmodule PronotexWeb.LoginController do
     end
 
     conn
+    |> PronotexWeb.PushController.forget_device()
     |> clear_session()
     |> configure_session(drop: true)
     |> put_resp_header("cache-control", "private, no-store")
@@ -23,6 +28,7 @@ defmodule PronotexWeb.LoginController do
   end
 
   def create(conn, params) do
+    conn = assign(conn, :return_to, PronotexWeb.NotesDestination.validate(params["return_to"]))
     account = params["account"]
     remember = params["remember"] == "true"
     conn = assign(conn, :selected_account, account) |> assign(:remember, remember)
@@ -34,7 +40,12 @@ defmodule PronotexWeb.LoginController do
         end
 
         Plug.CSRFProtection.delete_csrf_token()
-        conn = conn |> configure_session(renew: true) |> clear_session()
+
+        conn =
+          conn
+          |> PronotexWeb.PushController.forget_device()
+          |> configure_session(renew: true)
+          |> clear_session()
 
         conn =
           put_session(
@@ -48,7 +59,7 @@ defmodule PronotexWeb.LoginController do
             put_session(conn, key, value)
           end)
 
-        redirect(conn, to: "/")
+        redirect(conn, to: conn.assigns[:return_to] || "/")
 
       {:wait, seconds} ->
         blocked(conn, seconds)
@@ -76,6 +87,7 @@ defmodule PronotexWeb.LoginController do
     |> put_resp_header("cache-control", "private, no-store")
     |> render(:index,
       page_title: "Captain Notes",
+      return_to: conn.assigns[:return_to],
       configured: Auth.configured?(),
       error: error,
       accounts: Pronotex.Accounts.all(),

@@ -25,6 +25,7 @@ defmodule Pronotex.Pronote.BackgroundRefresh do
          interval: interval,
          timer: timer,
          task: nil,
+         allowed?: Keyword.get(options, :allowed?, &daytime?/0),
          run: Keyword.get(options, :run, &refresh_all/0)
        }}
     else
@@ -36,7 +37,11 @@ defmodule Pronotex.Pronote.BackgroundRefresh do
   def handle_info(:refresh, state) do
     Process.cancel_timer(state.timer)
     timer = Process.send_after(self(), :refresh, state.interval)
-    task = state.task || Task.Supervisor.async_nolink(Pronotex.RefreshTasks, state.run)
+
+    task =
+      state.task ||
+        if(state.allowed?.(), do: Task.Supervisor.async_nolink(Pronotex.RefreshTasks, state.run))
+
     {:noreply, %{state | timer: timer, task: task}}
   end
 
@@ -56,6 +61,10 @@ defmodule Pronotex.Pronote.BackgroundRefresh do
     :ok
   end
 
+  @doc "Background reads run from 07:00 inclusive to 22:00 exclusive, in the server's TZ."
+  def daytime?(time \\ :calendar.local_time())
+  def daytime?({_date, {hour, _minute, _second}}), do: hour >= 7 and hour < 22
+
   def refresh_all do
     Enum.each(Pronotex.Accounts.all(), fn account ->
       try do
@@ -72,6 +81,11 @@ defmodule Pronotex.Pronote.BackgroundRefresh do
   end
 
   def refresh_account(account, options \\ []) do
+    allowed? = Keyword.get(options, :allowed?, &daytime?/0)
+    if allowed?.(), do: refresh_active_account(account, options, allowed?), else: :ok
+  end
+
+  defp refresh_active_account(account, options, allowed?) do
     server = Keyword.get_lazy(options, :server, fn -> Session.for_account(account.id) end)
     today = Keyword.get(options, :today, Date.utc_today())
     week = Date.beginning_of_week(today)
@@ -94,12 +108,14 @@ defmodule Pronotex.Pronote.BackgroundRefresh do
               else: operations
 
           Enum.map(operations, fn {operation, args} ->
-            read_child(server, child.name, operation, args)
+            if allowed?.(),
+              do: read_child(server, child.name, operation, args, allowed?),
+              else: :skipped
           end)
         end)
 
       results =
-        if account.role == :parent,
+        if account.role == :parent and allowed?.(),
           do: [Pronote.parent_discussions(server) | results],
           else: results
 
@@ -118,12 +134,14 @@ defmodule Pronotex.Pronote.BackgroundRefresh do
     end
   end
 
-  defp read_child(server, name, operation, args, retry? \\ true) do
-    with {:ok, children} <- Pronote.children(server),
-         [child] <- Enum.filter(children, &(&1.name == name)) do
+  defp read_child(server, name, operation, args, allowed?, retry? \\ true) do
+    with true <- allowed?.(),
+         {:ok, children} <- Pronote.children(server),
+         [child] <- Enum.filter(children, &(&1.name == name)),
+         true <- allowed?.() do
       case apply(Pronote, operation, [child.id | args] ++ [server]) do
         {:error, %Pronotex.Pronote.Error{reason: :child_not_found}} when retry? ->
-          read_child(server, name, operation, args, false)
+          read_child(server, name, operation, args, allowed?, false)
 
         result ->
           result

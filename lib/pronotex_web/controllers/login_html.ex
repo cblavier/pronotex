@@ -24,6 +24,7 @@ defmodule PronotexWeb.LoginHTML do
             else: @error}
         </.flash>
         <.form :if={@configured} for={%{}} action={~p"/login"} id="pin-form" class="mt-6 space-y-4">
+          <input :if={@return_to} type="hidden" name="return_to" value={@return_to} />
           <.dropdown
             id="login-account"
             name="account"

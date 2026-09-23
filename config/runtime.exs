@@ -1,5 +1,7 @@
 import Config
 
+config :pronotex, :push_subject, System.get_env("WEB_PUSH_SUBJECT")
+
 if config_env() != :test do
   config :pronotex,
          :background_refresh,

@@ -162,7 +162,13 @@ defmodule Pronotex.Pronote.Session do
   end
 
   defp execute({:grades, child_id, period_name}, state) do
-    {grades, client} = cached_read(state.client, {:grades, child_id, period_name})
+    {grades, client} =
+      cached_read(
+        state.client,
+        {:grades, child_id, period_name},
+        Keyword.get(state.options, :account, "family")
+      )
+
     {:ok, grades, %{state | client: client}}
   end
 
@@ -340,7 +346,7 @@ defmodule Pronotex.Pronote.Session do
      %{state | client: parent, students: Map.put(state.students, child_id, {config, student})}}
   end
 
-  defp cached_read(client, operation) do
+  defp cached_read(client, operation, account_id \\ nil) do
     # Never cache or restore a Client: its ordered transport and write-validation
     # state must remain the current state of this serialized session.
     transport = client.transport
@@ -365,7 +371,7 @@ defmodule Pronotex.Pronote.Session do
 
         {reply, updated} = apply(Client, function, [client | args])
 
-        if persist_read(updated, operation, reply) == :ok do
+        if persist_read(updated, operation, reply, account_id) == :ok do
           ReadCache.put(key, reply, ReadCache.ttl(kind), generation)
         end
 
@@ -373,9 +379,18 @@ defmodule Pronotex.Pronote.Session do
     end
   end
 
-  defp persist_read(client, {:grades, child_id, _period}, report) do
+  defp persist_read(client, {:grades, child_id, _period}, report, account_id) do
     context = Pronotex.GradeHistory.context(client, child_id, report)
+
     {:ok, _} = Pronotex.GradeHistory.record(context, report)
+
+    children = Client.children(client)
+    child = Enum.find(children, &(&1.id == child_id))
+    # Ambiguous full names are not safe durable identities for notifications.
+    if child && Enum.count(children, &(&1.name == child.name)) == 1 do
+      {:ok, _} = Pronotex.Push.observe(account_id, context, child, report)
+    end
+
     :ok
   rescue
     _ ->
@@ -386,7 +401,7 @@ defmodule Pronotex.Pronote.Session do
       :error
   end
 
-  defp persist_read(_client, _operation, _reply), do: :ok
+  defp persist_read(_client, _operation, _reply, _account_id), do: :ok
 
   defp authorize_parent!(state) do
     unless match?(%{role: :parent}, Pronotex.Accounts.get(Keyword.get(state.options, :account))),

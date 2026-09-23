@@ -135,6 +135,20 @@
               count={@parent_messages_unread}
             />
           </button>
+          <button
+            id="open-settings"
+            type="button"
+            class="child-picker-option"
+            phx-click={
+              JS.push("section", value: %{section: "settings"})
+              |> JS.remove_attribute("open", to: "#child-picker")
+            }
+            aria-current={if @section == "settings", do: "page"}
+            disabled={@loading}
+          >
+            <.icon name="hero-cog-6-tooth" class="size-6" />
+            <span>Réglages</span>
+          </button>
           <.form
             :if={Pronotex.Auth.enabled?()}
             for={%{}}
@@ -190,7 +204,7 @@
         </button>
       </nav>
       <nav
-        :if={@section not in ["notes", "messages", "parent-messages"]}
+        :if={@section not in ["notes", "messages", "parent-messages", "settings"]}
         id="date-navigation"
         aria-label="Choisir la période"
         class="my-4 ml-auto flex flex-wrap items-center justify-end gap-3"
@@ -271,6 +285,7 @@
     hidden={@loading}
     aria-busy={to_string(@loading)}
   >
+    <PronotexWeb.Settings.panel :if={@section == "settings"} />
     <section
       id="grades-content"
       aria-labelledby="nav-notes"
@@ -902,9 +917,9 @@
           </svg>
           Retour aux messages
         </.link>
-        <h2 :if={!@open_discussion} id="messages-title">
+        <.page_title :if={!@open_discussion} id="messages-title">
           {messages_label(@account, @child, @section)}
-        </h2>
+        </.page_title>
       </nav>
     </div>
     <p

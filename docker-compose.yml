@@ -10,7 +10,7 @@ services:
     environment:
       PHX_SERVER: "true"
       PORT: "4123"
-      TZ: Europe/Paris
+      TZ: ${TZ:-Europe/Paris}
       DATABASE_PATH: /app/data/pronotex.db
     volumes:
       - type: bind

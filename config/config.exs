@@ -17,7 +17,15 @@ config :pronotex, Pronotex.Repo,
   default_transaction_mode: :immediate,
   busy_timeout: 5_000
 
-config :phoenix, :filter_parameters, ["password", "pin", "token", "secret"]
+config :phoenix, :filter_parameters, [
+  "password",
+  "pin",
+  "token",
+  "secret",
+  "endpoint",
+  "p256dh",
+  "auth"
+]
 
 # Configure the endpoint
 config :pronotex, PronotexWeb.Endpoint,

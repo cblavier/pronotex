@@ -29,6 +29,36 @@ defmodule PronotexWeb.CoreComponents do
   use Phoenix.Component
   use Gettext, backend: PronotexWeb.Gettext
 
+  @doc "Shared title for application sections such as Messages and Settings."
+  attr :id, :string, required: true
+  attr :class, :any, default: nil
+  slot :inner_block, required: true
+
+  def page_title(assigns) do
+    ~H"""
+    <h2 id={@id} class={["page-title", @class]}>{render_slot(@inner_block)}</h2>
+    """
+  end
+
+  @doc "Rounded switch using the active child's theme color."
+  attr :id, :string, required: true
+  attr :checked, :boolean, default: false
+  attr :disabled, :boolean, default: false
+  attr :rest, :global, include: ~w(name value)
+
+  def toggle_switch(assigns) do
+    ~H"""
+    <input
+      id={@id}
+      type="checkbox"
+      class="toggle app-toggle"
+      checked={@checked}
+      disabled={@disabled}
+      {@rest}
+    />
+    """
+  end
+
   alias Phoenix.LiveView.JS
 
   @doc "Shared read status and acknowledgement button for communications."

@@ -2,7 +2,7 @@ defmodule PronotexWeb.Router do
   use PronotexWeb, :router
 
   pipeline :browser do
-    plug :accepts, ["html"]
+    plug :accepts, ["html", "json"]
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, html: {PronotexWeb.Layouts, :root}
@@ -27,6 +27,10 @@ defmodule PronotexWeb.Router do
 
   scope "/", PronotexWeb do
     pipe_through [:browser, :authenticated]
+
+    get "/push/config", PushController, :config
+    post "/push/subscription", PushController, :create
+    delete "/push/subscription", PushController, :delete
 
     get "/avatars/:index", AvatarController, :show
 

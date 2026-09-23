@@ -17,7 +17,13 @@ defmodule PronotexWeb.Auth do
       # the session and clears its previous contents.
       conn
       |> configure_session(ignore: true)
-      |> Phoenix.Controller.redirect(to: "/login")
+      |> Phoenix.Controller.redirect(
+        to:
+          PronotexWeb.NotesDestination.login_url(
+            conn.request_path <>
+              if(conn.query_string == "", do: "", else: "?" <> conn.query_string)
+          )
+      )
       |> halt()
     end
   end

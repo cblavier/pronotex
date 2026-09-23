@@ -97,7 +97,7 @@
 @custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
 
 /* Follow the browser preference without storing a theme override. */
-@custom-variant dark (@media (prefers-color-scheme: dark));
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
@@ -146,7 +146,7 @@ html { touch-action: manipulation; }
   border-color: color-mix(in srgb, var(--login-primary) 20%, var(--color-base-100));
   box-shadow: 0 16px 48px #163f3512;
 }
-@media (prefers-color-scheme: dark) {
+:root[data-theme="dark"] {
   #login-screen {
     background-color: #172320;
     background-image:
@@ -364,7 +364,7 @@ html { touch-action: manipulation; }
 .count-badge[data-status="due"] { color: var(--due-ink); background-color: var(--due-tint); }
 .count-badge[data-status="future"] { color: var(--future-ink); background-color: var(--future-tint); }
 .lesson-evaluation-badge { color: #9a3412; background-color: #ffedd5; border-color: transparent; }
-@media (prefers-color-scheme: dark) {
+:root[data-theme="dark"] {
   .lesson-evaluation-badge { color: #fdba74; background-color: #431f12; }
 }
 
@@ -383,8 +383,8 @@ html { touch-action: manipulation; }
   --future-line: #e2e8f0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+:root[data-theme="dark"] {
+  & {
     --page-background: #151a21;
     --surface-background: #1e2630;
     --muted-ink: #bbc6d4;
@@ -484,7 +484,7 @@ html { touch-action: manipulation; }
   .page-shell > main { padding-bottom: 1.5rem; }
 }
 
-@media (prefers-color-scheme: dark) {
+:root[data-theme="dark"] {
   .count-badge[data-status="due"],
   .page-shell .badge-error {
     color: #fff1f2;
@@ -495,7 +495,7 @@ html { touch-action: manipulation; }
   .lesson-entry[data-state="past"]:has(.badge-error) { opacity: 1; }
 }
 
-@media (prefers-color-scheme: dark) {
+:root[data-theme="dark"] {
   .page-shell .lesson-entry .badge-error { border-color: transparent; }
 }
 
@@ -551,6 +551,7 @@ html { touch-action: manipulation; }
   outline-offset: 3px;
 }
 
+.page-title { color: var(--day-ink); font-size: 1.125rem; font-weight: 600; }
 .messages-breadcrumb { display: flex; align-items: baseline; flex-wrap: nowrap; gap: 0.5rem; color: var(--day-ink); font-size: 1.125rem; font-weight: 600; }
 .messages-breadcrumb a:hover { text-decoration: underline; }
 #messages-content .discussion-status { --status-ink: var(--done-ink); --status-tint: var(--done-tint); --status-line: var(--done-line); color: var(--status-ink); background: var(--status-tint); border-color: transparent; border-radius: var(--radius-field, 0.25rem); }
@@ -567,7 +568,7 @@ html { touch-action: manipulation; }
 
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5rem; padding: 2.5rem 1rem; color: #737373; text-align: center; font-size: 0.875rem; }
 .empty-state-logo { display: block; width: 4.5rem; height: 4.5rem; opacity: 0.5; }
-@media (prefers-color-scheme: dark) { .empty-state { color: #a3a3a3; } }
+:root[data-theme="dark"] { .empty-state { color: #a3a3a3; } }
 
 .messages-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .messages-header .messages-breadcrumb { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
@@ -669,7 +670,7 @@ html { touch-action: manipulation; }
 .communication-heading strong { min-width: 0; overflow-wrap: anywhere; }
 .communication-badge[data-kind="information"] { color: #1e40af; background: #dbeafe; }
 .communication-badge[data-kind="survey"] { color: #9d174d; background: #fce7f3; }
-@media (prefers-color-scheme: dark) {
+:root[data-theme="dark"] {
 .communication-badge { color: #fed7aa; background: #7c2d12; }
 .communication-badge[data-kind="information"] { color: #bfdbfe; background: #1e3a8a; }
 .communication-badge[data-kind="survey"] { color: #fbcfe8; background: #831843; }
@@ -749,28 +750,8 @@ html { touch-action: manipulation; }
   }
 }
 
-/* Larger mobile type, with the existing palette and opacity unchanged. */
+/* Keep mobile content wrapping without enlarging the default typography. */
 @media (max-width: 639px) {
-  .page-shell, #login-screen {
-    --text-xs: 0.875rem;
-    --text-xs--line-height: 1.45;
-    --text-sm: 1rem;
-    --text-sm--line-height: 1.5;
-  }
-
-  .navigation-tab { font-size: 1rem; gap: 0.25rem; padding-inline: 0.125rem; }
-  :is(#agenda-subnav, #grades-subnav) button { font-size: 1rem; min-height: 2.75rem; }
-  #week-label { font-size: 0.875rem; max-width: none; }
-  #grade-period { font-size: 0.875rem; min-height: 2.25rem; height: auto; }
-  #child-name { font-size: 1.25rem; }
-  .page-shell .count-badge, .page-shell .badge-xs,
-  .discussion-meta { font-size: 0.875rem; line-height: 1.45; }
-  .page-shell .badge-xs { height: auto; min-height: 1.25rem; }
-  .discussion-preview, .discussion-text, .messages-empty, .empty-state,
-  .themed-dropdown > summary, .dropdown-option { font-size: 1rem; line-height: 1.5; }
-  .page-shell .btn-sm { font-size: 0.875rem; min-height: 2.25rem; height: auto; }
-  .page-shell .table { font-size: 0.875rem; }
-  .page-shell .table :is(th, td) { font-size: 0.875rem; line-height: 1.45; }
   .lesson-entry h4, .homework-entry h4 { overflow-wrap: anywhere; }
   .homework-entry > div:first-child { flex-wrap: wrap; }
   .discussion-card[data-view="list"] .discussion-heading { padding-right: 0; }
@@ -830,3 +811,15 @@ html { touch-action: manipulation; }
   #grades-content[data-panel="latest"] #grade-averages,
   #grades-content[data-panel="averages"] #latest-grades { display: none; }
 }
+
+.app-toggle { --radius-selector: 999px; border-radius: 999px; }
+.app-toggle::before { border-radius: 999px; }
+.app-toggle:checked { --input-color: color-mix(in srgb, var(--day-ink) 70%, white); background-color: var(--input-color); }
+.app-toggle:checked::before { background-color: var(--color-base-100); }
+
+.settings-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+.settings-choices label { position: relative; cursor: pointer; }
+.settings-choices input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.settings-choices span { display: grid; place-items: center; min-height: 3rem; padding: 0.5rem; text-align: center; border: 1px solid var(--color-base-300); border-radius: 0.5rem; }
+.settings-choices input:checked + span { color: var(--day-ink); background: var(--day-tint); border-color: var(--day-ink); }
+.settings-choices input:focus-visible + span { outline: 2px solid var(--day-ink); outline-offset: 2px; }

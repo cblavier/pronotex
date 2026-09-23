@@ -5,7 +5,7 @@ defmodule Pronotex.MixProject do
     [
       app: :pronotex,
       version: "0.1.0",
-      elixir: "~> 1.15",
+      elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -42,6 +42,7 @@ defmodule Pronotex.MixProject do
     [
       {:ecto_sqlite3, "~> 0.24.1"},
       {:req, "~> 0.7"},
+      {:web_push, "~> 0.1.0"},
       {:floki, "~> 0.38"},
       {:phoenix, "~> 1.8.5"},
       {:phoenix_html, "~> 4.1"},

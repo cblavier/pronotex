@@ -109,6 +109,7 @@ defmodule PronotexWeb.DashboardLive do
       case params["section"] do
         "devoirs" -> "devoirs"
         "notes" -> "notes"
+        "reglages" -> "settings"
         "menu" -> "cantine"
         "messages" -> "messages"
         "parent-messages" when socket.assigns.account.role == :parent -> "parent-messages"
@@ -233,7 +234,15 @@ defmodule PronotexWeb.DashboardLive do
   end
 
   def handle_event("section", %{"section" => section}, socket)
-      when section in ["agenda", "devoirs", "notes", "cantine", "messages", "parent-messages"] do
+      when section in [
+             "agenda",
+             "devoirs",
+             "notes",
+             "cantine",
+             "messages",
+             "parent-messages",
+             "settings"
+           ] do
     {:noreply, push_patch(socket, to: selection_url(socket, section: section))}
   end
 
@@ -696,6 +705,7 @@ defmodule PronotexWeb.DashboardLive do
           "agenda" => "Agenda",
           "devoirs" => "Devoirs",
           "notes" => "Notes",
+          "settings" => "Réglages",
           "cantine" => "Menu",
           "messages" => "Messages",
           "parent-messages" => "Mes messages"
@@ -740,6 +750,9 @@ defmodule PronotexWeb.DashboardLive do
       case section do
         "devoirs" when not is_nil(child) ->
           ~p"/#{child_slug(child)}/devoirs"
+
+        "settings" when not is_nil(child) ->
+          ~p"/#{child_slug(child)}/reglages"
 
         "notes" when not is_nil(child) ->
           ~p"/#{child_slug(child)}/notes"

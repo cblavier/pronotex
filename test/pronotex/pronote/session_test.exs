@@ -88,6 +88,7 @@ defmodule Pronotex.Pronote.SessionTest do
     for _ <- 1..2 do
       assert :ok =
                Pronotex.Pronote.BackgroundRefresh.refresh_account(account,
+                 allowed?: fn -> true end,
                  server: server,
                  today: ~D[2026-09-16]
                )

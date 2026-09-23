@@ -19,6 +19,7 @@ defmodule Pronotex.Application do
       {DNSCluster, query: Application.get_env(:pronotex, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Pronotex.PubSub},
       {Task.Supervisor, name: Pronotex.RefreshTasks},
+      Pronotex.Push.Worker,
       Pronotex.Pronote.BackgroundRefresh,
       # Start a worker by calling: Pronotex.Worker.start_link(arg)
       # {Pronotex.Worker, arg},

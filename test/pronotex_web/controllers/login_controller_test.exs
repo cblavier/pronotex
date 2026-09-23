@@ -7,6 +7,35 @@ defmodule PronotexWeb.LoginControllerTest do
     :ok
   end
 
+  test "notes destination survives the login form and authentication" do
+    target = "/edgar/notes?period=semester1"
+    redirected = build_conn() |> get(target)
+    login_url = redirected_to(redirected)
+    assert login_url == PronotexWeb.NotesDestination.login_url(target)
+    form = redirected |> recycle() |> get(login_url) |> html_response(200)
+    assert form =~ ~s(name="return_to")
+    assert form =~ target
+
+    success =
+      build_conn()
+      |> post("/login", %{"account" => "family", "pin" => "01234567", "return_to" => target})
+
+    assert redirected_to(success) == target
+  end
+
+  test "post-login destinations cannot redirect outside notes pages" do
+    for target <- [
+          "https://evil.test/a/notes",
+          "//evil.test/a/notes",
+          "/%2Fbad/notes",
+          "/a/../notes",
+          "/a/notes#bad",
+          "/a/messages"
+        ] do
+      assert PronotexWeb.NotesDestination.validate(target) == nil
+    end
+  end
+
   test "private pages and both avatar paths require a session" do
     for path <- ["/", "/alice/devoirs", "/avatars/1", "/images/avatars/private.png"] do
       assert build_conn() |> get(path) |> redirected_to() == "/login"

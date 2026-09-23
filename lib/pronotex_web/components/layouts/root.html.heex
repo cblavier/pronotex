@@ -7,6 +7,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="apple-mobile-web-app-title" content="Captain Notes" />
     <meta name="theme-color" content="#3c987f" />
+    <script>
+      (() => {
+        const memory = {};
+        const read = (key, fallback) => {
+          try { return localStorage.getItem(`captain-${key}`) ?? memory[key] ?? fallback; }
+          catch { return memory[key] ?? fallback; }
+        };
+        const media = window.matchMedia("(prefers-color-scheme: dark)");
+        const apply = () => {
+          const theme = read("theme", "system");
+          document.documentElement.dataset.theme = theme === "dark" || (theme !== "light" && media.matches) ? "dark" : "light";
+          document.documentElement.style.zoom = ({small: "0.85", normal: "1", large: "1.15"})[read("zoom", "normal")] || "1";
+        };
+        window.captainPreferences = {read, set(key, value) {
+          memory[key] = value;
+          try { localStorage.setItem(`captain-${key}`, value); } catch {}
+          apply();
+        }};
+        media.addEventListener("change", apply);
+        window.addEventListener("storage", apply);
+        apply();
+      })();
+    </script>
     <link
       rel="icon"
       type="image/png"
