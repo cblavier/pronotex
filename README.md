@@ -6,9 +6,19 @@ Une interface PRONOTE pour consulter l’agenda, les devoirs, les notes, les men
 
 Le profil Famille regroupe les données des enfants. Chaque enfant peut aussi se connecter à son propre espace ; les parents disposent en plus de leur messagerie personnelle. Les devoirs faits et les messages lus sont synchronisés avec PRONOTE.
 
-L'application a été développée dans un objectif de simplicité, toutes les fonctionnalités de pronote ne seront pas portées.
+## Motivations
+
+- Avoir accès à toutes les informations essentielles en un coup d'oeil, en retirant le superflu.
+- Aider les parents à suivre l'avancement des devoirs
+- Donner aux enfants un accès Famille à pronote sur un périphérique dédié, sans distraction (comme une tablette avec [Fully Kiosk Browser](https://play.google.com/store/apps/details?id=de.ozerov.fully&referrer=utm_source%3D/fully-home-en%26utm_content%3Dtext-link))
+
+La simplicité est la priorité, toutes les fonctionnalités de pronote ne seront pas portées.
+
+## Techno
 
 Développée avec Elixir et Phoenix LiveView. Ne nécessite pas de base de données.
+Code massivement généré par intelligence artificielle (OpenAI Codex).
+Prévu pour tourner avec Docker en production.
 
 ## Roadmap
 
@@ -25,8 +35,13 @@ Développée avec Elixir et Phoenix LiveView. Ne nécessite pas de base de donn�
 - [x] consulter les messages des enfants
 - [x] consulter les messages des parents
 - [x] comptes famille, enfants et parents séparés (pincode individuels)
-- [ ] consulter les resources associées aux devoirs
+- [x] consulter les resources associées aux devoirs
+- [ ] mettre un cache en lecture sur les API pronote
+- [ ] améliorer les écrans de notes et moyennes
 - [ ] contacter la vie scolaire (parent)
+- [ ] push notif prof absent
+- [ ] push notif nouvelle note
+- [ ] push notif nouveau message
 
 ## Screenshots
 
@@ -67,8 +82,6 @@ Remplacer `n` par `1`, `2`, etc. Configurer uniquement les profils souhaités. C
 Les identifiants élèves permettent aussi au profil Famille et aux parents de consulter les messages des enfants et de marquer leurs devoirs faits. Ils peuvent être renseignés sans PIN enfant si cet enfant ne doit pas avoir de connexion individuelle. Les messages des parents sont réservés à leur profil personnel. Tous les changements de statut lu/non lu ou fait/à faire restent explicites.
 
 Au login, choisir un profil puis saisir son PIN. **Rester connecté** est décoché par défaut : session de **1 heure**, ou **30 jours** si coché, à partir de la connexion, sans prolongation automatique. Après trois erreurs sur un profil, l’attente est d’une minute, puis augmente d’une minute à chaque nouvel échec. Ces compteurs sont en mémoire et remis à zéro au redémarrage ; les sessions navigateur restent valables si la configuration et le secret de signature ne changent pas.
-
-**Migration :** remplacer `PRONOTE_USERNAME` / `PRONOTE_PASSWORD` / `PINCODE` (ou `PIN_CODE`) par les trois variables `PRONOTE_FAMILY_*`, puis retirer `parent.html` de l’URL. Les anciennes sessions nécessiteront une nouvelle connexion.
 
 ```sh
 source .envrc
