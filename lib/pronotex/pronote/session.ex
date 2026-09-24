@@ -170,6 +170,7 @@ defmodule Pronotex.Pronote.Session do
       )
 
     history = average_history(client, child_id, grades)
+    grades = Map.update!(grades, :grades, &grades_by_publication(client, child_id, grades, &1))
     {:ok, Map.put(grades, :average_history, history), %{state | client: client}}
   end
 
@@ -378,6 +379,17 @@ defmodule Pronotex.Pronote.Session do
 
         {reply, updated}
     end
+  end
+
+  defp grades_by_publication(client, child_id, report, grades) do
+    client
+    |> Pronotex.GradeHistory.context(child_id, report)
+    |> Pronotex.GradeHistory.by_publication(grades)
+  rescue
+    _ ->
+      require Logger
+      Logger.warning("Unable to read grade publication history")
+      grades
   end
 
   defp average_history(client, child_id, report) do

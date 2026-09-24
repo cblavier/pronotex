@@ -429,7 +429,7 @@ html { touch-action: manipulation; }
 .child-picker-chevron { flex-shrink: 0; color: var(--muted-ink); }
 #child-picker[open] .child-picker-chevron { transform: rotate(180deg); }
 #child-picker-panel { position: absolute; top: calc(100% + 0.5rem); left: 0; z-index: 30; width: 16rem; max-width: calc(100vw - 2rem); padding: 0.5rem; border: 1px solid var(--color-base-300); border-radius: 0.5rem; background: var(--surface-background); box-shadow: 0 12px 32px #163f351a; }
-.child-picker-option { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr) auto; width: 100%; min-height: 3rem; align-items: center; gap: 0.875rem; padding: 0.5rem; border: 0; border-radius: 0.25rem; text-align: left; font-size: 1rem; color: var(--muted-ink); background: transparent; cursor: pointer; }
+.child-picker-option { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr) auto; width: 100%; min-height: 3.25rem; align-items: center; gap: 0.875rem; padding: 0.5rem; border: 0; border-radius: 0.25rem; text-align: left; font-size: 1rem; color: var(--muted-ink); background: transparent; cursor: pointer; }
 .child-picker-option:hover:not(:disabled) { background: var(--day-tint); }
 .child-picker-option:disabled { cursor: wait; }
 .child-picker-option[aria-current] .child-option-avatar { border: 1px solid var(--day-ink); }
@@ -501,7 +501,6 @@ html { touch-action: manipulation; }
 
 .child-avatar-wrapper { position: relative; flex-shrink: 0; }
 .messages-unread-dot { position: absolute; right: 0; top: 0; width: 0.95rem; height: 0.95rem; background: #e11d48; border: 2px solid var(--surface-background); border-radius: 50%; }
-.messages-menu-item { margin-top: 0.5rem; }
 #messages-unread-count { margin-left: auto; }
 .messages-empty { padding: 1.5rem 0; color: var(--muted-ink); font-size: 0.875rem; }
 .discussion-list, .discussion-messages { display: grid; gap: 1rem; }
@@ -767,7 +766,11 @@ html { touch-action: manipulation; }
 
 /* Keep both grade streams mounted while switching the mobile panel. */
 .overall-summary { position: relative; isolation: isolate; --trend-inset: 1.25rem; }
-.overall-summary-text { position: relative; z-index: 1; pointer-events: none; }
+.overall-summary-text {
+  position: relative; z-index: 1; pointer-events: none;
+  width: fit-content; max-width: 100%; padding: 0.75rem 1rem; border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--color-base-100) 50%, transparent);
+}
 .overall-summary:has(.overall-trend) .overall-summary-text { margin-top: 6.25rem; }
 .overall-trend {
   position: absolute; inset: var(--trend-inset); z-index: 0; color: var(--day-ink);
@@ -783,6 +786,9 @@ html { touch-action: manipulation; }
   cursor: pointer; border-radius: 50%;
 }
 .trend-point-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.8; }
+.trend-point-class { color: #d1d5db; }
+.trend-point-class .trend-point-dot { opacity: 0.4; }
+.trend-point-class .trend-tooltip { color: var(--color-base-content); border-color: #d1d5db; }
 .trend-point-last .trend-point-dot {
   width: 11px; height: 11px;
   box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 15%, transparent);

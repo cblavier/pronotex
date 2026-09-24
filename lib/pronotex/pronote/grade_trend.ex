@@ -1,11 +1,11 @@
 defmodule Pronotex.Pronote.GradeTrend do
   @moduledoc "Chronological observations of official PRONOTE averages, expressed on a scale of 20."
 
-  def points(snapshots) do
+  def points(snapshots, series \\ :overall) when series in [:overall, :class_overall] do
     snapshots
     |> Enum.sort_by(&{DateTime.to_unix(&1.observed_at, :microsecond), &1.id})
     |> Enum.flat_map(fn snapshot ->
-      score = number(snapshot.data["overall"])
+      score = number(snapshot.data[Atom.to_string(series)])
       scale = number(snapshot.data["overall_out_of"])
 
       if is_number(score) and is_number(scale) and scale > 0 and score >= 0 and score <= scale,

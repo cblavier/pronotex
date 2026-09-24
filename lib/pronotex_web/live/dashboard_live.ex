@@ -29,6 +29,7 @@ defmodule PronotexWeb.DashboardLive do
         average_count: 0,
         overall: nil,
         grade_trend: [],
+        class_grade_trend: [],
         class_overall: nil,
         overall_out_of: nil,
         children: [],
@@ -458,6 +459,7 @@ defmodule PronotexWeb.DashboardLive do
       average_count: 0,
       overall: nil,
       grade_trend: [],
+      class_grade_trend: [],
       class_overall: nil,
       overall_out_of: nil,
       error: nil,
@@ -854,6 +856,8 @@ defmodule PronotexWeb.DashboardLive do
       average_count: length(report.averages),
       overall: report.overall,
       grade_trend: Pronotex.Pronote.GradeTrend.points(Map.get(report, :average_history, [])),
+      class_grade_trend:
+        Pronotex.Pronote.GradeTrend.points(Map.get(report, :average_history, []), :class_overall),
       class_overall: report.class_overall,
       overall_out_of: report.overall_out_of
     )

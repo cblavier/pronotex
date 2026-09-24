@@ -94,6 +94,51 @@ defmodule Pronotex.GradeHistoryTest do
     assert [_, _, _] = GradeHistory.averages(context)
   end
 
+  test "late publications precede newer evaluations and corrections keep their place", %{
+    context: context,
+    report: report
+  } do
+    original = hd(report.grades)
+    GradeHistory.record(context, report, @now)
+    late = %{original | id: "late", date: ~D[2026-09-10]}
+    GradeHistory.record(context, %{report | grades: [original, late]}, @later)
+
+    assert Enum.map(GradeHistory.by_publication(context, [original, late]), & &1.id) ==
+             ["late", "g1"]
+
+    corrected = %{original | score: "18"}
+
+    GradeHistory.record(
+      context,
+      %{report | grades: [corrected, late]},
+      DateTime.add(@later, 3600)
+    )
+
+    assert Enum.map(GradeHistory.by_publication(context, [corrected, late]), & &1.id) ==
+             ["late", "g1"]
+  end
+
+  test "rotated IDs retain publication order and equal timestamps use evaluation dates", %{
+    context: context,
+    report: report
+  } do
+    original = hd(report.grades)
+    late = %{original | id: "late", date: ~D[2026-09-10]}
+    GradeHistory.record(context, report, @now)
+    GradeHistory.record(context, %{report | grades: [original, late]}, @later)
+    rotated = %{original | id: "rotated"}
+    GradeHistory.record(context, %{report | grades: [rotated, late]}, DateTime.add(@later, 3600))
+
+    assert Enum.map(GradeHistory.by_publication(context, [rotated, late]), & &1.id) ==
+             ["late", "rotated"]
+
+    other_context = %{context | period: "semester2"}
+    GradeHistory.record(other_context, %{report | grades: [original, late]}, @now)
+
+    assert Enum.map(GradeHistory.by_publication(other_context, [late, original]), & &1.id) ==
+             ["g1", "late"]
+  end
+
   test "known publication dates replace estimates without changing first_seen_at", %{
     context: context,
     report: report
@@ -109,6 +154,28 @@ defmodule Pronotex.GradeHistoryTest do
     assert grade.published_at == published
     assert grade.first_seen_at == @now
     refute grade.publication_estimated
+  end
+
+  test "class and subject average changes are saved even when overall stays unchanged", %{
+    context: context,
+    report: report
+  } do
+    GradeHistory.record(context, report, @now)
+    updated = %{report | class_overall: "13"}
+    GradeHistory.record(context, updated, @later)
+    updated = put_in(updated, [:averages, Access.at(0), :score], "15")
+    GradeHistory.record(context, updated, ~U[2026-09-25 10:00:00.000000Z])
+    updated = put_in(updated, [:averages, Access.at(0), :average], "12,5")
+    GradeHistory.record(context, updated, ~U[2026-09-26 10:00:00.000000Z])
+
+    assert [initial, class_change, student_change, subject_class_change] =
+             GradeHistory.averages(context)
+
+    assert initial.data["class_overall"] == "12"
+    assert class_change.data["class_overall"] == "13"
+    assert hd(student_change.data["averages"])["score"] == "15"
+    assert hd(subject_class_change.data["averages"])["average"] == "12,5"
+    assert Enum.all?(GradeHistory.averages(context), &(&1.data["overall"] == "14,5"))
   end
 
   test "school, student, school year and period isolate observations", %{

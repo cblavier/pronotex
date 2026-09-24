@@ -74,6 +74,42 @@ defmodule Pronotex.GradeHistory do
     end
   end
 
+  @doc "Sort current marks by publication (first observation when unavailable), newest first."
+  def by_publication(context, current_grades) do
+    history = grades(context)
+    by_id = Map.new(history, &{&1.pronote_id, &1})
+
+    # Resource IDs can rotate across sessions. Reuse the earliest observation of
+    # an otherwise identical mark, ignoring changing class statistics.
+    by_content = Enum.group_by(history, &grade_identity(&1.data))
+
+    Enum.sort_by(
+      current_grades,
+      fn grade ->
+        matches = Map.get(by_content, grade_identity(json(grade)), [])
+        existing = Map.get(by_id, grade.id)
+        matches = if existing, do: [existing | matches], else: matches
+
+        published_at =
+          Map.get(grade, :published_at) ||
+            matches
+            |> Enum.map(& &1.published_at)
+            |> Enum.min(DateTime, fn -> nil end)
+
+        timestamp =
+          if published_at,
+            do: DateTime.to_unix(published_at, :microsecond),
+            else: DateTime.to_unix(DateTime.new!(grade.date, ~T[00:00:00]), :microsecond)
+
+        {timestamp, Date.to_gregorian_days(grade.date), grade.id}
+      end,
+      :desc
+    )
+  end
+
+  defp grade_identity(data),
+    do: Map.drop(data, ["id", "average", "min", "max", "published_at"])
+
   def averages(context) do
     case Repo.get_by(Scope, context) do
       nil ->
