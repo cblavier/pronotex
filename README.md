@@ -2,9 +2,12 @@
 
 ## Description du projet
 
-Une interface PRONOTE pour consulter l’agenda, les devoirs, les notes, les menus et les messages des enfants, avec des profils Famille, Parent et Enfant.
+Une interface PRONOTE épurée pour consulter l’agenda, les devoirs, les notes, les menus et les messages des enfants, avec des profils Famille, Parent et Enfant.
 
-Le profil Famille regroupe les données des enfants. Chaque enfant peut aussi se connecter à son propre espace ; les parents disposent en plus de leur messagerie personnelle. Les devoirs faits et les messages lus sont synchronisés avec PRONOTE.
+Chaque membre de la famille peut se connecter à son propre espace ; un compte famille est également disponible pour accéder et gérer les devoirs de l'ensemble de la famille.
+
+Les notes et moyennes sont historisées dans une base de données locales, afin d'afficher des courbes de tendance.
+Nouvelles notes et cours annulés font l'objet de notifications sur smartphone.
 
 ## Motivations
 
@@ -83,8 +86,6 @@ Remplacer `n` par `1`, `2`, etc. Configurer uniquement les profils souhaités. C
 
 Les identifiants élèves permettent aussi au profil Famille et aux parents de consulter les messages des enfants et de marquer leurs devoirs faits. Ils peuvent être renseignés sans PIN enfant si cet enfant ne doit pas avoir de connexion individuelle. Les messages des parents sont réservés à leur profil personnel. Tous les changements de statut lu/non lu ou fait/à faire restent explicites.
 
-Au login, choisir un profil puis saisir son PIN. **Rester connecté** est décoché par défaut : session de **1 heure**, ou **30 jours** si coché, à partir de la connexion, sans prolongation automatique. Après trois erreurs sur un profil, l’attente est d’une minute, puis augmente d’une minute à chaque nouvel échec. Ces compteurs sont en mémoire et remis à zéro au redémarrage ; les sessions navigateur restent valables si la configuration et le secret de signature ne changent pas.
-
 ```sh
 source .envrc
 mix phx.server
@@ -96,9 +97,7 @@ Pour lancer les vérifications : `mix precommit`.
 
 ### Cache des lectures PRONOTE
 
-Les réponses réussies sont conservées uniquement en mémoire : 5 minutes pour les cours, événements, devoirs, messages, notes et moyennes, 30 minutes pour les menus. Une entrée expirée est rechargée lors de la prochaine lecture. Un traitement supervisé relit aussi toutes les cinq minutes les cours de la semaine courante, les événements, les notes de la période courante et les messages accessibles de tous les profils configurés, même sans navigateur connecté. Le premier cycle commence cinq minutes après le démarrage. Les devoirs et menus restent chargés à la demande. Les données peuvent donc refléter l'état de PRONOTE au moment de la dernière lecture pendant cette durée.
-
-Les cycles ne se chevauchent pas ; un cycle encore en cours fait sauter le prochain déclenchement. Les requêtes passent par les sessions sérialisées habituelles. Les erreurs sont isolées par profil et retentées au prochain cycle ; les messages ne sont jamais marqués lus automatiquement. Les caches agenda, notes et messages du profil sont invalidés avant la relecture. Les pages ouvertes de ce profil se rechargent à la fin du cycle, sauf si un chargement ou une écriture est en cours. Pour désactiver ce traitement : `PRONOTE_BACKGROUND_REFRESH=false`, puis redémarrer l'application.
+Les réponses réussies sont conservées uniquement en mémoire : 5 minutes pour les cours, événements, devoirs, messages, notes et moyennes, 30 minutes pour les menus. Une entrée expirée est rechargée lors de la prochaine lecture. Un traitement supervisé relit aussi toutes les cinq minutes les cours de la semaine courante, les événements, les notes de la période courante et les messages accessibles de tous les profils configurés, même sans navigateur connecté.
 
 ## Construire et lancer en production avec Docker
 
@@ -143,15 +142,6 @@ docker compose up -d --force-recreate
 
 Pour une mise à jour, reconstruire l’image et transférer aussi le `docker-compose.yml` à jour, puis relancer `docker compose up -d --force-recreate`. Cette commande est également nécessaire après une modification de `env`.
 
-### Historique des notes et des moyennes
-
-SQLite et Ecto enregistrent chaque réponse fraîche de PRONOTE, y compris celles du rafraîchissement périodique. Les lectures du cache ne créent pas d'observation. La courbe de moyenne générale utilise uniquement les moyennes officielles enregistrées, à leur date de relevé, sans recalcul à partir des notes. Un seul relevé donne un seul point ; aucun passé n’est inventé. Les changements dans une même journée sont conservés. Les anciens historiques sont repris lorsque leur identifiant PRONOTE correspond encore à l’enfant courant ; les identifiants anciens non rattachables restent conservés en base sans attribution supposée. L'historique est partagé entre les profils consultant le même enfant (nom complet non ambigu dans l’établissement), et séparé par établissement, année scolaire et période.
-
-- Chaque note conserve obligatoirement `graded_on` (date de l'évaluation), `published_at` (publication) et `first_seen_at` (première découverte, en UTC). La réponse actuellement exploitée ne fournit pas de date de publication vérifiée : on utilise la première découverte avec `publication_estimated = true`. Cette date ne change pas à chaque lecture. Une date fiable fournie ultérieurement pourra remplacer l'estimation.
-- Les corrections de notes conservent une révision. Une note absente d'une réponse ultérieure reste dans l'historique : son absence ne prouve pas une suppression.
-- Les moyennes officielles générales, par matière et de classe sont enregistrées ensemble, à la date de leur observation, uniquement lorsqu'elles changent. Le premier import est donc daté du jour de sa récupération, sans reconstituer un passé fictif. Les valeurs PRONOTE sont conservées telles quelles, y compris les valeurs manquantes et les notes non numériques.
-
-En Docker, le dossier `DATA_DIR` du serveur est monté sur `/app/data`. Avec `DATA_DIR=.` et le Compose dans `/volume1/docker/pronotex`, la base se trouve exactement dans **`/volume1/docker/pronotex/pronotex.db`**. Le dossier entier est monté pour que SQLite puisse aussi créer `pronotex.db-wal` et `pronotex.db-shm`. Utiliser un disque local au serveur, pas un partage SMB/NFS.
 
 #### Configuration du stockage
 
@@ -166,31 +156,9 @@ DOCKER_PLATFORM=linux/amd64
 
 Remplacer `APP_UID` et `APP_GID` par les résultats de `id -u` et `id -g` du compte qui possède le dossier sur le serveur. Pour un autre emplacement, renseigner par exemple `DATA_DIR=/srv/pronotex/data`, créer ce dossier et donner à ce compte le droit d'y écrire. Le conteneur utilise cette identité non privilégiée ; aucun changement récursif de propriétaire n'est effectué. Le dossier doit exister : Compose refuse de le créer implicitement avec des permissions inadaptées. La base garde son chemin interne `/app/data/pronotex.db`.
 
-Le script local `deploy.sh` crée automatiquement `.env` au premier déploiement, avec `DATA_DIR=.` et l'UID/GID du compte SSH ; il préserve ensuite ce fichier. Ses destinations sont configurables via `DEPLOY_SHARED_DIR` (défaut `/Volumes/docker/pronotex`), `DEPLOY_REMOTE_DIR` (`/volume1/docker/pronotex`), `DEPLOY_HOST`, `DEPLOY_PORT` et `DOCKER_PLATFORM`. Les deux dossiers doivent désigner le même emplacement, vu depuis le poste local et depuis le serveur. Ce script local est ignoré par Git ; le déploiement manuel utilise directement les fichiers Compose et les exemples versionnés.
-
-#### Migration du volume SQLite existant
-
-Si un précédent déploiement utilise déjà le volume nommé, `deploy.sh` s'arrête avant de recréer le conteneur. Pour conserver l'historique, depuis le dossier du projet sur le serveur :
-
-```sh
-container=$(sudo docker compose ps -aq pronotex)
-sudo docker compose stop pronotex
-# Choisir un dossier temporaire neuf ; ne pas écraser une base déjà présente.
-mkdir sqlite-migration
-sudo docker cp "$container:/app/data/." ./sqlite-migration/
-```
-
-Déplacer les fichiers `pronotex.db`, `pronotex.db-wal` et `pronotex.db-shm` présents dans ce dossier vers `DATA_DIR`, sans écraser de fichiers existants. Donner uniquement à ces fichiers l'UID/GID configurés dans `.env`. Puis exécuter `sudo docker compose up -d --force-recreate`. Conserver l'ancien volume jusqu'à vérification de l'historique ; ne pas le supprimer pendant la migration.
-
-Pour sauvegarder simplement : arrêter le service (`docker compose stop pronotex`), sauvegarder **la base et les éventuels fichiers WAL/SHM du dossier**, puis redémarrer (`docker compose start pronotex`). Restaurer service arrêté en conservant les permissions. Les sauvegardes contiennent des données scolaires personnelles. Les fichiers du dossier restent présents après suppression ou recréation des conteneurs.
-
 ## Notifications de nouvelles notes
 
-Activer **Réglages → Activer les notifications** sur chaque appareil, puis accepter l'autorisation du navigateur. Sur iPhone/iPad, utiliser l'application ajoutée à l'écran d'accueil (iOS/iPadOS 16.4 minimum) ; en production, HTTPS est requis. 
-
-Le serveur relève les données toutes les cinq minutes, uniquement **entre 07 h et 22 h**, dans le fuseau `TZ` (Europe/Paris par défaut dans Docker, configurable dans `.env`). Une requête déjà en cours peut finir après 22 h, mais les lectures suivantes attendront le matin. Les consultations manuelles restent disponibles. `PRONOTE_BACKGROUND_REFRESH=false` désactive ce relevé automatique. L'envoi des notifications utilise les services Web Push du navigateur (Apple, Google, Mozilla ou Microsoft) et fonctionne même avec l'app fermée ; il n'exige aucun compte Firebase. Le serveur doit pouvoir les joindre en HTTPS. 
-
-Les abonnements, les références de comparaison, la file d'envoi et les clés VAPID sont conservés dans **la même base SQLite persistante**. Les migrations et la génération initiale des clés sont automatiques : aucune commande supplémentaire après déploiement. Sauvegarder cette base protège aussi l'identité du serveur push. Le contact VAPID utilise `https://PHX_HOST` ; on peut définir `WEB_PUSH_SUBJECT=mailto:admin@example.com` dans le fichier `env`. Ne pas partager la base : elle contient la clé privée et les abonnements.
+Le serveur relève les données toutes les cinq minutes (uniquement **entre 07 h et 22 h**). L'envoi des notifications utilise les services Web Push du navigateur (Apple, Google, Mozilla ou Microsoft) et fonctionne même avec l'app fermée ; il n'exige aucun compte Firebase. 
 
 ## Licence
 
