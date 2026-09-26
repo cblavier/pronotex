@@ -26,6 +26,7 @@ defmodule PronotexWeb.DashboardLive do
         grade_periods: [],
         grades_error: nil,
         grade_count: 0,
+        remaining_grades: [],
         average_count: 0,
         overall: nil,
         grade_trend: [],
@@ -192,6 +193,15 @@ defmodule PronotexWeb.DashboardLive do
     else
       {:noreply, socket}
     end
+  end
+
+  def handle_event("show-more-grades", _, socket) do
+    {grades, remaining} = Enum.split(socket.assigns.remaining_grades, 5)
+
+    {:noreply,
+     socket
+     |> stream(:grades, grades)
+     |> assign(:remaining_grades, remaining)}
   end
 
   def handle_event("show-more-events", _, socket) do
@@ -456,6 +466,7 @@ defmodule PronotexWeb.DashboardLive do
       loaded_selection: nil,
       grades_error: nil,
       grade_count: 0,
+      remaining_grades: [],
       average_count: 0,
       overall: nil,
       grade_trend: [],
@@ -853,6 +864,7 @@ defmodule PronotexWeb.DashboardLive do
       grade_period: Pronotex.Pronote.Grades.period_key(report.period),
       grade_periods: Enum.map(report.periods, &{&1, Pronotex.Pronote.Grades.period_key(&1)}),
       grade_count: length(report.grades),
+      remaining_grades: Enum.drop(report.grades, 5),
       average_count: length(report.averages),
       overall: report.overall,
       grade_trend: Pronotex.Pronote.GradeTrend.points(Map.get(report, :average_history, [])),
@@ -861,7 +873,7 @@ defmodule PronotexWeb.DashboardLive do
       class_overall: report.class_overall,
       overall_out_of: report.overall_out_of
     )
-    |> stream(:grades, report.grades, reset: true)
+    |> stream(:grades, Enum.take(report.grades, 5), reset: true)
     |> stream(:averages, report.averages, reset: true)
   end
 

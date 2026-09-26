@@ -196,6 +196,7 @@ html { touch-action: manipulation; }
   color: var(--day-ink);
   border-bottom: 1px solid var(--day-line);
 }
+#grade-list .day-heading { padding-block: 0.5rem; }
 
 /* Child-specific accents on a shared neutral background. */
 .page-shell {
@@ -477,7 +478,7 @@ html { touch-action: manipulation; }
   #agenda-content[data-panel="events"] #timetable { display: none; }
 }
 
-#show-more-events { border-color: var(--day-line); box-shadow: none; }
+.show-more-button { height: 3rem; min-height: 3rem; font-size: 1rem; color: var(--day-ink); border-color: var(--day-line); box-shadow: none; }
 
 .page-shell > main { padding-bottom: 1rem; }
 @media (min-width: 640px) {

@@ -385,7 +385,7 @@
               id="no-grades"
               text="Aucune note publiée pour cette période."
             />
-            <div id="grade-list" phx-update="stream" class="space-y-4">
+            <div id="grade-list" phx-update="stream" class="space-y-3">
               <article :for={{dom_id, grade} <- @streams.grades} id={dom_id} class="day-group">
                 <div class="day-heading flex flex-wrap items-center justify-between gap-2">
                   <h4 class="text-sm font-semibold">{grade.subject}</h4>
@@ -393,7 +393,7 @@
                     {Calendar.strftime(grade.date, "%d/%m/%Y")}
                   </time>
                 </div>
-                <div class="space-y-3 p-4">
+                <div class="space-y-2 px-4 py-3">
                   <div class="flex flex-wrap items-center justify-between gap-3">
                     <p class="text-xl font-semibold text-[var(--day-ink)]">
                       {mark(grade.score, grade.out_of)}
@@ -405,7 +405,7 @@
                   <p :if={grade.comment && grade.comment != ""} class="text-sm">
                     {grade.comment}
                   </p>
-                  <div class="flex flex-wrap gap-x-5 gap-y-2 text-xs text-base-content/60">
+                  <div class="flex flex-wrap gap-x-5 gap-y-1 text-xs text-base-content/60">
                     <span>Moy. classe : {grade.average || "—"}</span><span>Min. : {grade.min || "—"}</span><span>Max. : {grade.max || "—"}</span>
                     <span :if={grade.bonus} class="badge badge-soft badge-xs">Bonus</span>
                     <span :if={grade.optional} class="badge badge-soft badge-xs">Facultatif</span>
@@ -413,6 +413,13 @@
                 </div>
               </article>
             </div>
+            <.show_more_button
+              :if={@remaining_grades != []}
+              id="show-more-grades"
+              phx-click="show-more-grades"
+              aria-controls="grade-list"
+              disabled={@loading}
+            />
           </div>
         </div>
       </div>
@@ -757,15 +764,13 @@
                 </div>
               </article>
             </div>
-            <button
+            <.show_more_button
               :if={@remaining_events != []}
               id="show-more-events"
               phx-click="show-more-events"
-              class="btn btn-sm btn-ghost w-full"
+              aria-controls="upcoming-events"
               disabled={@loading}
-            >
-              Voir plus
-            </button>
+            />
           </div>
         </aside>
       </div>

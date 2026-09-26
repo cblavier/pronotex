@@ -378,6 +378,26 @@ defmodule PronotexWeb.DashboardLiveTest do
         _ ->
           report = if mode == :empty, do: Pronotex.Pronote.Grades.parse(%{}), else: report
 
+          report =
+            if mode == :many_grades do
+              [grade] = report.grades
+
+              %{
+                report
+                | grades:
+                    for(
+                      n <- 1..12,
+                      do: %{
+                        grade
+                        | id: "#{id}-#{period}-#{n}",
+                          date: Date.add(~D[2026-09-18], -n)
+                      }
+                    )
+              }
+            else
+              report
+            end
+
           {:ok,
            Map.merge(report, %{
              period: if(period == "semester2", do: "Semestre 2", else: "Semestre 1"),
@@ -750,6 +770,39 @@ defmodule PronotexWeb.DashboardLiveTest do
     view |> element(".child-picker-option[data-child-id]:not([aria-current])") |> render_click()
     render_async(view)
     assert_receive {:grades, "b", "semester2"}
+    assert has_element?(view, "#grade-list", "Maths b")
+    refute has_element?(view, "#grade-list", "Maths a")
+  end
+
+  test "notes reveal five more at a time and reset on period and child changes", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :many_grades)
+    {:ok, view, _} = live(conn, "/alice/notes")
+    render_async(view)
+
+    assert has_element?(view, "#grade-list article:nth-child(5)")
+    refute has_element?(view, "#grade-list article:nth-child(6)")
+    assert has_element?(view, "#grade-list article:first-child time[datetime='2026-09-17']")
+
+    view |> element("#show-more-grades") |> render_click()
+    assert has_element?(view, "#grade-list article:nth-child(10)")
+    refute has_element?(view, "#grade-list article:nth-child(11)")
+
+    view |> element("#show-more-grades") |> render_click()
+    assert has_element?(view, "#grade-list article:nth-child(12)")
+    refute has_element?(view, "#show-more-grades")
+    assert has_element?(view, "#overall-average", "14,5 / 20")
+
+    view |> form("#grade-period-form", %{"period" => "semester2"}) |> render_change()
+    render_async(view)
+    assert has_element?(view, "#grade-list article:nth-child(5)")
+    refute has_element?(view, "#grade-list article:nth-child(6)")
+    view |> element("#show-more-grades") |> render_click()
+
+    view |> element(".child-picker-option[data-child-id]:not([aria-current])") |> render_click()
+    render_async(view)
+    assert has_element?(view, "#grade-list article:nth-child(5)")
+    refute has_element?(view, "#grade-list article:nth-child(6)")
+    assert has_element?(view, "#show-more-grades")
     assert has_element?(view, "#grade-list", "Maths b")
     refute has_element?(view, "#grade-list", "Maths a")
   end

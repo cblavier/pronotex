@@ -178,6 +178,24 @@ defmodule PronotexWeb.CoreComponents do
     """
   end
 
+  attr :id, :string, required: true
+  attr :disabled, :boolean, default: false
+  attr :rest, :global, include: ~w(aria-controls)
+
+  def show_more_button(assigns) do
+    ~H"""
+    <button
+      id={@id}
+      type="button"
+      class="show-more-button btn btn-sm btn-ghost w-full"
+      disabled={@disabled}
+      {@rest}
+    >
+      Voir plus
+    </button>
+    """
+  end
+
   @doc """
   Renders flash notices.
 
