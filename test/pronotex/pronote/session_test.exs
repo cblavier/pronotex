@@ -551,6 +551,9 @@ defmodule Pronotex.Pronote.SessionTest do
     assert homework.child_id == "child-b"
     assert homework.date == ~D[2026-09-17]
     assert homework.subject == "Français child-b"
+    assert [%{name: "Exercices.pdf", type: :file, url: url}] = homework.resources
+    assert url =~ "https://school.test/pronote/FichiersExternes/"
+    assert url =~ "/Exercices.pdf?Session="
     assert homework.done
     assert homework.description == "Lire le chapitre & réviser."
     assert homework.description =~ "& réviser."

@@ -127,7 +127,10 @@ defmodule PronotexWeb.DashboardLiveTest do
                child_id: id,
                subject: "Français #{id}",
                date: from,
-               description: "Lire <script>danger</script> le chapitre."
+               description: "Lire <script>danger</script> le chapitre.",
+               resources: [
+                 %{name: "Exercices.pdf", url: "https://school.test/exercices.pdf", type: :file}
+               ]
              }
            ]}
       end
@@ -881,6 +884,17 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert_patch(view, "/basile/notes?period=semester2")
     render_async(view)
     assert_receive {:grades, "b", "semester2"}
+  end
+
+  test "homework displays attachment links using the shared resource style", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/alice/devoirs")
+    render_async(view)
+
+    assert has_element?(
+             view,
+             "#homework-days .lesson-resources .lesson-resource-link[href='https://school.test/exercices.pdf'][target='_blank'][rel='noopener noreferrer']",
+             "Exercices.pdf"
+           )
   end
 
   test "homework is a separate page preserving dates and period across sections and children", %{

@@ -281,6 +281,9 @@ defmodule Pronotex.Test.PronoteServer do
           ] do
         %{
           "N" => "hw-#{suffix}",
+          "ListePieceJointe" => %{
+            "V" => [%{"G" => 1, "N" => "homework-file", "L" => "Exercices.pdf"}]
+          },
           "Matiere" => %{"V" => %{"L" => "Français #{id}"}},
           "PourLe" => %{"V" => date},
           "TAFFait" => Map.get(state.homework_status, {id, "hw-#{suffix}"}, done),

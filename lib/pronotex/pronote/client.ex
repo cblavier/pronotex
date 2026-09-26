@@ -186,7 +186,7 @@ defmodule Pronotex.Pronote.Client do
       result
       |> Map.fetch!("ListeTravauxAFaire")
       |> Map.fetch!("V")
-      |> Enum.map(&Homework.parse(&1, child_id))
+      |> Enum.map(&Homework.parse(&1, child_id, transport))
       |> Enum.filter(&(Date.compare(&1.date, from) != :lt and Date.compare(&1.date, to) != :gt))
       |> Enum.uniq_by(&{&1.id, &1.date})
       |> Enum.sort_by(& &1.date, Date)

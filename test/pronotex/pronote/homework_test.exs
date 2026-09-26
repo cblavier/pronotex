@@ -48,6 +48,53 @@ defmodule Pronotex.Pronote.HomeworkTest do
     end
   end
 
+  test "homework includes signed files and safe links without duplicates" do
+    transport = %Pronotex.Pronote.Transport{
+      root: "https://school.test/pronote",
+      session: 123,
+      key: <<1::128>>,
+      iv: <<2::128>>
+    }
+
+    raw = %{
+      "N" => "task",
+      "PourLe" => %{"V" => "18/09/2026"},
+      "descriptif" => %{
+        "V" =>
+          "<a href='https://example.org/exercice'>Exercice</a><a href='javascript:alert(1)'>Interdit</a>"
+      },
+      "ListePieceJointe" => %{
+        "V" => [
+          %{"G" => 1, "N" => "file-id", "L" => "À lire.pdf"},
+          %{"G" => 0, "L" => "Exercice", "url" => "https://example.org/exercice"},
+          %{"G" => 0, "L" => "Interdit", "url" => "data:text/html,test"}
+        ]
+      }
+    }
+
+    homework = Homework.parse(raw, "child", transport)
+
+    assert [
+             %{name: "À lire.pdf", type: :file, url: url},
+             %{type: :link, url: "https://example.org/exercice"}
+           ] = homework.resources
+
+    uri = URI.parse(url)
+    assert uri.query == "Session=123"
+    [_, "pronote", "FichiersExternes", token, name] = String.split(uri.path, "/")
+    assert URI.decode(name) == "À lire.pdf"
+
+    assert token
+           |> Pronotex.Pronote.Crypto.unhex()
+           |> Pronotex.Pronote.Crypto.decrypt(transport.key, transport.iv)
+           |> Jason.decode!() == %{"N" => "file-id", "Actif" => true}
+  end
+
+  test "homework without attachments has no resource links" do
+    assert Homework.parse(%{"N" => "task", "PourLe" => %{"V" => "18/09/2026"}}, "child").resources ==
+             []
+  end
+
   test "Saturday includes Monday, but not Tuesday" do
     assert Homework.urgent_until(~D[2026-09-19]) == ~D[2026-09-21]
   end

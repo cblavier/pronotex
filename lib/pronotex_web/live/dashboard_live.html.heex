@@ -503,19 +503,7 @@
             </div>
             <% resources =
               lesson.contents |> Enum.flat_map(& &1.resources) |> Enum.uniq_by(& &1.url) %>
-            <ul :if={resources != []} class="lesson-resources">
-              <li :for={resource <- resources}>
-                <a
-                  href={resource.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="lesson-resource-link"
-                >
-                  <.icon name="hero-paper-clip" />
-                  <span>{resource.name}<span class="sr-only"> (nouvel onglet)</span></span>
-                </a>
-              </li>
-            </ul>
+            <.resource_links resources={resources} />
           </div>
         </article>
       <% else %>
@@ -888,6 +876,7 @@
                           homework.done && "opacity-55"
                         ]}
                       >{homework.description}</p>
+                      <.resource_links resources={homework.resources} />
                     </div>
                   </article>
                 </div>
@@ -1024,21 +1013,7 @@
             <ul :if={Map.get(entry, :choices, []) != []} class="survey-choices">
               <li :for={choice <- entry.choices}>{choice}</li>
             </ul>
-            <ul :if={Map.get(entry, :resources, []) != []} class="lesson-resources">
-              <li :for={resource <- entry.resources}>
-                <a
-                  href={resource.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="lesson-resource-link"
-                >
-                  <.icon name="hero-paper-clip" />
-                  <span>
-                    {resource.name}<span class="sr-only"> (nouvel onglet)</span>
-                  </span>
-                </a>
-              </li>
-            </ul>
+            <.resource_links resources={Map.get(entry, :resources, [])} />
           </article>
         </div>
       </article>

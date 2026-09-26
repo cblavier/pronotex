@@ -196,6 +196,30 @@ defmodule PronotexWeb.CoreComponents do
     """
   end
 
+  attr :resources, :list, required: true
+
+  def resource_links(assigns) do
+    ~H"""
+    <ul :if={@resources != []} class="lesson-resources">
+      <li :for={resource <- @resources}>
+        <% {prefix, suffix} =
+          String.split_at(resource.name, -min(12, div(String.length(resource.name), 2))) %>
+        <a
+          href={resource.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="lesson-resource-link text-sm"
+          title={resource.name}
+          aria-label={resource.name <> " (nouvel onglet)"}
+        >
+          <.icon name="hero-paper-clip" />
+          <span class="resource-label" aria-hidden="true" phx-no-format><span class="resource-label-prefix">{prefix}</span><span class="resource-label-suffix">{suffix}</span></span>
+        </a>
+      </li>
+    </ul>
+    """
+  end
+
   @doc """
   Renders flash notices.
 

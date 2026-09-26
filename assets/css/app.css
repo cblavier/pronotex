@@ -655,11 +655,14 @@ html { touch-action: manipulation; }
 .lesson-content-block + .lesson-content-block { margin-top: 1rem; }
 .lesson-content-block h3 { color: var(--day-ink); margin-bottom: 0.5rem; }
 .lesson-content-text { margin: 0; padding: 0; overflow-wrap: anywhere; }
-.lesson-resources { display: grid; gap: 0.75rem; margin: 1rem 0 0; padding: 0; color: var(--day-ink); background: transparent; list-style: none; }
+.lesson-resources { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; margin: 1rem 0 0; padding: 0; color: var(--day-ink); background: transparent; list-style: none; }
 .lesson-resources:first-child { margin-top: 0; }
 .lesson-resource-link, .lesson-back-link { display: inline-flex; align-items: center; gap: 0.5rem; }
-.lesson-resource-link { overflow-wrap: anywhere; max-width: 100%; }
+.lesson-resource-link { max-width: 100%; }
 .lesson-resource-link span { min-width: 0; }
+.resource-label { display: inline-flex; white-space: nowrap; }
+.resource-label-prefix { overflow: hidden; text-overflow: ellipsis; }
+.resource-label-suffix { flex-shrink: 0; }
 .lesson-resource-link svg, .lesson-back-link svg { flex-shrink: 0; }
 .lesson-resource-link:hover span { text-decoration: underline; }
 
