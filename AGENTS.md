@@ -6,3 +6,7 @@ Privilégier les function components Phoenix pour construire l'interface. Extrai
 
 Ne pas documenter dans le README les nouveaux concepts techniques.
 La documentation doit rester succinte et synthétique.
+
+# Commits
+
+Rédiger les messages de commit en anglais.
