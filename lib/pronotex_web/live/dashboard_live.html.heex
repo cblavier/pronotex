@@ -392,7 +392,12 @@
               text="Aucune note publiée pour cette période."
             />
             <div id="grade-list" phx-update="stream" class="space-y-3">
-              <article :for={{dom_id, grade} <- @streams.grades} id={dom_id} class="day-group">
+              <article
+                :for={{dom_id, grade} <- @streams.grades}
+                id={dom_id}
+                class="day-group"
+                data-today={to_string(grade.date == @today)}
+              >
                 <div class="day-heading flex flex-wrap items-center justify-between gap-2">
                   <h4 class="text-sm font-semibold">{grade.subject}</h4>
                   <time class="text-xs" datetime={Date.to_iso8601(grade.date)}>

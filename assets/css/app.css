@@ -197,6 +197,7 @@ html { touch-action: manipulation; }
   border-bottom: 1px solid var(--day-line);
 }
 #grade-list .day-heading { padding-block: 0.5rem; }
+#grade-list > article[data-today="true"] { border-left: 3px solid var(--day-ink); }
 
 /* Child-specific accents on a shared neutral background. */
 .page-shell {
