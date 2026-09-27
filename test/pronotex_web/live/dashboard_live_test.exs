@@ -409,8 +409,11 @@ defmodule PronotexWeb.DashboardLiveTest do
       end
     end
 
-    defp notify(message),
-      do: send(Application.fetch_env!(:pronotex, :dashboard_test_pid), message)
+    defp notify(message) do
+      owner = Application.fetch_env!(:pronotex, :dashboard_test_pid)
+      # Distinguish the initial HTTP render from the connected navigation reads.
+      send(owner, if(self() == owner, do: {:initial_read, message}, else: message))
+    end
   end
 
   defmodule ChildAPI do
@@ -442,6 +445,45 @@ defmodule PronotexWeb.DashboardLiveTest do
     :ok
   end
 
+  test "initial HTTP render includes the requested page's content", %{conn: conn} do
+    for {path, selector, text} <- [
+          {"/alice/notes", "#grade-list", "Maths a"},
+          {"/alice", "#lesson-days", "Maths a"},
+          {"/alice/devoirs", "#homework-days", "Français a"},
+          {"/alice/menu", "#menu-days", "Gratin"},
+          {"/alice/reglages", "#page-content", "Niveau de zoom"}
+        ] do
+      html = conn |> get(path) |> html_response(200)
+      document = Floki.parse_document!(html)
+      assert Floki.find(document, "#page-content[hidden]") == []
+      assert document |> Floki.find(selector) |> Floki.text() =~ text
+    end
+
+    assert_receive {:initial_read, {:grades, "a", nil}}
+  end
+
+  test "notes remain visible immediately on the connected mount", %{conn: conn} do
+    {:ok, view, html} = live(conn, "/alice/notes")
+    assert html =~ "Moyenne générale"
+    assert has_element?(view, "#grade-list", "Maths a")
+    refute has_element?(view, "#page-content[hidden]")
+  end
+
+  test "initial HTTP message render includes the discussion list", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :messages)
+    html = conn |> get("/alice/messages") |> html_response(200)
+    assert html =~ "Discussion a"
+    assert Floki.find(Floki.parse_document!(html), "#page-content[hidden]") == []
+  end
+
+  test "initial errors render a usable error instead of hiding the page", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :grades_failure)
+    html = conn |> get("/alice/notes") |> html_response(200)
+    document = Floki.parse_document!(html)
+    assert Floki.find(document, "#flash-error") != []
+    assert Floki.find(document, "#page-content[hidden]") == []
+  end
+
   test "agenda fetches lessons and urgent homework on connected mount", %{conn: conn} do
     {:ok, view, _} = live(conn, ~p"/")
     render_async(view)
@@ -452,7 +494,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert_receive :children
     assert_receive {:lessons, "a", from, to}
     assert from == ~D[2026-09-18]
-    assert_patch(view, "/alice")
+    assert has_element?(view, "#responsive-header[data-page-url='" <> "/alice" <> "']")
     assert has_element?(view, "#today-view[aria-pressed=true]")
     assert has_element?(view, "#next-week")
     assert has_element?(view, "#previous-week")
@@ -567,7 +609,12 @@ defmodule PronotexWeb.DashboardLiveTest do
   test "midweek URLs normalize to Monday without duplicate API reads", %{conn: conn} do
     {:ok, view, _} = live(conn, "/basile?week=2026-09-17")
     render_async(view)
-    assert_patch(view, "/basile?week=2026-09-14")
+
+    assert has_element?(
+             view,
+             "#responsive-header[data-page-url='" <> "/basile?week=2026-09-14" <> "']"
+           )
+
     render_async(view)
     assert_receive {:lessons, "b", ~D[2026-09-14], _}
     refute_received {:lessons, _, _, _}
@@ -576,7 +623,7 @@ defmodule PronotexWeb.DashboardLiveTest do
   test "unknown children and invalid dates fall back to a canonical URL", %{conn: conn} do
     {:ok, view, _} = live(conn, "/unknown?week=invalid")
     render_async(view)
-    assert_patch(view, "/alice")
+    assert has_element?(view, "#responsive-header[data-page-url='" <> "/alice" <> "']")
     render_async(view)
     assert has_element?(view, "#child-name", "Alice")
     assert_receive {:lessons, "a", ~D[2026-09-18], ~D[2026-09-18]}
@@ -873,7 +920,12 @@ defmodule PronotexWeb.DashboardLiveTest do
   test "notes canonicalize default and invalid periods once", %{conn: conn} do
     {:ok, view, _} = live(conn, "/alice/notes?period=unknown")
     render_async(view)
-    assert_patch(view, "/alice/notes?period=semester1")
+
+    assert has_element?(
+             view,
+             "#responsive-header[data-page-url='" <> "/alice/notes?period=semester1" <> "']"
+           )
+
     render_async(view)
     assert_receive {:grades, "a", "unknown"}
     refute_received {:grades, _, _}
@@ -956,7 +1008,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     conn = build_conn() |> Plug.Test.init_test_session(Pronotex.Auth.session("child-1"))
     {:ok, view, _} = live(conn, "/basile")
     render_async(view)
-    assert_patch(view, "/alice")
+    assert has_element?(view, "#responsive-header[data-page-url='" <> "/alice" <> "']")
     assert has_element?(view, "#child-name", "Alice")
     refute has_element?(view, "#child-picker", "Basile")
     refute has_element?(view, "#open-parent-messages")
@@ -1007,7 +1059,7 @@ defmodule PronotexWeb.DashboardLiveTest do
   test "family cannot open a parent's inbox even with a forged URL", %{conn: conn} do
     {:ok, view, _} = live(conn, "/alice/parent-messages/thread-parent")
     render_async(view)
-    assert_patch(view, "/alice")
+    assert has_element?(view, "#responsive-header[data-page-url='" <> "/alice" <> "']")
     refute has_element?(view, "#open-parent-messages")
     refute has_element?(view, "#messages-content")
     refute_received :parent_discussions

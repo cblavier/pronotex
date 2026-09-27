@@ -43,6 +43,7 @@ defmodule PronotexWeb.DashboardLive do
         today: today,
         now: now(),
         loading: true,
+        initial_load: true,
         error: nil,
         event_error: nil,
         event_count: 0,
@@ -144,9 +145,8 @@ defmodule PronotexWeb.DashboardLive do
       )
 
     # The canonical URL patch after loading must not fetch the same data twice.
-    if connected?(socket) and
-         socket.assigns.loaded_selection != {slug, section, mode, week, period} do
-      {:noreply, load(socket)}
+    if socket.assigns.loaded_selection != {slug, section, mode, week, period} do
+      {:noreply, socket |> load() |> assign(:initial_load, false)}
     else
       {:noreply, socket}
     end
@@ -498,7 +498,7 @@ defmodule PronotexWeb.DashboardLive do
     |> put_private(:homework_generation, make_ref())
     |> put_private(:homework_days, [])
     |> stream(:homework_days, [], reset: true)
-    |> start_async(:load, fn ->
+    |> start_read(:load, fn ->
       read = fn ->
         with {:ok, children} <- api_call(api, account, :children, []),
              child when not is_nil(child) <-
@@ -563,6 +563,31 @@ defmodule PronotexWeb.DashboardLive do
     end)
   end
 
+  # Initial HTTP and connected mounts render the requested page with its data.
+  # Subsequent navigation remains asynchronous; PRONOTE's read cache avoids
+  # repeating remote requests between the two mounts.
+  defp start_read(socket, name, read) do
+    synchronous? =
+      socket.assigns.initial_load &&
+        (name == :load || socket.assigns.section in ["messages", "parent-messages"])
+
+    if synchronous? do
+      result =
+        try do
+          {:ok, read.()}
+        rescue
+          _ -> {:exit, :read_failed}
+        catch
+          :exit, reason -> {:exit, reason}
+        end
+
+      {:noreply, socket} = handle_async(name, result, socket)
+      socket
+    else
+      start_async(socket, name, read)
+    end
+  end
+
   # PRONOTE child resource IDs can change when its session is renewed mid-load.
   # Repeat the complete read once so every request uses the refreshed child list.
   defp read_with_fresh_children(read) do
@@ -606,7 +631,7 @@ defmodule PronotexWeb.DashboardLive do
       if available do
         socket
         |> assign(:messages_loading, true)
-        |> start_async({:messages_load, generation}, fn ->
+        |> start_read({:messages_load, generation}, fn ->
           if parent_inbox,
             do: api_call(api, account, :parent_discussions, []),
             else: api_call(api, account, :discussions, [child_id])
@@ -835,7 +860,7 @@ defmodule PronotexWeb.DashboardLive do
   defp canonicalize(socket) do
     url = selection_url(socket)
 
-    if socket.assigns.current_url == url,
+    if not connected?(socket) or socket.assigns.current_url == url,
       do: socket,
       else: push_patch(socket, to: url, replace: true)
   end
