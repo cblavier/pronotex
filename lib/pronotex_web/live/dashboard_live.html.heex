@@ -1,5 +1,11 @@
 <Layouts.app flash={@flash} child_theme={child_theme(@children, @child)}>
-  <div id="responsive-header">
+  <div
+    id="responsive-header"
+    phx-hook="RememberPage"
+    data-page-account={@account.id}
+    data-page-url={@current_url}
+    data-page-ready={to_string(!@loading)}
+  >
     <header id="child-header" class="pb-8">
       <details
         :if={@child}

@@ -26,6 +26,7 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/pronotex"
 import topbar from "../vendor/topbar"
 import {Settings} from "./settings"
+import {RememberPage, restoreLastPage} from "./last_page"
 
 // The login form is a regular POST form, outside LiveView.
 document.addEventListener("click", event => {
@@ -132,7 +133,7 @@ const AgendaScroll = {
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, AgendaScroll, StartupSplash, Settings},
+  hooks: {...colocatedHooks, AgendaScroll, StartupSplash, Settings, RememberPage},
 })
 
 // Show progress bar on live navigation and form submits
@@ -176,7 +177,7 @@ document.addEventListener("visibilitychange", () => {
 })
 
 // connect if there are any LiveViews on the page
-liveSocket.connect()
+if (!restoreLastPage()) liveSocket.connect()
 
 // Short surprises from the captain, including keyboard activation.
 const captainAnimations = [
