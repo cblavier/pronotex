@@ -834,3 +834,27 @@ html { touch-action: manipulation; }
 .settings-choices span { display: grid; place-items: center; min-height: 3rem; padding: 0.5rem; text-align: center; border: 1px solid var(--color-base-300); border-radius: 0.5rem; }
 .settings-choices input:checked + span { color: var(--day-ink); background: var(--day-tint); border-color: var(--day-ink); }
 .settings-choices input:focus-visible + span { outline: 2px solid var(--day-ink); outline-offset: 2px; }
+
+/* A landscape sheet: rotate only while the viewport is portrait. */
+.week-overview { position: fixed; inset: 0; width: 100dvw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: var(--surface-background, white); color: var(--color-base-content); overflow: hidden; }
+.week-overview::backdrop { background: var(--surface-background, white); }
+.week-overview-surface { width: 100%; height: 100%; display: flex; flex-direction: column; padding: 10px max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left)); }
+.week-overview-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; height: 36px; }
+.week-overview-header h2 { font-size: 14px; font-weight: 600; }
+.week-grid { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: 30px repeat(5, minmax(0, 1fr)); gap: 5px; }
+.week-column { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.week-column h3 { height: 25px; flex-shrink: 0; font-size: 12px; font-weight: 600; text-align: center; }
+.week-column h3 span { opacity: .6; font-weight: 400; }
+.week-column-body { position: relative; display: grid; grid-auto-columns: minmax(0, 1fr); flex: 1; min-height: 0; background: repeating-linear-gradient(to bottom, color-mix(in srgb, currentColor 10%, transparent) 0 1px, transparent 1px var(--hour-height)); }
+.week-hours { position: relative; margin-top: 25px; font-size: 10px; opacity: .6; }
+.week-hours span { position: absolute; right: 2px; }
+.week-lesson { position: absolute; min-width: 0; min-height: 0; margin: 0; padding: 3px 5px; box-shadow: inset 0 -2px var(--surface-background, white); border-left: 3px solid var(--subject-color); border-radius: 4px; background: color-mix(in srgb, var(--subject-color) 20%, var(--surface-background, white)); overflow: auto; line-height: 1.15; }
+.week-subject { display: block; font-size: clamp(10px, 1.9vmin, 14px); font-weight: 600; overflow-wrap: anywhere; }
+.week-lesson-canceled .week-subject { text-decoration: line-through; opacity: .6; }
+.week-badges { display: flex; flex-wrap: wrap; gap: 2px; }
+.week-badges .badge { font-size: 9px; padding-inline: 3px; height: auto; min-height: 12px; white-space: normal; }
+.week-overview-message { margin: auto; text-align: center; }
+.week-empty { position: absolute; top: 50%; left: 0; right: 0; text-align: center; }
+@media (orientation: portrait) and (max-width: 900px) {
+  .week-overview-surface { position: absolute; top: 50%; left: 50%; width: 100dvh; height: 100dvw; transform: translate(-50%, -50%) rotate(90deg); }
+}

@@ -587,6 +587,17 @@
                   >
                     Aujourd’hui
                   </span>
+                  <button
+                    :if={day.date == @first_lesson_date}
+                    id="open-week-overview"
+                    type="button"
+                    phx-click="open-week-overview"
+                    class="ml-auto p-2 -my-2"
+                    aria-label="Voir l’emploi du temps de la semaine en plein écran"
+                    title="Toute la semaine"
+                  >
+                    <.icon name="hero-arrows-pointing-out" class="size-5" />
+                  </button>
                 </h3>
                 <.empty_state
                   :if={day.entries == []}
@@ -686,26 +697,7 @@
                           >
                             En cours
                           </span>
-                          <span
-                            :if={lesson.canceled}
-                            class="badge badge-soft badge-error badge-xs"
-                          >
-                            Annulé
-                          </span>
-                          <span
-                            :if={lesson.evaluation && !lesson.canceled}
-                            class="badge badge-soft badge-xs lesson-evaluation-badge"
-                          >
-                            Évaluation
-                          </span>
-                          <span
-                            :if={lesson.status && lesson.status != "" && !lesson.canceled}
-                            class="badge badge-soft badge-info badge-xs"
-                          >
-                            {if lesson.status == "Cours modifié",
-                              do: "Modifié",
-                              else: lesson.status}
-                          </span>
+                          <.lesson_badges lesson={lesson} />
                         </div>
                         <p :if={lesson.teachers != []} class="mt-1 text-xs text-base-content/55">
                           {Enum.join(lesson.teachers, ", ")}
@@ -1030,4 +1022,12 @@
       </article>
     </div>
   </section>
+  <.week_timetable
+    :if={@week_overview}
+    lessons={@week_overview_lessons}
+    monday={@week_overview_start}
+    loading={@week_overview_loading}
+    error={@week_overview_error}
+    child_name={@child.name}
+  />
 </Layouts.app>

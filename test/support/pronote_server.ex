@@ -78,6 +78,10 @@ defmodule Pronotex.Test.PronoteServer do
     state = %{state | calls: state.calls ++ [{function, payload}], order: state.order + 2}
 
     cond do
+      function == "PageCahierDeTexte" and state.options[:expire_homework] == true and
+          not state.expired? ->
+        {{%{"Erreur" => %{"G" => 10}}, false, true}, %{state | expired?: true}}
+
       function in ["SaisieTAFFaitEleve", "SaisieMessage"] and state.options[:write_error] ->
         {{%{"Erreur" => %{"G" => state.options[:write_error]}}, false, true}, state}
 
@@ -291,6 +295,36 @@ defmodule Pronotex.Test.PronoteServer do
             "V" => "<p>Lire <b>le chapitre</b> &amp; réviser.</p><script>alert(1)</script>"
           }
         }
+      end
+
+    tasks =
+      if state.options[:duplicate_homework] do
+        original = Enum.find(tasks, &(&1["N"] == "hw-due"))
+
+        duplicate = %{
+          original
+          | "N" => "hw-duplicate",
+            "TAFFait" => Map.get(state.homework_status, {id, "hw-duplicate"}, true)
+        }
+
+        [duplicate | tasks]
+      else
+        tasks
+      end
+
+    tasks =
+      if state.options[:different_homework_ids] == true and state.options[:space] == 3 do
+        Enum.map(tasks, fn task ->
+          student_id = "student-" <> task["N"]
+
+          %{
+            task
+            | "N" => student_id,
+              "TAFFait" => Map.get(state.homework_status, {id, student_id}, task["TAFFait"])
+          }
+        end)
+      else
+        tasks
       end
 
     {%{"ListeTravauxAFaire" => %{"V" => tasks}}, state, nil, false}

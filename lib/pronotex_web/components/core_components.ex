@@ -29,6 +29,33 @@ defmodule PronotexWeb.CoreComponents do
   use Phoenix.Component
   use Gettext, backend: PronotexWeb.Gettext
 
+  attr :lesson, :any, required: true
+
+  def lesson_badges(assigns) do
+    ~H"""
+    <span
+      :if={@lesson.canceled}
+      class="badge badge-soft badge-error badge-xs"
+    >
+      Annulé
+    </span>
+    <span
+      :if={@lesson.evaluation && !@lesson.canceled}
+      class="badge badge-soft badge-xs lesson-evaluation-badge"
+    >
+      Évaluation
+    </span>
+    <span
+      :if={@lesson.status && @lesson.status != "" && !@lesson.canceled}
+      class="badge badge-soft badge-info badge-xs"
+    >
+      {if @lesson.status == "Cours modifié",
+        do: "Modifié",
+        else: @lesson.status}
+    </span>
+    """
+  end
+
   @doc "Shared title for application sections such as Messages and Settings."
   attr :id, :string, required: true
   attr :class, :any, default: nil

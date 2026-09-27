@@ -10,6 +10,8 @@ beforeEach(() => {
   element = {dataset: {pageAccount: "family", pageUrl: "/", pageReady: "false"}}
   globalThis.document = {querySelector: () => element}
   globalThis.window = {
+    matchMedia: () => ({matches: true}),
+    navigator: {},
     location: {origin, pathname: "/", search: "", hash: "", replace: path => visited.push(path)},
     localStorage: {
       getItem: key => stored.get(key) ?? null,
@@ -24,6 +26,24 @@ function remember(url, ready = "true") {
   element.dataset.pageReady = ready
   RememberPage.updated.call({...RememberPage, el: element})
 }
+
+test("browser navigation neither restores nor overwrites the PWA's saved page", () => {
+  remember("/victor/notes")
+  const saved = stored.get("captain-last-page:family")
+  window.matchMedia = () => ({matches: false})
+  remember("/edgar/devoirs")
+  assert.equal(restoreLastPage(), false)
+  assert.deepEqual(visited, [])
+  assert.equal(stored.get("captain-last-page:family"), saved)
+})
+
+test("iOS standalone mode also remembers and restores the last page", () => {
+  window.matchMedia = () => ({matches: false})
+  window.navigator.standalone = true
+  remember("/victor/notes")
+  assert.equal(restoreLastPage(), true)
+  assert.deepEqual(visited, ["/victor/notes"])
+})
 
 test("a later launch restores the last page including the child and selected period", () => {
   remember("/edgar/devoirs?week=2026-09-21")

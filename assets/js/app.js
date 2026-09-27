@@ -1,3 +1,4 @@
+import {WeekOverview} from "./week_overview"
 import {updatePushWorker, listenForPushNavigation} from "./push"
 // If you want to use Phoenix channels, run `mix help phx.gen.channel`
 // to get started and then uncomment the line below.
@@ -133,7 +134,7 @@ const AgendaScroll = {
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, AgendaScroll, StartupSplash, Settings, RememberPage},
+  hooks: {...colocatedHooks, WeekOverview, AgendaScroll, StartupSplash, Settings, RememberPage},
 })
 
 // Show progress bar on live navigation and form submits

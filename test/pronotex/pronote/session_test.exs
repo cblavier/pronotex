@@ -681,6 +681,62 @@ defmodule Pronotex.Pronote.SessionTest do
     assert Enum.count(Agent.get(agent, & &1.calls), &(elem(&1, 0) == "SaisieTAFFaitEleve")) == 2
   end
 
+  test "identical homework assignments are distinguished by their Pronote ID" do
+    {server, agent} = session(student: true, duplicate_homework: true)
+    assert {:ok, tasks} = Pronote.homework("child-a", ~D[2026-09-15], ~D[2026-09-24], server)
+    assert length(tasks) == 2
+
+    assert {:ok, tasks} = Pronote.set_homework_done("child-a", "hw-due", false, server)
+    assert Enum.find(tasks, &(&1.id == "hw-due")).done == false
+    assert Enum.find(tasks, &(&1.id == "hw-duplicate")).done == true
+    assert Agent.get(agent, & &1.homework_status) == %{{"child-a", "hw-due"} => false}
+
+    assert {:ok, tasks} = Pronote.set_homework_done("child-a", "hw-due", true, server)
+    assert Enum.all?(tasks, & &1.done)
+  end
+
+  test "homework is displayed with the student session ID" do
+    {server, agent} = session(student: true, different_homework_ids: true)
+
+    assert {:ok, [%{id: "student-hw-due", child_id: "child-a"}]} =
+             Pronote.homework("child-a", ~D[2026-09-15], ~D[2026-09-24], server)
+
+    assert {:ok, [%{done: false}]} =
+             Pronote.set_homework_done("child-a", "student-hw-due", false, server)
+
+    assert Agent.get(agent, & &1.homework_status) == %{{"child-a", "student-hw-due"} => false}
+  end
+
+  test "identical homework with session-specific IDs updates only the selected assignment" do
+    {server, agent} =
+      session(student: true, duplicate_homework: true, different_homework_ids: true)
+
+    assert {:ok, tasks} = Pronote.homework("child-a", ~D[2026-09-15], ~D[2026-09-24], server)
+    assert length(tasks) == 2
+    assert {:ok, tasks} = Pronote.set_homework_done("child-a", "student-hw-due", false, server)
+    assert Enum.find(tasks, &(&1.id == "student-hw-due")).done == false
+    assert Enum.find(tasks, &(&1.id == "student-hw-duplicate")).done == true
+    assert Agent.get(agent, & &1.homework_status) == %{{"child-a", "student-hw-due"} => false}
+    assert {:ok, ^tasks} = Pronote.homework("child-a", ~D[2026-09-15], ~D[2026-09-24], server)
+
+    assert {:error, %Error{reason: :stale_homework}} =
+             Pronote.set_homework_done("child-a", "hw-due", false, server)
+
+    assert Enum.count(Agent.get(agent, & &1.calls), &(elem(&1, 0) == "SaisieTAFFaitEleve")) == 1
+  end
+
+  test "an expired student homework session is renewed before the next write" do
+    {server, agent} = session(student: true, different_homework_ids: true)
+    assert {:ok, [_]} = Pronote.homework("child-a", ~D[2026-09-15], ~D[2026-09-24], server)
+    Agent.update(agent, &%{&1 | options: Keyword.put(&1.options, :expire_homework, true)})
+    Pronote.clear_cache(server)
+
+    assert {:ok, [task]} = Pronote.homework("child-a", ~D[2026-09-15], ~D[2026-09-24], server)
+    assert Agent.get(agent, & &1.logins) == 2
+    assert {:ok, [%{done: false}]} = Pronote.set_homework_done("child-a", task.id, false, server)
+    assert Enum.count(Agent.get(agent, & &1.calls), &(elem(&1, 0) == "SaisieTAFFaitEleve")) == 1
+  end
+
   test "unconfirmed writes are errors, not optimistic success" do
     {server, _} = session(ignore_write: true, student: true)
     Pronote.homework("child-a", ~D[2026-09-15], ~D[2026-09-24], server)
@@ -725,9 +781,11 @@ defmodule Pronotex.Pronote.SessionTest do
 
   test "wrong student identity prevents the write" do
     {server, agent} = session(student: true, wrong_student: true)
-    Pronote.homework("child-a", ~D[2026-09-15], ~D[2026-09-24], server)
 
     assert {:error, %Error{reason: :student_mismatch}} =
+             Pronote.homework("child-a", ~D[2026-09-15], ~D[2026-09-24], server)
+
+    assert {:error, %Error{reason: :stale_homework}} =
              Pronote.set_homework_done("child-a", "hw-due", false, server)
 
     refute Enum.any?(Agent.get(agent, & &1.calls), &(elem(&1, 0) == "SaisieTAFFaitEleve"))

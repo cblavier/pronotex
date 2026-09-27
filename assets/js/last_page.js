@@ -1,5 +1,6 @@
 const storageKey = account => `captain-last-page:${account}`
 const maxAge = 60 * 60 * 1000
+const isInstalled = () => window.matchMedia("(display-mode: standalone)").matches || window.navigator?.standalone === true
 
 function savedPage(value) {
   try {
@@ -26,6 +27,7 @@ export function appPath(value, origin) {
 // Only restore the PWA's launch URL. Explicit links and notification destinations win.
 // Run before LiveView connects so its default child redirect cannot overwrite the saved page.
 export function restoreLastPage() {
+  if (!isInstalled()) return false
   const account = document.querySelector("[data-page-account]")?.dataset.pageAccount
   if (!account || window.location.pathname !== "/" || window.location.search || window.location.hash) return false
   try {
@@ -62,6 +64,7 @@ export const RememberPage = {
     window.removeEventListener("pagehide", this.saveOnLeave)
   },
   rememberPage(leaving = false) {
+    if (!isInstalled()) return
     if (!leaving && document.visibilityState === "hidden") return
     const {pageAccount, pageUrl, pageReady} = this.el.dataset
     if (!pageAccount || pageReady !== "true") return

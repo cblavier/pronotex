@@ -104,9 +104,9 @@ defmodule Pronotex.Pronote.Session do
 
       {:error, %Error{reason: :session_expired}} ->
         # Reconnect once and reconstruct the full read with fresh child resources.
-        case safely(fn -> execute(operation, %{state | client: nil}) end) do
+        case safely(fn -> execute(operation, %{state | client: nil, students: %{}}) end) do
           {:ok, reply, state} -> {:reply, {:ok, reply}, state}
-          {:error, error} -> {:reply, {:error, error}, %{state | client: nil}}
+          {:error, error} -> {:reply, {:error, error}, %{state | client: nil, students: %{}}}
         end
 
       {:error, %Error{reason: reason, code: nil} = error}
@@ -117,7 +117,7 @@ defmodule Pronotex.Pronote.Session do
         {:reply, {:error, error}, state}
 
       {:error, error} ->
-        {:reply, {:error, error}, %{state | client: nil}}
+        {:reply, {:error, error}, %{state | client: nil, students: %{}}}
     end
   end
 
@@ -158,8 +158,21 @@ defmodule Pronotex.Pronote.Session do
   end
 
   defp execute({:homework, child_id, from, to}, state) do
-    {homework, client} = cached_read(state.client, {:homework, child_id, from, to})
-    {:ok, homework, %{state | client: client}}
+    child = Enum.find(Client.children(state.client), &(&1.id == child_id))
+    unless child, do: raise(Error.new(:child_not_found))
+
+    # Resource IDs are session-specific. Read writable homework in the same
+    # student session that will submit the status, including identical assignments.
+    if state.client.transport.space != 3 and match?({:ok, _}, student_config(state, child)) do
+      {config, student} = student_client(state, child_id)
+      [identity] = Client.children(student)
+      {homework, student} = cached_read(student, {:homework, identity.id, from, to})
+      homework = Enum.map(homework, &%{&1 | child_id: child_id})
+      {:ok, homework, %{state | students: Map.put(state.students, child_id, {config, student})}}
+    else
+      {homework, client} = cached_read(state.client, {:homework, child_id, from, to})
+      {:ok, homework, %{state | client: client}}
+    end
   end
 
   defp execute({:menus, child_id, from, to}, state) do
@@ -222,20 +235,30 @@ defmodule Pronotex.Pronote.Session do
   defp execute(operation, state)
        when elem(operation, 0) in [:discussions, :set_discussion_read] do
     child_id = elem(operation, 1)
+    {config, student} = student_client(state, child_id)
+
+    {reply, student} =
+      case operation do
+        {:discussions, _} -> cached_read(student, operation)
+        {:set_discussion_read, _, id, read} -> Client.set_discussion_read(student, id, read)
+      end
+
+    {:ok, reply, %{state | students: Map.put(state.students, child_id, {config, student})}}
+  end
+
+  defp execute({:set_homework_done, child_id, homework_id, done}, state) do
+    {config, student} = student_client(state, child_id)
+    [identity] = Client.children(student)
+    {tasks, student} = Client.set_homework_done(student, identity.id, homework_id, done)
+    tasks = Enum.map(tasks, &%{&1 | child_id: child_id})
+    {:ok, tasks, %{state | students: Map.put(state.students, child_id, {config, student})}}
+  end
+
+  defp student_client(state, child_id) do
     child = Enum.find(Client.children(state.client), &(&1.id == child_id))
     unless child, do: raise(Error.new(:child_not_found))
 
-    config_result =
-      case Keyword.get(state.options, :student_configs) do
-        nil ->
-          Config.student_from_env(child)
-
-        configs ->
-          case Map.fetch(configs, child_id) do
-            {:ok, config} -> Config.validate(config)
-            :error -> {:error, Error.new(:student_credentials_required)}
-          end
-      end
+    config_result = student_config(state, child)
 
     config =
       case config_result do
@@ -268,90 +291,22 @@ defmodule Pronotex.Pronote.Session do
         raise(Error.new(:student_mismatch))
     end
 
-    {reply, student} =
-      case operation do
-        {:discussions, _} -> cached_read(student, operation)
-        {:set_discussion_read, _, id, read} -> Client.set_discussion_read(student, id, read)
-      end
-
-    {:ok, reply, %{state | students: Map.put(state.students, child_id, {config, student})}}
+    {config, student}
   end
 
-  defp execute({:set_homework_done, child_id, homework_id, done}, state) do
-    child = Enum.find(Client.children(state.client), &(&1.id == child_id))
-    unless child, do: raise(Error.new(:child_not_found))
+  defp student_config(state, child) do
+    child_id = child.id
 
-    config_result =
-      case Keyword.get(state.options, :student_configs) do
-        nil ->
-          Config.student_from_env(child)
+    case Keyword.get(state.options, :student_configs) do
+      nil ->
+        Config.student_from_env(child)
 
-        configs ->
-          case Map.fetch(configs, child_id) do
-            {:ok, config} -> Config.validate(config)
-            :error -> {:error, Error.new(:student_credentials_required)}
-          end
-      end
-
-    config =
-      case config_result do
-        {:ok, config} -> config
-        _ -> raise Error.new(:student_credentials_required)
-      end
-
-    {from, to} =
-      Map.get(state.client.homework_reads, {child_id, homework_id}) ||
-        raise(Error.new(:stale_homework))
-
-    {tasks, parent} = Client.homework(state.client, child_id, from, to)
-    target = Enum.find(tasks, &(&1.id == homework_id)) || raise(Error.new(:stale_homework))
-    cached = Map.get(state.students, child_id)
-
-    student =
-      case cached do
-        {^config, client} ->
-          client
-
-        _ ->
-          Client.login(
-            config,
-            Keyword.get(
-              state.options,
-              :student_req_options,
-              Keyword.get(state.options, :req_options, [])
-            )
-          )
-      end
-
-    [identity] = Client.children(student)
-
-    unless normalize_name(identity.name) == normalize_name(child.name),
-      do: raise(Error.new(:student_mismatch))
-
-    {student_tasks, student} = Client.homework(student, identity.id, from, to)
-
-    matches =
-      Enum.filter(
-        student_tasks,
-        &(&1.date == target.date and &1.subject == target.subject and
-            &1.description == target.description)
-      )
-
-    student_task =
-      case matches do
-        [task] -> task
-        _ -> raise Error.new(:stale_homework)
-      end
-
-    {_, student} = Client.set_homework_done(student, identity.id, student_task.id, done)
-
-    tasks =
-      Enum.map(tasks, fn task ->
-        if task.id == homework_id, do: %{task | done: done}, else: task
-      end)
-
-    {:ok, tasks,
-     %{state | client: parent, students: Map.put(state.students, child_id, {config, student})}}
+      configs ->
+        case Map.fetch(configs, child_id) do
+          {:ok, config} -> Config.validate(config)
+          :error -> {:error, Error.new(:student_credentials_required)}
+        end
+    end
   end
 
   defp cached_read(client, operation, account_id \\ nil) do

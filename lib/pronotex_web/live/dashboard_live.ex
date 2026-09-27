@@ -1,5 +1,6 @@
 defmodule PronotexWeb.DashboardLive do
   use PronotexWeb, :live_view
+  import PronotexWeb.TimetableComponents
 
   @impl true
   def mount(_params, _session, socket) do
@@ -21,6 +22,12 @@ defmodule PronotexWeb.DashboardLive do
         message_saving: nil,
         open_discussion: nil,
         agenda_panel: "timetable",
+        week_overview: false,
+        week_overview_loading: false,
+        week_overview_error: nil,
+        week_overview_lessons: [],
+        week_overview_start: Date.beginning_of_week(today),
+        first_lesson_date: nil,
         grades_panel: "latest",
         grade_period: nil,
         grade_periods: [],
@@ -77,6 +84,7 @@ defmodule PronotexWeb.DashboardLive do
   @impl true
   def handle_info({:pronote_refreshed, account_id}, socket) do
     if socket.assigns.account.id == account_id and not socket.assigns.loading and
+         not socket.assigns.week_overview and
          is_nil(socket.assigns.message_saving) and is_nil(socket.assigns.homework_saving) do
       {:noreply, load(socket)}
     else
@@ -156,6 +164,33 @@ defmodule PronotexWeb.DashboardLive do
   def handle_event(_event, _params, %{assigns: %{loading: true}} = socket),
     do: {:noreply, socket}
 
+  def handle_event("open-week-overview", _, socket) do
+    if socket.assigns.section == "agenda" and socket.assigns.child do
+      api = socket.assigns.api
+      account = socket.assigns.account
+      child_id = socket.assigns.child.id
+      monday = Date.beginning_of_week(today())
+
+      {:noreply,
+       socket
+       |> assign(
+         week_overview: true,
+         week_overview_loading: true,
+         week_overview_error: nil,
+         week_overview_lessons: [],
+         week_overview_start: monday
+       )
+       |> start_async(:week_overview, fn ->
+         api_call(api, account, :lessons, [child_id, monday, Date.add(monday, 4)])
+       end)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("close-week-overview", _, socket),
+    do: {:noreply, socket |> cancel_async(:week_overview) |> assign(:week_overview, false)}
+
   def handle_event("agenda-panel", %{"panel" => panel}, socket)
       when panel in ["timetable", "events"] do
     {:noreply, assign(socket, :agenda_panel, panel)}
@@ -223,13 +258,23 @@ defmodule PronotexWeb.DashboardLive do
       account = socket.assigns.account
       child_id = socket.assigns.child.id
       generation = socket.private[:homework_generation]
+      from = socket.assigns.week
+      to = Date.add(from, 6)
 
       socket =
         socket |> assign(homework_saving: id, homework_save_error: nil) |> restream_homework()
 
       {:noreply,
        start_async(socket, {:save_homework, generation}, fn ->
-         api_call(api, account, :set_homework_done, [child_id, id, !task.done])
+         # Another dashboard read may have invalidated the session since rendering.
+         # Revalidate before writing; never replay a write with an uncertain outcome.
+         with {:ok, tasks} <- api_call(api, account, :homework, [child_id, from, to]) do
+           if Enum.any?(tasks, &(&1.id == id)) do
+             api_call(api, account, :set_homework_done, [child_id, id, !task.done])
+           else
+             {:error, Pronotex.Pronote.Error.new(:stale_homework)}
+           end
+         end
        end)}
     else
       {:noreply, socket}
@@ -301,6 +346,24 @@ defmodule PronotexWeb.DashboardLive do
   end
 
   @impl true
+  def handle_async(:week_overview, result, socket) do
+    if socket.assigns.week_overview do
+      case result do
+        {:ok, {:ok, lessons}} ->
+          {:noreply, assign(socket, week_overview_loading: false, week_overview_lessons: lessons)}
+
+        _ ->
+          {:noreply,
+           assign(socket,
+             week_overview_loading: false,
+             week_overview_error: "Impossible de charger la semaine. Réessayez."
+           )}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_async(:load, {:ok, {:ok, result}}, socket) do
     socket =
       assign(socket,
@@ -451,8 +514,10 @@ defmodule PronotexWeb.DashboardLive do
     today = socket.assigns.today
 
     socket
+    |> cancel_async(:week_overview)
     |> clear_flash(:error)
     |> assign(
+      week_overview: false,
       loading: true,
       agenda_from: lessons_from,
       messages_generation: make_ref(),
@@ -937,7 +1002,16 @@ defmodule PronotexWeb.DashboardLive do
       end
 
     socket
-    |> assign(lesson_count: length(lessons), lesson_error: nil, lessons: lessons)
+    |> assign(
+      lesson_count: length(lessons),
+      lesson_error: nil,
+      lessons: lessons,
+      first_lesson_date:
+        case days do
+          [day | _] -> day.date
+          [] -> nil
+        end
+    )
     |> assign(:now, now())
     |> put_private(:lesson_days, days)
     |> stream(:lesson_days, days, reset: true)

@@ -91,6 +91,7 @@ defmodule PronotexWeb.DashboardLiveTest do
 
     def homework(id, from, to) do
       notify({:homework, id, from, to})
+      Process.put(:homework_revalidated, true)
 
       if Application.get_env(:pronotex, :dashboard_test_mode) == :slow_homework do
         notify({:homework_pending, self()})
@@ -258,6 +259,14 @@ defmodule PronotexWeb.DashboardLiveTest do
       notify({:write_homework, id, task, done})
 
       case Application.get_env(:pronotex, :dashboard_test_mode) do
+        :requires_homework_read ->
+          if Process.get(:homework_revalidated) do
+            {:ok, tasks} = homework(id, ~D[2026-09-18], ~D[2026-09-24])
+            {:ok, Enum.map(tasks, &%{&1 | done: done})}
+          else
+            {:error, Pronotex.Pronote.Error.new(:stale_homework)}
+          end
+
         :write_failure ->
           {:error, Pronotex.Pronote.Error.new(:forbidden)}
 
@@ -482,6 +491,40 @@ defmodule PronotexWeb.DashboardLiveTest do
     document = Floki.parse_document!(html)
     assert Floki.find(document, "#flash-error") != []
     assert Floki.find(document, "#page-content[hidden]") == []
+  end
+
+  test "weekly overview loads Monday through Friday independently of agenda navigation", %{
+    conn: conn
+  } do
+    {:ok, view, _} = live(conn, "/alice?week=2026-10-05")
+    render_async(view)
+    assert has_element?(view, "#lesson-days > section:first-child #open-week-overview")
+    view |> element("#open-week-overview") |> render_click()
+    render_async(view)
+    assert_receive {:lessons, "a", ~D[2026-09-14], ~D[2026-09-18]}
+    assert has_element?(view, "#week-overview .week-column", "Lundi")
+    assert has_element?(view, "#week-overview .week-column", "Vendredi")
+    assert has_element?(view, "#week-overview .week-subject", "Maths a")
+
+    assert length(
+             view
+             |> render()
+             |> Floki.parse_document!()
+             |> Floki.find("#week-overview .week-column")
+           ) == 5
+
+    view |> element("#week-overview button[phx-click=close-week-overview]") |> render_click()
+    refute has_element?(view, "#week-overview")
+    assert has_element?(view, "#open-week-overview")
+  end
+
+  test "weekly overview retains cancellation badges", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :canceled)
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    view |> element("#open-week-overview") |> render_click()
+    render_async(view)
+    assert has_element?(view, "#week-overview .week-lesson-canceled .badge", "Annulé")
   end
 
   test "agenda fetches lessons and urgent homework on connected mount", %{conn: conn} do
@@ -1454,6 +1497,43 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert has_element?(view, "#homework-toggle-task[aria-pressed=false]")
     render_click(view, "toggle-homework", %{"id" => "unknown"})
     refute_received {:write_homework, _, _, _}
+  end
+
+  test "homework toggle restores the read context before writing", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/alice/devoirs")
+    render_async(view)
+    Application.put_env(:pronotex, :dashboard_test_mode, :requires_homework_read)
+
+    view |> element("#homework-toggle-task") |> render_click()
+    render_async(view)
+
+    assert_receive {:write_homework, "a", "task", true}
+    assert has_element?(view, "#homework-toggle-task[aria-pressed=true]")
+    refute has_element?(view, "#flash-error")
+  end
+
+  test "homework is revalidated before writing and missing tasks are not written", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/alice/devoirs")
+    render_async(view)
+    Application.put_env(:pronotex, :dashboard_test_mode, :empty)
+
+    view |> element("#homework-toggle-task") |> render_click()
+    render_async(view)
+
+    refute_received {:write_homework, _, _, _}
+    assert has_element?(view, "#flash-error", "Rechargez les devoirs")
+  end
+
+  test "homework read failures prevent writing", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/alice/devoirs")
+    render_async(view)
+    Application.put_env(:pronotex, :dashboard_test_mode, :partial_failure)
+
+    view |> element("#homework-toggle-task") |> render_click()
+    render_async(view)
+
+    refute_received {:write_homework, _, _, _}
+    assert has_element?(view, "#homework-toggle-task[aria-pressed=false]")
   end
 
   test "parent write refusal keeps the confirmed status", %{conn: conn} do
