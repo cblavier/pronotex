@@ -18,7 +18,7 @@ export function appPath(value, origin) {
     if (url.origin !== origin || !child || extra.length) return null
     const name = decodeURIComponent(child)
     if (!/^[\p{L}\p{N}_-]+$/u.test(name) || ["login", "logout", "push", "avatars", "dev"].includes(name)) return null
-    if (section !== undefined && !["agenda", "devoirs", "notes", "reglages", "menu", "messages", "parent-messages"].includes(section)) return null
+    if (section !== undefined && !["agenda", "timetable", "devoirs", "notes", "reglages", "menu", "messages", "parent-messages"].includes(section)) return null
     if (detail !== undefined && (!detail || !["messages", "parent-messages"].includes(section))) return null
     return url.pathname + url.search + url.hash
   } catch { return null }

@@ -157,3 +157,7 @@ test("leaving records the time, while background updates do not extend the hour"
   hook.destroyed()
   assert.equal(handlers.size, 0)
 })
+
+test("timetable routes preserve the child and selected week", () => {
+  assert.equal(appPath("/victor/timetable?week=2026-09-21", origin), "/victor/timetable?week=2026-09-21")
+})
