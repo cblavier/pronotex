@@ -77,7 +77,8 @@ defmodule Pronotex.Pronote.Client do
         name: Map.fetch!(&1, "L"),
         first_name: &1["prenom"],
         school_name: get_in(&1, ["Etablissement", "V", "L"]),
-        class_name: get_in(&1, ["classeDEleve", "L"])
+        class_name: get_in(&1, ["classeDEleve", "L"]),
+        week_cycles: Pronotex.Pronote.WeekCycle.calendar(client.general)
       }
     )
   end
