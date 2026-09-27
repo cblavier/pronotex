@@ -44,6 +44,7 @@ Prévu pour tourner avec Docker en production.
 - [x] mettre un cache en lecture sur les API pronote
 - [x] améliorer les écrans de notes et moyennes
 - [x] push notif nouvelle note
+- [x] semainier
 - [ ] contacter la vie scolaire (parent)
 - [ ] push notif prof absent
 - [ ] push notif nouveau message
