@@ -24,6 +24,16 @@ defmodule PronotexWeb.DashboardLiveTest do
         :no_children ->
           {:ok, []}
 
+        mode when mode in [:cycles, :cycle_failure] ->
+          {:ok,
+           [
+             %{
+               id: "a",
+               name: "Alice",
+               week_cycles: %{~D[2026-09-14] => "A", ~D[2026-09-21] => "B"}
+             }
+           ]}
+
         :rotating_children ->
           generation = Process.get(:children_generation, 0) + 1
           Process.put(:children_generation, generation)
@@ -35,6 +45,41 @@ defmodule PronotexWeb.DashboardLiveTest do
     end
 
     def lessons(id, from, to) do
+      mode = Application.get_env(:pronotex, :dashboard_test_mode)
+
+      if mode == :slow_timetable and from == ~D[2026-09-21] do
+        notify({:timetable_pending, self()})
+
+        receive do
+          :finish_timetable -> :ok
+        end
+      end
+
+      if mode in [:cycles, :cycle_failure] do
+        notify({:lessons, id, from, to})
+
+        if mode == :cycle_failure and from == ~D[2026-09-21] do
+          {:error, Pronotex.Pronote.Error.new(:network)}
+        else
+          cycle = if from == ~D[2026-09-21], do: "B", else: "A"
+
+          {:ok,
+           Enum.map([{"Maths", 8}, {"Cours #{cycle}", 9}], fn {subject, hour} ->
+             %Pronotex.Pronote.Lesson{
+               id: subject <> Date.to_iso8601(from),
+               child_id: id,
+               subject: subject,
+               start: NaiveDateTime.new!(from, Time.new!(hour, 0, 0)),
+               end: NaiveDateTime.new!(from, Time.new!(hour + 1, 0, 0))
+             }
+           end)}
+        end
+      else
+        basic_lessons(id, from, to)
+      end
+    end
+
+    defp basic_lessons(id, from, to) do
       notify({:lessons, id, from, to})
 
       from =
@@ -493,7 +538,98 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert Floki.find(document, "#page-content[hidden]") == []
   end
 
-  test "weekly overview loads Monday through Friday independently of agenda navigation", %{
+  test "changing timetable weeks preserves recurring lesson identities throughout loading", %{
+    conn: conn
+  } do
+    Application.put_env(:pronotex, :dashboard_test_mode, :slow_timetable)
+    {:ok, view, _} = live(conn, "/alice/timetable")
+    assert_receive :children
+    assert has_element?(view, ".week-lesson")
+
+    [lesson_id | _] =
+      view |> render() |> Floki.parse_document!() |> Floki.attribute(".week-lesson", "id")
+
+    view |> element("#next-week") |> render_click()
+    assert_receive {:timetable_pending, reader}
+    assert_patch(view, "/alice/timetable?week=2026-09-21")
+    assert has_element?(view, "#week-overview .week-grid[aria-busy=true]")
+    assert has_element?(view, "#week-overview .week-hours", "8h")
+    assert has_element?(view, "#week-overview .week-column", "21/09")
+    assert has_element?(view, "#date-navigation")
+    assert has_element?(view, "#overview-date-navigation")
+    refute has_element?(view, "#page-content[hidden]")
+    assert has_element?(view, "##{lesson_id}")
+    refute has_element?(view, ".week-empty", "Aucun cours")
+    refute_receive :children
+
+    send(reader, :finish_timetable)
+    render_async(view)
+    assert has_element?(view, "#week-overview .week-grid[aria-busy=false]")
+    assert has_element?(view, "##{lesson_id}")
+  end
+
+  test "opening timetable from today's agenda keeps the target week selected", %{conn: conn} do
+    for {date, monday} <- [
+          {~D[2026-09-18], ~D[2026-09-14]},
+          {~D[2026-09-19], ~D[2026-09-21]},
+          {~D[2026-09-20], ~D[2026-09-21]}
+        ] do
+      Application.put_env(:pronotex, :today, fn -> date end)
+      {:ok, view, _} = live(conn, "/alice?week=2026-10-05")
+      view |> element("#today-view") |> render_click()
+      render_async(view)
+      view |> element("#open-week-overview") |> render_click()
+      assert_patch(view, "/alice/timetable")
+      render_async(view)
+      assert has_element?(view, "#week-overview .week-column", Calendar.strftime(monday, "%d/%m"))
+      assert has_element?(view, "#today-view[aria-pressed=true]")
+      assert has_element?(view, "#overview-today-view[aria-pressed=true]")
+
+      html = conn |> get("/alice/timetable") |> html_response(200)
+      assert html |> Floki.parse_document!() |> Floki.find("#today-view[aria-pressed=true]") != []
+    end
+  end
+
+  test "timetable today buttons advance to Monday on both weekend days", %{conn: conn} do
+    for date <- [~D[2026-09-19], ~D[2026-09-20]],
+        button <- ["#today-view", "#overview-today-view"] do
+      Application.put_env(:pronotex, :today, fn -> date end)
+      {:ok, view, _} = live(conn, "/alice/timetable?week=2026-09-14")
+      refute has_element?(view, "#{button}[aria-pressed=true]")
+      view |> element(button) |> render_click()
+      assert_patch(view, "/alice/timetable")
+      render_async(view)
+      assert has_element?(view, "#week-overview .week-column", "21/09")
+      assert has_element?(view, "#today-view[aria-pressed=true]")
+      assert has_element?(view, "#overview-today-view[aria-pressed=true]")
+      view |> element("#week-overview button[phx-click=close-week-overview]") |> render_click()
+      assert_patch(view, "/alice")
+      render_async(view)
+      assert has_element?(view, "#today-view[aria-pressed=true]")
+    end
+  end
+
+  test "timetable route renders its content on the initial response and supports navigation", %{
+    conn: conn
+  } do
+    Application.put_env(:pronotex, :dashboard_test_mode, :cycles)
+    html = conn |> get("/alice/timetable?week=2026-09-21") |> html_response(200)
+    document = Floki.parse_document!(html)
+    assert Floki.find(document, "#week-overview .week-subject") != []
+    assert Floki.find(document, "#date-navigation .week-cycle-label") |> Floki.text() =~ "(B)"
+
+    {:ok, view, _} = live(conn, "/alice/timetable?week=2026-09-21")
+    assert has_element?(view, "#week-overview-title", "(B)")
+    assert has_element?(view, "#nav-agenda[aria-current=page]")
+    view |> element("#nav-agenda") |> render_click()
+    assert_patch(view, "/alice?week=2026-09-21")
+    render_async(view)
+    refute has_element?(view, "#week-overview")
+    refute has_element?(view, "#date-navigation .week-cycle-label")
+    assert has_element?(view, "#open-week-overview")
+  end
+
+  test "weekly overview opens its dedicated route for the selected agenda week", %{
     conn: conn
   } do
     {:ok, view, _} = live(conn, "/alice?week=2026-10-05")
@@ -501,7 +637,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert has_element?(view, "#lesson-days > section:first-child #open-week-overview")
     view |> element("#open-week-overview") |> render_click()
     render_async(view)
-    assert_receive {:lessons, "a", ~D[2026-09-14], ~D[2026-09-18]}
+    assert_receive {:lessons, "a", ~D[2026-10-05], ~D[2026-10-09]}
     assert has_element?(view, "#week-overview .week-column", "Lundi")
     assert has_element?(view, "#week-overview .week-column", "Vendredi")
     assert has_element?(view, "#week-overview .week-subject", "Maths a")
@@ -515,7 +651,54 @@ defmodule PronotexWeb.DashboardLiveTest do
 
     view |> element("#week-overview button[phx-click=close-week-overview]") |> render_click()
     refute has_element?(view, "#week-overview")
+    refute has_element?(view, "#date-navigation .week-cycle-label")
     assert has_element?(view, "#open-week-overview")
+  end
+
+  test "weekly overview navigates cycles and dims only the other cycle", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :cycles)
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    view |> element("#open-week-overview") |> render_click()
+    render_async(view)
+    assert has_element?(view, "#week-overview-title", "(A)")
+    assert has_element?(view, "#week-overview button", "Retour à l’agenda")
+    assert has_element?(view, "#overview-today-view[aria-label='Aujourd’hui']")
+    assert has_element?(view, "[data-inactive-cycle=B]", "Cours B")
+    refute has_element?(view, ".week-lesson-inactive", "Maths")
+    assert has_element?(view, ".week-lesson:not(.week-lesson-inactive)", "Cours A")
+
+    view |> element("#next-week") |> render_click()
+    render_async(view)
+    assert has_element?(view, "#week-overview-title", "(B)")
+    assert has_element?(view, "#date-navigation .week-cycle-label", "(B)")
+    assert_patch(view, "/alice/timetable?week=2026-09-21")
+    assert has_element?(view, "#week-label", "21/09")
+    assert has_element?(view, "[data-inactive-cycle=A]", "Cours A")
+    assert has_element?(view, ".week-lesson:not(.week-lesson-inactive)", "Cours B")
+
+    view |> element("#previous-week") |> render_click()
+    render_async(view)
+    assert has_element?(view, "#week-overview-title", "(A)")
+    view |> element("#next-week") |> render_click()
+    render_async(view)
+    view |> element("#today-view") |> render_click()
+    render_async(view)
+    assert has_element?(view, "#week-overview-title", "(A)")
+    assert has_element?(view, "#overview-today-view[aria-pressed=true]")
+    view |> element("#week-overview button[phx-click=close-week-overview]") |> render_click()
+    assert has_element?(view, "#responsive-header[data-page-url='/alice']")
+  end
+
+  test "weekly overview keeps actual lessons if the other cycle cannot load", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :cycle_failure)
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    view |> element("#open-week-overview") |> render_click()
+    render_async(view)
+    assert has_element?(view, ".week-lesson", "Cours A")
+    assert has_element?(view, "#week-overview [role=status]", "autre cycle")
+    refute has_element?(view, ".week-lesson-inactive")
   end
 
   test "weekly overview retains cancellation badges", %{conn: conn} do

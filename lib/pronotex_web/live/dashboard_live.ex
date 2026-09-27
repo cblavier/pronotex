@@ -25,6 +25,7 @@ defmodule PronotexWeb.DashboardLive do
         week_overview: false,
         week_overview_loading: false,
         week_overview_error: nil,
+        week_overview_warning: nil,
         week_overview_lessons: [],
         week_overview_start: Date.beginning_of_week(today),
         first_lesson_date: nil,
@@ -118,6 +119,7 @@ defmodule PronotexWeb.DashboardLive do
 
     section =
       case params["section"] do
+        "timetable" -> "timetable"
         "devoirs" -> "devoirs"
         "notes" -> "notes"
         "reglages" -> "settings"
@@ -126,6 +128,8 @@ defmodule PronotexWeb.DashboardLive do
         "parent-messages" when socket.assigns.account.role == :parent -> "parent-messages"
         _ -> "agenda"
       end
+
+    week = if section == "timetable" and mode == :today, do: timetable_today(today), else: week
 
     period =
       case params["period"] do
@@ -153,10 +157,20 @@ defmodule PronotexWeb.DashboardLive do
       )
 
     # The canonical URL patch after loading must not fetch the same data twice.
-    if socket.assigns.loaded_selection != {slug, section, mode, week, period} do
-      {:noreply, socket |> load() |> assign(:initial_load, false)}
-    else
-      {:noreply, socket}
+    cond do
+      socket.assigns.loaded_selection == {slug, section, mode, week, period} ->
+        {:noreply, socket}
+
+      section == "timetable" and not is_nil(child) and
+          match?({^slug, "timetable", _, _, _}, socket.assigns.loaded_selection) ->
+        {:noreply,
+         socket
+         |> mark_loaded()
+         |> load_week_overview(Date.beginning_of_week(week))
+         |> canonicalize()}
+
+      true ->
+        {:noreply, socket |> load() |> assign(:initial_load, false)}
     end
   end
 
@@ -165,31 +179,41 @@ defmodule PronotexWeb.DashboardLive do
     do: {:noreply, socket}
 
   def handle_event("open-week-overview", _, socket) do
-    if socket.assigns.section == "agenda" and socket.assigns.child do
-      api = socket.assigns.api
-      account = socket.assigns.account
-      child_id = socket.assigns.child.id
-      monday = Date.beginning_of_week(today())
+    if socket.assigns.section == "timetable" do
+      {:noreply, load_week_overview(socket, socket.assigns.week_overview_start)}
+    else
+      {:noreply, push_patch(socket, to: selection_url(socket, section: "timetable", period: nil))}
+    end
+  end
+
+  def handle_event("overview-week", %{"direction" => direction}, socket)
+      when direction in ["previous", "next"] do
+    if socket.assigns.week_overview and not socket.assigns.week_overview_loading do
+      offset = if direction == "previous", do: -7, else: 7
 
       {:noreply,
-       socket
-       |> assign(
-         week_overview: true,
-         week_overview_loading: true,
-         week_overview_error: nil,
-         week_overview_lessons: [],
-         week_overview_start: monday
-       )
-       |> start_async(:week_overview, fn ->
-         api_call(api, account, :lessons, [child_id, monday, Date.add(monday, 4)])
-       end)}
+       push_patch(socket,
+         to:
+           selection_url(socket,
+             mode: :week,
+             week: Date.add(socket.assigns.week_overview_start, offset)
+           )
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("overview-today", _, socket) do
+    if socket.assigns.week_overview do
+      {:noreply, push_patch(socket, to: selection_url(socket, mode: :today, week: today()))}
     else
       {:noreply, socket}
     end
   end
 
   def handle_event("close-week-overview", _, socket),
-    do: {:noreply, socket |> cancel_async(:week_overview) |> assign(:week_overview, false)}
+    do: {:noreply, push_patch(socket, to: selection_url(socket, section: "agenda"))}
 
   def handle_event("agenda-panel", %{"panel" => panel}, socket)
       when panel in ["timetable", "events"] do
@@ -349,8 +373,13 @@ defmodule PronotexWeb.DashboardLive do
   def handle_async(:week_overview, result, socket) do
     if socket.assigns.week_overview do
       case result do
-        {:ok, {:ok, lessons}} ->
-          {:noreply, assign(socket, week_overview_loading: false, week_overview_lessons: lessons)}
+        {:ok, {:ok, lessons, warning}} ->
+          {:noreply,
+           assign(socket,
+             week_overview_loading: false,
+             week_overview_lessons: lessons,
+             week_overview_warning: warning
+           )}
 
         _ ->
           {:noreply,
@@ -387,7 +416,8 @@ defmodule PronotexWeb.DashboardLive do
      |> flash_load_errors()
      |> mark_loaded()
      |> canonicalize()
-     |> load_messages()}
+     |> load_messages()
+     |> maybe_load_week_overview()}
   end
 
   def handle_async(:load, {:ok, {:error, error}}, socket),
@@ -634,7 +664,8 @@ defmodule PronotexWeb.DashboardLive do
   defp start_read(socket, name, read) do
     synchronous? =
       socket.assigns.initial_load &&
-        (name == :load || socket.assigns.section in ["messages", "parent-messages"])
+        (name in [:load, :week_overview] ||
+           socket.assigns.section in ["messages", "parent-messages"])
 
     if synchronous? do
       result =
@@ -806,6 +837,7 @@ defmodule PronotexWeb.DashboardLive do
       Map.fetch!(
         %{
           "agenda" => "Agenda",
+          "timetable" => "Agenda semaine",
           "devoirs" => "Devoirs",
           "notes" => "Notes",
           "settings" => "Réglages",
@@ -851,6 +883,9 @@ defmodule PronotexWeb.DashboardLive do
 
     path =
       case section do
+        "timetable" when not is_nil(child) ->
+          ~p"/#{child_slug(child)}/timetable"
+
         "devoirs" when not is_nil(child) ->
           ~p"/#{child_slug(child)}/devoirs"
 
@@ -1071,16 +1106,52 @@ defmodule PronotexWeb.DashboardLive do
     end
   end
 
-  defp compact_week(date) do
-    last = Date.add(date, 6)
-    months = ~w(janv. févr. mars avr. mai juin juil. août sept. oct. nov. déc.)
+  defp maybe_load_week_overview(socket) do
+    if socket.assigns.section == "timetable",
+      do: load_week_overview(socket, Date.beginning_of_week(socket.assigns.week)),
+      else: socket
+  end
 
-    start_label =
-      if date.month == last.month,
-        do: to_string(date.day),
-        else: "#{date.day} #{Enum.at(months, date.month - 1)}"
+  defp load_week_overview(socket, monday) do
+    api = socket.assigns.api
+    account = socket.assigns.account
+    child_id = socket.assigns.child.id
+    calendar = Map.get(socket.assigns.child, :week_cycles, %{})
+    counterpart = Pronotex.Pronote.WeekCycle.counterpart(calendar, monday)
 
-    "#{start_label}–#{last.day} #{Enum.at(months, last.month - 1)}"
+    socket
+    |> cancel_async(:week_overview)
+    |> assign(
+      week_overview: true,
+      week_overview_loading: true,
+      week_overview_error: nil,
+      week_overview_warning: nil,
+      week_overview_start: monday
+    )
+    |> start_read(:week_overview, fn ->
+      with {:ok, lessons} <-
+             api_call(api, account, :lessons, [child_id, monday, Date.add(monday, 4)]) do
+        case counterpart do
+          {other_monday, cycle} ->
+            case api_call(api, account, :lessons, [
+                   child_id,
+                   other_monday,
+                   Date.add(other_monday, 4)
+                 ]) do
+              {:ok, other} ->
+                {:ok,
+                 Pronotex.Pronote.WeekCycle.overlay(lessons, other, monday, other_monday, cycle),
+                 nil}
+
+              _ ->
+                {:ok, lessons, "Les cours de l’autre cycle sont indisponibles."}
+            end
+
+          nil ->
+            {:ok, lessons, nil}
+        end
+      end
+    end)
   end
 
   defp communication_date(value) when is_binary(value) and value != "" do

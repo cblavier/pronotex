@@ -68,7 +68,7 @@ defmodule PronotexWeb.Layouts do
       </style>
     </noscript>
     <div class="page-shell min-h-screen" data-child-theme={@child_theme}>
-      <main class="mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-12">
+      <main class="mx-auto max-w-6xl px-4 pt-8 pb-4 sm:px-8 sm:pt-12 sm:pb-6">
         {render_slot(@inner_block)}
       </main>
       <footer class="app-brand-footer">

@@ -56,6 +56,146 @@ defmodule PronotexWeb.CoreComponents do
     """
   end
 
+  attr :label, :string, required: true
+  attr :patch, :string, default: nil
+  attr :event, :string, default: nil
+
+  def back_link(assigns) do
+    ~H"""
+    <.link patch={@patch} phx-click={@event} class="lesson-back-link">
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        aria-hidden="true"
+      >
+        <path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" />
+      </svg>
+      {@label}
+    </.link>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :text, :string, required: true
+  attr :class, :any, default: nil
+  slot :inner_block, required: true
+
+  def tooltip(assigns) do
+    ~H"""
+    <span class={["app-tooltip", @class]}>
+      {render_slot(@inner_block)}
+      <span id={@id} role="tooltip" class="app-tooltip-content">{@text}</span>
+    </span>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :label_id, :string, default: "week-label"
+  attr :class, :any, default: nil
+  attr :week, :any, required: true
+  attr :mode, :atom, default: :week
+  attr :cycle, :string, default: nil
+  attr :show_cycle, :boolean, default: false
+  attr :prefix, :string, default: ""
+  attr :week_event, :string, default: "week"
+  attr :today_event, :string, default: "today"
+  attr :loading, :boolean, required: true
+  attr :today_active, :boolean, required: true
+
+  def week_selector(assigns) do
+    ~H"""
+    <nav id={@id} aria-label="Choisir la semaine" class={["week-selector", @class]}>
+      <p id={@label_id} class="week-navigation-label">
+        <span class="lg:hidden">
+          {if @mode == :today, do: "Aujourd’hui", else: compact_week(@week)}
+        </span>
+        <span class="hidden lg:inline">
+          <%= if @mode == :today do %>
+            à partir d’aujourd’hui
+          <% else %>
+            du {Calendar.strftime(@week, "%d/%m")} au {Calendar.strftime(
+              Date.add(@week, 6),
+              "%d/%m/%Y"
+            )}
+          <% end %>
+        </span>
+        <span :if={@show_cycle && @cycle} class="week-cycle-label">({@cycle})</span>
+      </p>
+      <.week_controls
+        prefix={@prefix}
+        week_event={@week_event}
+        today_event={@today_event}
+        loading={@loading}
+        today_active={@today_active}
+      />
+    </nav>
+    """
+  end
+
+  defp compact_week(date) do
+    last = Date.add(date, 6)
+    months = ~w(janv. févr. mars avr. mai juin juil. août sept. oct. nov. déc.)
+
+    start_label =
+      if date.month == last.month,
+        do: to_string(date.day),
+        else: "#{date.day} #{Enum.at(months, date.month - 1)}"
+
+    "#{start_label}–#{last.day} #{Enum.at(months, last.month - 1)}"
+  end
+
+  attr :prefix, :string, default: ""
+  attr :week_event, :string, default: "week"
+  attr :today_event, :string, default: "today"
+  attr :loading, :boolean, required: true
+  attr :today_active, :boolean, required: true
+
+  def week_controls(assigns) do
+    ~H"""
+    <div class="flex shrink-0 items-center gap-1">
+      <div class="join">
+        <button
+          id={@prefix <> "previous-week"}
+          phx-click={@week_event}
+          phx-value-direction="previous"
+          disabled={@loading}
+          class="btn btn-sm btn-ghost join-item"
+          aria-label="Semaine précédente"
+        >
+          <.icon name="hero-chevron-left" class="size-4" />
+        </button>
+        <button
+          id={@prefix <> "next-week"}
+          phx-click={@week_event}
+          phx-value-direction="next"
+          disabled={@loading}
+          class="btn btn-sm btn-ghost join-item"
+          aria-label="Semaine suivante"
+        >
+          <.icon name="hero-chevron-right" class="size-4" />
+        </button>
+      </div>
+      <.tooltip id={@prefix <> "today-tooltip"} text="Aller à aujourd'hui">
+        <button
+          id={@prefix <> "today-view"}
+          phx-click={@today_event}
+          disabled={@loading}
+          aria-label="Aujourd’hui"
+          aria-describedby={@prefix <> "today-tooltip"}
+          aria-pressed={to_string(@today_active)}
+          class={["btn btn-sm", if(@today_active, do: "btn-soft", else: "btn-ghost")]}
+        >
+          <.icon name="hero-calendar-days" class="size-4" />
+        </button>
+      </.tooltip>
+    </div>
+    """
+  end
+
   @doc "Shared title for application sections such as Messages and Settings."
   attr :id, :string, required: true
   attr :class, :any, default: nil
