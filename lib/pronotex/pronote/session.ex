@@ -147,7 +147,13 @@ defmodule Pronotex.Pronote.Session do
     do: {:ok, Client.children(state.client), state}
 
   defp execute({:lessons, child_id, from, to}, state) do
-    {lessons, client} = cached_read(state.client, {:lessons, child_id, from, to})
+    {lessons, client} =
+      cached_read(
+        state.client,
+        {:lessons, child_id, from, to},
+        Keyword.get(state.options, :account, "family")
+      )
+
     {:ok, lessons, %{state | client: client}}
   end
 
@@ -423,6 +429,27 @@ defmodule Pronotex.Pronote.Session do
       # Do not cache this response: the next read will retry the observation.
       require Logger
       Logger.error("Unable to persist PRONOTE grade history; next fresh read will retry")
+      :error
+  end
+
+  defp persist_read(client, {:lessons, child_id, _from, _to}, lessons, account_id) do
+    children = Client.children(client)
+    child = Enum.find(children, &(&1.id == child_id))
+
+    if child && Enum.count(children, &(&1.name == child.name)) == 1 do
+      context = %{
+        school_url: client.transport.root,
+        school_year: client.general["PremierLundi"]["V"]
+      }
+
+      {:ok, _} = Pronotex.Push.observe_cancellations(account_id, context, child, lessons)
+    end
+
+    :ok
+  rescue
+    _ ->
+      require Logger
+      Logger.error("Unable to persist PRONOTE cancellations; next fresh read will retry")
       :error
   end
 

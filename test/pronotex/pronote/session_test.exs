@@ -67,6 +67,21 @@ defmodule Pronotex.Pronote.SessionTest do
     assert length(Agent.get(agent, & &1.calls)) > length(calls)
   end
 
+  test "fresh lesson reads persist cancellation observations for the session profile" do
+    alias Pronotex.Push.Baseline
+    Pronotex.Repo.delete_all(Baseline)
+    {server, _} = session(account: "family")
+    assert {:ok, _} = Pronote.lessons("child-a", ~D[2026-09-21], ~D[2026-09-27], server)
+    assert [_] = Pronotex.Repo.all(Baseline)
+    Pronotex.Repo.delete_all(Baseline)
+    assert {:ok, _} = Pronote.lessons("child-a", ~D[2026-09-21], ~D[2026-09-27], server)
+    assert [] = Pronotex.Repo.all(Baseline)
+    Pronote.clear_cache(server)
+    assert {:ok, _} = Pronote.lessons("child-a", ~D[2026-09-21], ~D[2026-09-27], server)
+    assert [_] = Pronotex.Repo.all(Baseline)
+    Pronotex.Repo.delete_all(Baseline)
+  end
+
   test "manual refresh and logout force fresh reads" do
     {server, agent} = session()
     read = fn -> Pronote.events("child-a", server) end

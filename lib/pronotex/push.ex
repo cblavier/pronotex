@@ -1,5 +1,5 @@
 defmodule Pronotex.Push do
-  @moduledoc "Durable Web Push subscriptions, grade baselines and per-device delivery queue."
+  @moduledoc "Durable Web Push subscriptions, observation baselines and per-device delivery queue."
   import Ecto.Query
   alias Pronotex.{Accounts, Repo}
   alias Pronotex.Push.{Baseline, Delivery, Setting, Subscription}
@@ -164,6 +164,69 @@ defmodule Pronotex.Push do
     end
   end
 
+  @doc "Queues newly observed cancellations for today's lessons, once per lesson and profile."
+  def observe_cancellations(account_id, context, child, lessons, now \\ DateTime.utc_now()) do
+    if Accounts.get(account_id) do
+      local_now = local_datetime(now)
+      today = NaiveDateTime.to_date(local_now)
+      fingerprint = Accounts.fingerprint(account_id)
+
+      key =
+        digest(
+          {:cancellations, account_id, fingerprint, context.school_url, context.school_year,
+           normalize(child.name), normalize(Map.get(child, :school_name) || ""), today}
+        )
+
+      cancellations =
+        lessons
+        |> Enum.filter(
+          &(&1.canceled && NaiveDateTime.to_date(&1.start) == today &&
+              NaiveDateTime.compare(&1.end, local_now) == :gt)
+        )
+        |> Map.new(&{digest({&1.start, normalize(&1.subject || "")}), 1})
+
+      Repo.transaction(fn ->
+        previous = Repo.get(Baseline, key)
+        seen = (previous && previous.counts) || %{}
+        added = map_size(Map.drop(cancellations, Map.keys(seen)))
+        merged = Map.merge(seen, cancellations)
+
+        Repo.insert!(%Baseline{key: key, counts: merged},
+          on_conflict: [set: [counts: merged]],
+          conflict_target: :key
+        )
+
+        if added > 0 do
+          name = Pronotex.Family.first_name(child)
+          midnight = NaiveDateTime.new!(Date.add(today, 1), ~T[00:00:00])
+          [utc | _] = :calendar.local_time_to_universal_time_dst(NaiveDateTime.to_erl(midnight))
+          expires_at = utc |> NaiveDateTime.from_erl!({0, 6}) |> DateTime.from_naive!("Etc/UTC")
+
+          payload = %{
+            "title" => "Annulation de cours",
+            "body" => "Voir l'agenda de #{name}",
+            "url" => "/#{child_slug(child)}",
+            "tag" => "cancellations-" <> Ecto.UUID.generate()
+          }
+
+          enqueue(account_id, fingerprint, payload, now, expires_at)
+        end
+
+        added
+      end)
+    else
+      {:ok, 0}
+    end
+  end
+
+  defp local_datetime(now) do
+    now
+    |> DateTime.to_naive()
+    |> NaiveDateTime.to_erl()
+    |> :calendar.universal_time_to_local_time()
+    |> NaiveDateTime.from_erl!()
+  end
+
   @doc """
   Manually queues a grades notification for one child of a configured profile.
 
@@ -237,22 +300,28 @@ defmodule Pronotex.Push do
   defp enqueue_grades(account_id, fingerprint, child, period, now, subjects) do
     name = Pronotex.Family.first_name(child)
 
-    slug =
-      name
-      |> String.trim()
-      |> String.downcase()
-      |> String.replace(~r/\s+/u, "-")
-      |> URI.encode(&URI.char_unreserved?/1)
-
     payload = %{
       "title" => "#{name} a eu de nouvelles notes",
       "body" => subject_names(subjects),
       "url" =>
-        "/#{slug}/notes" <>
+        "/#{child_slug(child)}/notes" <>
           if(period, do: "?" <> URI.encode_query(%{"period" => period}), else: ""),
       "tag" => "grades-" <> Ecto.UUID.generate()
     }
 
+    enqueue(account_id, fingerprint, payload, now, DateTime.add(now, 86400, :second))
+  end
+
+  defp child_slug(child) do
+    child
+    |> Pronotex.Family.first_name()
+    |> String.trim()
+    |> String.downcase()
+    |> String.replace(~r/\s+/u, "-")
+    |> URI.encode(&URI.char_unreserved?/1)
+  end
+
+  defp enqueue(account_id, fingerprint, payload, now, expires_at) do
     Repo.all(
       from(s in Subscription,
         where: s.account_id == ^account_id and s.account_fingerprint == ^fingerprint
@@ -263,7 +332,7 @@ defmodule Pronotex.Push do
         subscription_id: sub.id,
         payload: payload,
         due_at: now,
-        expires_at: DateTime.add(now, 86400, :second)
+        expires_at: expires_at
       })
     end)
     |> length()

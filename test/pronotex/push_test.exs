@@ -43,6 +43,136 @@ defmodule Pronotex.PushTest do
     def handle_call(:children, _, children), do: {:reply, {:ok, children}, children}
   end
 
+  defp cancelled_lesson(overrides \\ %{}) do
+    struct!(
+      Pronotex.Pronote.Lesson,
+      Map.merge(
+        %{
+          id: "rotates",
+          subject: "Maths",
+          canceled: true,
+          start: ~N[2026-09-23 16:00:00],
+          end: ~N[2026-09-23 17:00:00]
+        },
+        overrides
+      )
+    )
+  end
+
+  test "same-day cancellations notify every device of the matching profile", c do
+    subscribe()
+    subscribe("family", "second")
+    subscribe("child-1", "other")
+    child = %{c.child | name: "TEST Victor", first_name: "Victor"}
+
+    assert {:ok, 1} =
+             Push.observe_cancellations("family", c.context, child, [cancelled_lesson()], @now)
+
+    assert [first, second] = Repo.all(Delivery)
+    assert first.payload == second.payload
+    assert first.payload["title"] == "Annulation de cours"
+    assert first.payload["body"] == "Voir l'agenda de Victor"
+    assert first.payload["url"] == "/victor"
+    assert first.payload["tag"] =~ "cancellations-"
+    assert DateTime.compare(first.expires_at, @now) == :gt
+    assert DateTime.diff(first.expires_at, @now) < 86400
+  end
+
+  test "cancellations ignore past, future, ended and active lessons", c do
+    subscribe()
+
+    lessons = [
+      cancelled_lesson(%{canceled: false}),
+      cancelled_lesson(%{start: ~N[2026-09-22 16:00:00], end: ~N[2026-09-22 17:00:00]}),
+      cancelled_lesson(%{start: ~N[2026-09-24 16:00:00], end: ~N[2026-09-24 17:00:00]}),
+      cancelled_lesson(%{start: ~N[2026-09-23 06:00:00], end: ~N[2026-09-23 07:00:00]})
+    ]
+
+    assert {:ok, 0} = Push.observe_cancellations("family", c.context, c.child, lessons, @now)
+    assert Repo.all(Delivery) == []
+
+    assert {:ok, 1} =
+             Push.observe_cancellations("family", c.context, c.child, [cancelled_lesson()], @now)
+  end
+
+  test "cancellations survive ID rotation, disappearance, repeat reads and delivery", c do
+    subscribe()
+    lesson = cancelled_lesson()
+
+    assert {:ok, 1} =
+             Push.observe_cancellations("family", c.context, c.child, [lesson, lesson], @now)
+
+    Push.deliver_pending(fn _, _ -> :ok end, @now)
+    assert Repo.all(Delivery) == []
+    assert {:ok, 0} = Push.observe_cancellations("family", c.context, c.child, [], @now)
+
+    assert {:ok, 0} =
+             Push.observe_cancellations(
+               "family",
+               %{c.context | period: "semester2"},
+               c.child,
+               [%{lesson | id: "new-id"}],
+               @now
+             )
+
+    assert Repo.all(Delivery) == []
+    other = cancelled_lesson(%{start: ~N[2026-09-23 17:00:00], end: ~N[2026-09-23 18:00:00]})
+
+    assert {:ok, 1} =
+             Push.observe_cancellations("family", c.context, c.child, [lesson, other], @now)
+
+    assert [_] = Repo.all(Delivery)
+  end
+
+  test "future cancellations alert on their day and children are independent", c do
+    subscribe()
+    lesson = cancelled_lesson(%{start: ~N[2026-09-24 16:00:00], end: ~N[2026-09-24 17:00:00]})
+    assert {:ok, 0} = Push.observe_cancellations("family", c.context, c.child, [lesson], @now)
+    tomorrow = DateTime.add(@now, 86400)
+    assert {:ok, 1} = Push.observe_cancellations("family", c.context, c.child, [lesson], tomorrow)
+    child2 = %{c.child | name: "TEST Victor", first_name: "Victor"}
+    assert {:ok, 1} = Push.observe_cancellations("family", c.context, child2, [lesson], tomorrow)
+    assert length(Repo.all(Delivery)) == 2
+    Push.deliver_pending(fn _, _ -> flunk("expired") end, DateTime.add(tomorrow, 86400))
+    assert Repo.all(Delivery) == []
+  end
+
+  test "cancellation day and expiry use the school server's local calendar", c do
+    subscribe()
+    [utc | _] = :calendar.local_time_to_universal_time_dst({{2026, 9, 24}, {0, 15, 0}})
+    now = utc |> NaiveDateTime.from_erl!({0, 6}) |> DateTime.from_naive!("Etc/UTC")
+    lesson = cancelled_lesson(%{start: ~N[2026-09-24 08:00:00], end: ~N[2026-09-24 09:00:00]})
+    assert {:ok, 1} = Push.observe_cancellations("family", c.context, c.child, [lesson], now)
+    [delivery] = Repo.all(Delivery)
+
+    local_expiry =
+      delivery.expires_at
+      |> DateTime.to_naive()
+      |> NaiveDateTime.to_erl()
+      |> :calendar.universal_time_to_local_time()
+
+    assert local_expiry == {{2026, 9, 25}, {0, 0, 0}}
+  end
+
+  test "multiple new cancellations are grouped and grade baselines remain separate", c do
+    subscribe()
+    lesson = cancelled_lesson()
+
+    assert {:ok, 2} =
+             Push.observe_cancellations(
+               "family",
+               c.context,
+               c.child,
+               [lesson, %{lesson | subject: "Anglais"}],
+               @now
+             )
+
+    assert [_] = Repo.all(Delivery)
+    assert {:ok, 0} = Push.observe("family", c.context, c.child, %{grades: [c.grade]}, @now)
+    assert {:ok, 0} = Push.observe_cancellations("missing", c.context, c.child, [lesson], @now)
+    assert [_] = Repo.all(Delivery)
+  end
+
   test "manual notification targets subscribed devices without changing observations", c do
     subscribe()
     subscribe("family", "second-device")

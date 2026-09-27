@@ -87,7 +87,13 @@ defmodule Pronotex.Pronote.BackgroundRefresh do
 
   defp refresh_active_account(account, options, allowed?) do
     server = Keyword.get_lazy(options, :server, fn -> Session.for_account(account.id) end)
-    today = Keyword.get(options, :today, Date.utc_today())
+
+    today =
+      Keyword.get_lazy(options, :today, fn ->
+        {date, _time} = :calendar.local_time()
+        Date.from_erl!(date)
+      end)
+
     week = Date.beginning_of_week(today)
     ReadCache.invalidate({:owner_kinds, server, @kinds})
 
