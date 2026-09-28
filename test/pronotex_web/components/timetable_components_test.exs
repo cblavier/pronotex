@@ -39,11 +39,25 @@ defmodule PronotexWeb.TimetableComponentsTest do
     assert Enum.all?(Floki.attribute(cards, "style"), &String.contains?(&1, "width: 100"))
   end
 
-  defp cards(lessons) do
+  test "only the current active lesson is highlighted, from start inclusive to end exclusive" do
+    active = lesson("Maths")
+    inactive = Map.put(lesson("Anglais"), :inactive_cycle, "A")
+    canceled = %{active | canceled: true}
+
+    assert cards([active, inactive]) |> Floki.find("[aria-current=time]") |> length() == 1
+    assert cards([active], ~N[2026-09-21 09:00:00]) |> Floki.attribute("aria-current") == ["time"]
+    assert cards([active], ~N[2026-09-21 08:59:59]) |> Floki.find("[aria-current=time]") == []
+    assert cards([active], ~N[2026-09-21 10:00:00]) |> Floki.find("[aria-current=time]") == []
+    assert cards([active], ~N[2026-09-22 09:30:00]) |> Floki.find("[aria-current=time]") == []
+    assert cards([canceled]) |> Floki.find("[aria-current=time]") == []
+  end
+
+  defp cards(lessons, now \\ ~N[2026-09-21 09:30:00]) do
     render_component(&TimetableComponents.week_timetable/1,
       lessons: lessons,
       monday: ~D[2026-09-21],
       today: ~D[2026-09-21],
+      now: now,
       loading: false,
       cycle: "B"
     )

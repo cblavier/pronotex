@@ -8,6 +8,7 @@ defmodule PronotexWeb.TimetableComponents do
   attr :error, :any, default: nil
   attr :warning, :any, default: nil
   attr :today, :any, required: true
+  attr :now, :any, required: true
   attr :cycle, :string, default: nil
 
   def week_timetable(assigns) do
@@ -88,6 +89,7 @@ defmodule PronotexWeb.TimetableComponents do
                   Map.get(lesson, :inactive_cycle) && "week-lesson-inactive"
                 ]}
                 data-inactive-cycle={Map.get(lesson, :inactive_cycle)}
+                aria-current={current_lesson?(lesson, @now, @loading) && "time"}
                 title={
                   if Map.get(lesson, :reference_date),
                     do:
@@ -134,6 +136,12 @@ defmodule PronotexWeb.TimetableComponents do
       </div>
     </dialog>
     """
+  end
+
+  defp current_lesson?(lesson, now, loading) do
+    !loading && !lesson.canceled && !Map.get(lesson, :inactive_cycle) &&
+      NaiveDateTime.compare(now, lesson.start) != :lt &&
+      NaiveDateTime.compare(now, lesson.end) == :lt
   end
 
   def timetable_today(date) do

@@ -1,6 +1,7 @@
 defmodule Pronotex.Push do
   @moduledoc "Durable Web Push subscriptions, observation baselines and per-device delivery queue."
   import Ecto.Query
+  require Logger
   alias Pronotex.{Accounts, Repo}
   alias Pronotex.Push.{Baseline, Delivery, Setting, Subscription}
 
@@ -191,6 +192,43 @@ defmodule Pronotex.Push do
         added = map_size(Map.drop(cancellations, Map.keys(seen)))
         merged = Map.merge(seen, cancellations)
 
+        if map_size(merged) > 0 do
+          Logger.info(fn ->
+            snapshot =
+              lessons
+              |> Enum.filter(&(NaiveDateTime.to_date(&1.start) == today))
+              |> Enum.map(fn lesson ->
+                %{
+                  key: digest({lesson.start, normalize(lesson.subject || "")}),
+                  subject: lesson.subject,
+                  start: lesson.start,
+                  end: lesson.end,
+                  canceled: lesson.canceled,
+                  overlaps_active:
+                    lesson.canceled &&
+                      Enum.any?(lessons, fn other ->
+                        !other.canceled && NaiveDateTime.compare(lesson.start, other.end) == :lt &&
+                          NaiveDateTime.compare(other.start, lesson.end) == :lt
+                      end)
+                }
+              end)
+
+            "Cancellation observation " <>
+              inspect(
+                %{
+                  observation: key,
+                  account: account_id,
+                  child: child_slug(child),
+                  local_now: local_now,
+                  new_keys: Map.keys(Map.drop(cancellations, Map.keys(seen))),
+                  seen_keys: Map.keys(seen),
+                  lessons: snapshot
+                },
+                limit: :infinity
+              )
+          end)
+        end
+
         Repo.insert!(%Baseline{key: key, counts: merged},
           on_conflict: [set: [counts: merged]],
           conflict_target: :key
@@ -209,7 +247,17 @@ defmodule Pronotex.Push do
             "tag" => "cancellations-" <> Ecto.UUID.generate()
           }
 
-          enqueue(account_id, fingerprint, payload, now, expires_at)
+          queued = enqueue(account_id, fingerprint, payload, now, expires_at)
+
+          Logger.info(
+            "Cancellation queued " <>
+              inspect(%{
+                observation: key,
+                tag: payload["tag"],
+                devices: queued,
+                expires_at: expires_at
+              })
+          )
         end
 
         added
@@ -364,6 +412,26 @@ defmodule Pronotex.Push do
               rescue
                 _ -> {:error, :send_failed}
               end
+
+            if String.starts_with?(delivery.payload["tag"] || "", "cancellations-") do
+              outcome =
+                case result do
+                  :ok -> :sent
+                  {:error, :gone} -> :subscription_gone
+                  _ -> :failed
+                end
+
+              Logger.info(
+                "Cancellation delivery " <>
+                  inspect(%{
+                    tag: delivery.payload["tag"],
+                    delivery: delivery.id,
+                    subscription: sub.id,
+                    attempt: delivery.attempts + 1,
+                    outcome: outcome
+                  })
+              )
+            end
 
             case result do
               :ok ->
