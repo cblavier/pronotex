@@ -35,10 +35,9 @@ defmodule PronotexWeb.TimetableComponents do
       aria-labelledby="week-overview-title"
     >
       <div class="week-overview-surface" tabindex="-1" autofocus>
+        <.rotate_phone_prompt />
         <header class="week-overview-header lg:hidden">
-          <button type="button" phx-click="close-week-overview" class="lesson-back-link">
-            <.icon name="hero-chevron-left" class="size-4" /> Retour à l’agenda
-          </button>
+          <.back_link event="close-week-overview" label="Retour à l’agenda" />
           <.week_selector
             id="overview-date-navigation"
             label_id="week-overview-title"
@@ -135,6 +134,28 @@ defmodule PronotexWeb.TimetableComponents do
         </div>
       </div>
     </dialog>
+    """
+  end
+
+  defp rotate_phone_prompt(assigns) do
+    ~H"""
+    <div class="week-rotate-prompt">
+      <svg
+        viewBox="0 0 160 160"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        role="img"
+        aria-label="Tournez votre téléphone en paysage pour afficher l’agenda de la semaine"
+      >
+        <rect x="55" y="37" width="50" height="86" rx="8" transform="rotate(35 80 80)" />
+        <path d="M73 47h14M77 112h6" transform="rotate(35 80 80)" />
+        <path d="M30 78a51 51 0 0 1 75-43m-1-13 3 14-14 3M130 82a51 51 0 0 1-75 43m1 13-3-14 14-3" />
+      </svg>
+      <p>Emploi du temps visible en mode paysage</p>
+    </div>
     """
   end
 

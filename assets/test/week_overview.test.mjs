@@ -11,7 +11,7 @@ function mount(desktop) {
   const schedule = fn => { pending.set(++sequence, fn); return sequence }
   const viewportListeners = new Map()
   globalThis.window = {
-    matchMedia: () => media, innerWidth: 390, innerHeight: 844,
+    matchMedia: query => { media.query = query; return media }, innerWidth: 390, innerHeight: 844,
     addEventListener: (name, fn) => listeners.set(name, fn),
     removeEventListener: name => listeners.delete(name),
     setTimeout: schedule, clearTimeout: id => pending.delete(id),
@@ -75,7 +75,7 @@ test("rotation keeps content hidden until dimensions settle, including during li
   assert.equal(viewportListeners.size, 0)
 })
 
-test("mobile stays modal and adapts when the viewport crosses the desktop breakpoint", () => {
+test("landscape mobile stays modal and adapts when the viewport crosses the desktop breakpoint", () => {
   const {hook, media, events} = mount(false)
   assert.equal(hook.el.presentation, "modal")
   assert.equal(document.body.style.overflow, "hidden")
@@ -91,4 +91,21 @@ test("mobile stays modal and adapts when the viewport crosses the desktop breakp
   hook.destroyed()
   assert.equal(document.body.style.overflow, "auto")
   assert.equal(media.change, null)
+})
+
+test("portrait keeps navigation interactive and restores the weekly modal only in landscape", () => {
+  const {hook, media} = mount(true)
+  assert.ok(media.query.split(", ").includes("(orientation: portrait)"))
+  assert.equal(hook.el.presentation, "inline")
+  assert.equal(document.body.style.overflow, "auto")
+  media.matches = false
+  media.change()
+  assert.equal(hook.el.presentation, "modal")
+  assert.equal(document.body.style.overflow, "hidden")
+  media.matches = true
+  media.change()
+  hook.updated()
+  assert.equal(hook.el.presentation, "inline")
+  assert.equal(document.body.style.overflow, "auto")
+  hook.destroyed()
 })

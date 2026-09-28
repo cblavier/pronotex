@@ -2,9 +2,9 @@ export const WeekOverview = {
   mounted() {
     this.previousFocus = document.activeElement
     this.previousOverflow = document.body.style.overflow
-    this.desktop = window.matchMedia("(min-width: 768px) and (min-height: 600px), (min-width: 1024px) and (hover: hover) and (pointer: fine)")
+    this.inlinePresentation = window.matchMedia("(orientation: portrait), (min-width: 768px) and (min-height: 600px), (min-width: 1024px) and (hover: hover) and (pointer: fine)")
     this.syncPresentation = () => {
-      const modal = !this.desktop.matches
+      const modal = !this.inlinePresentation.matches
       if (this.el.open && this.modal !== modal) this.el.close()
       document.body.style.overflow = modal ? "hidden" : this.previousOverflow
       if (!this.el.open) {
@@ -43,7 +43,7 @@ export const WeekOverview = {
     window.addEventListener("resize", this.onResize)
     window.addEventListener("orientationchange", this.onResize)
     window.visualViewport?.addEventListener("resize", this.onResize)
-    this.desktop.addEventListener("change", this.syncPresentation)
+    this.inlinePresentation.addEventListener("change", this.syncPresentation)
     this.syncPresentation()
   },
   updated() {
@@ -56,7 +56,7 @@ export const WeekOverview = {
     window.removeEventListener("orientationchange", this.onResize)
     window.visualViewport?.removeEventListener("resize", this.onResize)
     this.el.removeEventListener("cancel", this.onCancel)
-    this.desktop.removeEventListener("change", this.syncPresentation)
+    this.inlinePresentation.removeEventListener("change", this.syncPresentation)
     this.el.close()
     document.body.style.overflow = this.previousOverflow
     if (this.previousFocus?.isConnected) this.previousFocus.focus()

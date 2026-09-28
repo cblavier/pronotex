@@ -602,7 +602,7 @@ defmodule PronotexWeb.DashboardLiveTest do
       assert has_element?(view, "#week-overview .week-column", "21/09")
       assert has_element?(view, "#today-view[aria-pressed=true]")
       assert has_element?(view, "#overview-today-view[aria-pressed=true]")
-      view |> element("#week-overview button[phx-click=close-week-overview]") |> render_click()
+      view |> element("#week-overview a[phx-click=close-week-overview]") |> render_click()
       assert_patch(view, "/alice")
       render_async(view)
       assert has_element?(view, "#today-view[aria-pressed=true]")
@@ -649,7 +649,7 @@ defmodule PronotexWeb.DashboardLiveTest do
              |> Floki.find("#week-overview .week-column")
            ) == 5
 
-    view |> element("#week-overview button[phx-click=close-week-overview]") |> render_click()
+    view |> element("#week-overview a[phx-click=close-week-overview]") |> render_click()
     refute has_element?(view, "#week-overview")
     refute has_element?(view, "#date-navigation .week-cycle-label")
     assert has_element?(view, "#open-week-overview")
@@ -662,7 +662,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     view |> element("#open-week-overview") |> render_click()
     render_async(view)
     assert has_element?(view, "#week-overview-title", "(A)")
-    assert has_element?(view, "#week-overview button", "Retour à l’agenda")
+    assert has_element?(view, "#week-overview a.lesson-back-link", "Retour à l’agenda")
     assert has_element?(view, "#overview-today-view[aria-label='Aujourd’hui']")
     assert has_element?(view, "[data-inactive-cycle=B]", "Cours B")
     refute has_element?(view, ".week-lesson-inactive", "Maths")
@@ -686,7 +686,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     render_async(view)
     assert has_element?(view, "#week-overview-title", "(A)")
     assert has_element?(view, "#overview-today-view[aria-pressed=true]")
-    view |> element("#week-overview button[phx-click=close-week-overview]") |> render_click()
+    view |> element("#week-overview a[phx-click=close-week-overview]") |> render_click()
     assert has_element?(view, "#responsive-header[data-page-url='/alice']")
   end
 
