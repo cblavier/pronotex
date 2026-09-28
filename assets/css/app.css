@@ -796,6 +796,8 @@ html { touch-action: manipulation; }
   position: absolute; inset: var(--trend-inset); z-index: 0; color: var(--day-ink);
 }
 .overall-trend > svg { display: block; width: 100%; height: 100%; opacity: 0.8; }
+.subject-averages-scroll { scrollbar-width: none; }
+.subject-averages-scroll::-webkit-scrollbar { display: none; }
 @media (width >= 640px) {
   .overall-summary { --trend-inset: 1.5rem; }
 }

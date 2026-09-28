@@ -74,10 +74,10 @@ defmodule Pronotex.Pronote.GradeTrendTest do
 
     document = Floki.parse_fragment!(html)
     assert Floki.attribute(document, ".class-average-trend", "stroke") == ["#d1d5db"]
-    assert Floki.attribute(document, "svg > path", "d") == ["M 300.0 70.0"]
+    assert Floki.attribute(document, "svg > path", "d") == ["M 300.0 45.14"]
 
     assert Floki.attribute(document, ".class-average-trend path", "d") ==
-             ["M 12.0 128.0 C 300.0 128.0, 300.0 70.0, 588.0 70.0"]
+             ["M 12.0 128.0 C 300.0 128.0, 300.0 45.14, 588.0 45.14"]
 
     html = render_component(&GradeTrendChart.chart/1, points: [], class_points: [{first, 12.0}])
     assert html =~ "class-average-trend"

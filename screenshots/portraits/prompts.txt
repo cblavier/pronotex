@@ -1,0 +1,7 @@
+Generated with the built-in image_gen tool. Entirely fictional identities.
+
+Alice:
+Use case: photorealistic-natural. Create a single square school profile photo of an entirely fictional French schoolgirl Alice, age 12. Friendly natural smile, shoulder-length chestnut hair, blue casual sweater, head and shoulders centered, simple softly blurred pale blue background, natural daylight, realistic age appropriate school portrait, clear recognizable face in small circular crop, no text, no watermark. Save the generated image.
+
+Marius:
+Use case: photorealistic-natural. Create one square realistic school profile photograph of an entirely fictional boy Marius, age 14, brother of a chestnut-haired girl. Short slightly tousled chestnut hair, subtle freckles, friendly natural smile, green crew-neck sweater, head and shoulders centered, softly blurred pale sage background, natural daylight. Age appropriate everyday French middle-school portrait, clear face readable in tiny circular profile picture, no text or watermark.

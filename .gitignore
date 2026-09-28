@@ -97,3 +97,7 @@ id_ed25519
 
 # Personal avatars (local only)
 /priv/static/images/avatars/
+
+screenshots/*.zip
+screenshots/originaux
+screenshots/apercus

@@ -108,8 +108,8 @@ defmodule PronotexWeb.GradeTrendChart do
     {first, _} = Enum.min_by(domain, fn {date, _} -> elapsed(date, elem(hd(domain), 0)) end)
     {last, _} = Enum.max_by(domain, fn {date, _} -> elapsed(date, first) end)
     duration = max(elapsed(last, first), 1)
-    lower_bound = domain |> Enum.map(&elem(&1, 1)) |> Enum.min()
-    score_range = max(20 - lower_bound, 1)
+    {lower_bound, maximum} = domain |> Enum.map(&elem(&1, 1)) |> Enum.min_max()
+    score_range = maximum + 2 - lower_bound
 
     Enum.map(points, fn {date, value} ->
       {Float.round(12 + elapsed(date, first) / duration * 576, 2),

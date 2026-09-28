@@ -19,53 +19,36 @@ La simplicité est la priorité, toutes les fonctionnalités de pronote ne seron
 
 ## Techno
 
-Développée avec Elixir et Phoenix LiveView. L'historique des notes et moyennes utilise SQLite.
-
-Code massivement généré par intelligence artificielle (OpenAI Codex).
-
-Prévu pour tourner avec Docker en production.
-
-## Roadmap
-
-- [x] emploi du temps
-- [x] liste des devoirs 
-- [x] liste des notes
-- [x] menu de la cantine
-- [x] évènements
-- [x] version mobile
-- [x] thèmes jours / nuits
-- [x] marquer les devoirs faits
-- [x] sécurisation avec code PIN
-- [x] mode PWA (ajouter l'app à l'accueil du smartphone)
-- [x] consulter les messages des enfants
-- [x] consulter les messages des parents
-- [x] comptes famille, enfants et parents séparés (pincode individuels)
-- [x] consulter les resources associées aux devoirs
-- [x] mettre un cache en lecture sur les API pronote
-- [x] améliorer les écrans de notes et moyennes
-- [x] push notif nouvelle note
-- [x] semainier
-- [ ] contacter la vie scolaire (parent)
-- [ ] push notif prof absent
-- [ ] push notif nouveau message
+- Elixir + Phoenix LiveView. L'historique des notes et moyennes utilise SQLite.
+- Code massivement généré par intelligence artificielle (OpenAI Codex).
+- Prévu pour tourner avec Docker en production.
 
 ## Screenshots
 
+Captures avec des données et des portraits fictifs. [Voir le répertoire screenshots](screenshots/).
+
 ### Desktop
 
-![Vue desktop 1 de Captain Notes](screenshots/desktop-01.jpg)
+![Agenda d’Alice avec une notification pour Marius — desktop](screenshots/alice/desktop-agenda.png)
 
-![Vue desktop 2 de Captain Notes](screenshots/desktop-02.jpg)
+![Emploi du temps de la semaine — desktop](screenshots/alice/desktop-timetable.png)
 
-![Vue desktop 3 de Captain Notes](screenshots/desktop-03.jpg)
+![Devoirs — desktop](screenshots/alice/desktop-devoirs.png)
+
+![Dernières notes et moyennes — desktop](screenshots/alice/desktop-notes.png)
 
 ### Mobile
 
 <p>
-  <img src="screenshots/mobile-01.jpg" alt="Vue mobile 1 de Captain Notes" width="250" />
-  <img src="screenshots/mobile-02.jpg" alt="Vue mobile 2 de Captain Notes" width="250" />
-  <img src="screenshots/mobile-03.jpg" alt="Vue mobile 3 de Captain Notes" width="250" />
+  <img src="screenshots/alice/mobile-agenda.png" alt="Agenda d’Alice avec une notification pour Marius — mobile" width="250" />
+  <img src="screenshots/alice/mobile-devoirs.png" alt="Devoirs — mobile" width="250" />
+  <img src="screenshots/alice/mobile-notes-dernieres.png" alt="Dernières notes — mobile" width="250" />
+  <img src="screenshots/alice/mobile-notes-moyennes.png" alt="Moyennes — mobile" width="250" />
+  <img src="screenshots/alice/mobile-messages.png" alt="Messages — mobile" width="250" />
+  <img src="screenshots/alice/mobile-menu.png" alt="Menu de la cantine — mobile" width="250" />
 </p>
+
+![Emploi du temps de la semaine — mobile en paysage](screenshots/alice/mobile-timetable.png)
 
 ## Lancer le projet en local
 
