@@ -499,6 +499,54 @@ defmodule PronotexWeb.DashboardLiveTest do
     :ok
   end
 
+  test "received banners show the right child and destination and reject foreign profiles", %{
+    conn: conn
+  } do
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    scope = Pronotex.Push.inbox_scope("family")
+
+    notes = %{
+      "scope" => scope,
+      "tag" => "notes-1",
+      "kind" => "grades",
+      "url" => "/alice/notes?period=s1"
+    }
+
+    cancellation = %{
+      "scope" => scope,
+      "tag" => "cancel-1",
+      "kind" => "cancellation",
+      "url" => "/basile"
+    }
+
+    render_hook(view, "received-notifications", %{
+      "notifications" => [
+        notes,
+        cancellation,
+        %{notes | "scope" => "other", "tag" => "foreign"},
+        %{notes | "url" => "https://evil.test/alice/notes", "tag" => "external"}
+      ]
+    })
+
+    assert has_element?(view, "#notification-banners .notification-banner", "Nouvelles notes")
+
+    assert has_element?(
+             view,
+             ~s([data-notification-tag="notes-1"] a[href="/alice/notes?period=s1"]),
+             "Voir"
+           )
+
+    assert has_element?(view, ~s([data-notification-tag="cancel-1"] [aria-label="Basile"]))
+    assert has_element?(view, ~s([data-notification-tag="cancel-1"] a[href="/basile"]))
+    refute has_element?(view, ~s([data-notification-tag="foreign"]))
+    refute has_element?(view, ~s([data-notification-tag="external"]))
+
+    render_hook(view, "received-notifications", %{"notifications" => [cancellation]})
+    refute has_element?(view, ~s([data-notification-tag="notes-1"]))
+    assert has_element?(view, ~s([data-notification-tag="cancel-1"]))
+  end
+
   test "initial HTTP render includes the requested page's content", %{conn: conn} do
     for {path, selector, text} <- [
           {"/alice/notes", "#grade-list", "Maths a"},

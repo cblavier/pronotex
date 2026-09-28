@@ -181,9 +181,9 @@ defmodule Pronotex.PushTest do
     assert {:ok, %{queued: 2}} = Push.notify_grades("family", "edgar", server: server)
     assert [first, second] = Repo.all(Delivery)
     assert first.payload == second.payload
-    assert first.payload["title"] == "Edgar a eu de nouvelles notes"
+    assert first.payload["title"] == "Nouvelle notes"
     assert first.payload["url"] == "/edgar/notes"
-    assert first.payload["body"] == ""
+    assert first.payload["body"] == "Voir les notes de Edgar"
     assert Repo.all(Baseline) == []
 
     assert {:ok, %{queued: 2}} =
@@ -228,14 +228,14 @@ defmodule Pronotex.PushTest do
     assert {:ok, 2} = Push.observe("family", c.context, c.child, next, @now)
     deliveries = Repo.all(Delivery)
     assert length(deliveries) == 2
-    assert Enum.all?(deliveries, &(&1.payload["title"] == "Edgar a eu de nouvelles notes"))
+    assert Enum.all?(deliveries, &(&1.payload["title"] == "Nouvelle notes"))
     assert Enum.all?(deliveries, &(&1.payload["url"] == "/edgar/notes?period=semester1"))
     assert deliveries |> Enum.map(& &1.payload["tag"]) |> Enum.uniq() |> length() == 1
     assert {:ok, 0} = Push.observe("family", c.context, c.child, next, @now)
     assert length(Repo.all(Delivery)) == 2
   end
 
-  test "notification lists only new subjects, strips subdivisions and deduplicates", c do
+  test "notification body directs to the child grades regardless of subjects", c do
     subscribe()
     Push.observe("family", c.context, c.child, %{grades: [c.grade]}, @now)
 
@@ -254,21 +254,18 @@ defmodule Pronotex.PushTest do
              Push.observe("family", c.context, c.child, %{grades: [c.grade | new_grades]}, @now)
 
     assert [delivery] = Repo.all(Delivery)
-    assert delivery.payload["body"] == "ESPAGNOL LV2, ANGLAIS LV1"
+    assert delivery.payload["body"] == "Voir les notes de Edgar"
   end
 
-  test "manual notification accepts subjects without reading grades", c do
+  test "manual notification directs to the child grades without reading grades", c do
     subscribe()
     server = start_supervised!({ChildrenSession, [c.child]})
 
     assert {:ok, %{queued: 1}} =
-             Push.notify_grades("family", "Edgar",
-               server: server,
-               subjects: ["Maths > Algèbre", "maths > Géométrie", "Anglais", " > Vide"]
-             )
+             Push.notify_grades("family", "Edgar", server: server)
 
     assert [delivery] = Repo.all(Delivery)
-    assert delivery.payload["body"] == "Maths, Anglais"
+    assert delivery.payload["body"] == "Voir les notes de Edgar"
     assert Repo.all(Baseline) == []
   end
 
@@ -310,8 +307,8 @@ defmodule Pronotex.PushTest do
       Push.observe("family", c.context, child, %{grades: [c.grade]}, @now)
     end
 
-    assert Enum.sort(Enum.map(Repo.all(Delivery), & &1.payload["title"])) ==
-             ["Edgar a eu de nouvelles notes", "Victor a eu de nouvelles notes"]
+    assert Enum.sort(Enum.map(Repo.all(Delivery), & &1.payload["body"])) ==
+             ["Voir les notes de Edgar", "Voir les notes de Victor"]
 
     assert {:ok, 0} =
              Push.observe(

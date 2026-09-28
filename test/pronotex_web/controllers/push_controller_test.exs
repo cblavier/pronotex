@@ -72,7 +72,8 @@ defmodule PronotexWeb.PushControllerTest do
   test "worker is public and does not cache private pages" do
     body = build_conn() |> get("/push-sw.js") |> response(200)
     assert body =~ "notificationclick"
-    refute body =~ "caches.open"
+    refute body =~ ~s(addEventListener("fetch")
+    assert body =~ ~s(const inboxCache = "received-push-v1")
     assert body =~ "target.origin === self.location.origin"
   end
 end

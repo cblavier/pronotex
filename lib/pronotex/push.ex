@@ -147,15 +147,7 @@ defmodule Pronotex.Push do
         )
 
         if added > 0 do
-          subjects =
-            report.grades
-            |> Enum.filter(fn grade ->
-              bucket = digest({grade.date, normalize(grade.subject)})
-              counts[bucket] > Map.get(previous.counts, bucket, 0)
-            end)
-            |> Enum.map(& &1.subject)
-
-          enqueue_grades(account_id, fingerprint, child, context.period, now, subjects)
+          enqueue_grades(account_id, fingerprint, child, context.period, now)
         end
 
         added
@@ -242,6 +234,8 @@ defmodule Pronotex.Push do
 
           payload = %{
             "title" => "Annulation de cours",
+            "scope" => inbox_scope(account_id),
+            "kind" => "cancellation",
             "body" => "Voir l'agenda de #{name}",
             "url" => "/#{child_slug(child)}",
             "tag" => "cancellations-" <> Ecto.UUID.generate()
@@ -279,11 +273,10 @@ defmodule Pronotex.Push do
   Manually queues a grades notification for one child of a configured profile.
 
       Pronotex.Push.notify_grades("family", "Edgar")
-      Pronotex.Push.notify_grades("family", "Edgar", period: "semester1", subjects: ["Maths", "Anglais"])
+      Pronotex.Push.notify_grades("family", "Edgar", period: "semester1")
 
   Resolves the child by first or full name (case-insensitive) through that
   profile's PRONOTE session. Does not fetch or modify grades, history or baselines.
-  The optional `:subjects` list supplies the notification body; omitted means an empty body.
   Returns `{:ok, %{queued: count}}`, not a delivery receipt. Errors include
   `:unknown_account`, `:child_not_found`, `:ambiguous_child`, `:no_subscriptions`
   and `:pronote_unavailable`. Each explicit call creates a new notification.
@@ -300,8 +293,7 @@ defmodule Pronotex.Push do
               Accounts.fingerprint(account.id),
               child,
               Keyword.get(options, :period),
-              DateTime.utc_now(),
-              Keyword.get(options, :subjects, [])
+              DateTime.utc_now()
             )
 
           if count == 0, do: Repo.rollback(:no_subscriptions)
@@ -345,12 +337,24 @@ defmodule Pronotex.Push do
     end
   end
 
-  defp enqueue_grades(account_id, fingerprint, child, period, now, subjects) do
+  def inbox_scope(account_id) do
+    :crypto.mac(
+      :hmac,
+      :sha256,
+      PronotexWeb.Endpoint.config(:secret_key_base),
+      :erlang.term_to_binary({account_id, Accounts.fingerprint(account_id)})
+    )
+    |> Base.url_encode64(padding: false)
+  end
+
+  defp enqueue_grades(account_id, fingerprint, child, period, now) do
     name = Pronotex.Family.first_name(child)
 
     payload = %{
-      "title" => "#{name} a eu de nouvelles notes",
-      "body" => subject_names(subjects),
+      "title" => "Nouvelle notes",
+      "scope" => inbox_scope(account_id),
+      "kind" => "grades",
+      "body" => "Voir les notes de #{name}",
       "url" =>
         "/#{child_slug(child)}/notes" <>
           if(period, do: "?" <> URI.encode_query(%{"period" => period}), else: ""),
@@ -384,14 +388,6 @@ defmodule Pronotex.Push do
       })
     end)
     |> length()
-  end
-
-  defp subject_names(subjects) do
-    subjects
-    |> Enum.map(fn subject -> subject |> String.split(">", parts: 2) |> hd() |> String.trim() end)
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.uniq_by(&normalize/1)
-    |> Enum.join(", ")
   end
 
   def deliver_pending(sender \\ &Pronotex.Push.Sender.send/2, now \\ DateTime.utc_now()) do

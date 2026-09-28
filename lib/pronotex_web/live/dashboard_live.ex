@@ -1,6 +1,7 @@
 defmodule PronotexWeb.DashboardLive do
   use PronotexWeb, :live_view
   import PronotexWeb.TimetableComponents
+  import PronotexWeb.NotificationComponents
 
   @impl true
   def mount(_params, _session, socket) do
@@ -12,6 +13,7 @@ defmodule PronotexWeb.DashboardLive do
       socket
       |> assign(
         page_title: "Mon agenda",
+        received_notifications: [],
         section: "agenda",
         discussions: [],
         messages_loading: false,
@@ -175,6 +177,23 @@ defmodule PronotexWeb.DashboardLive do
   end
 
   @impl true
+  def handle_event("received-notifications", %{"notifications" => notifications}, socket)
+      when is_list(notifications) do
+    scope = Pronotex.Push.inbox_scope(socket.assigns.account.id)
+
+    notifications =
+      Enum.filter(notifications, fn
+        %{"tag" => tag, "scope" => ^scope, "kind" => kind, "url" => url}
+        when is_binary(tag) and is_binary(url) and kind in ["grades", "cancellation"] ->
+          true
+
+        _ ->
+          false
+      end)
+
+    {:noreply, assign(socket, :received_notifications, notifications)}
+  end
+
   def handle_event(_event, _params, %{assigns: %{loading: true}} = socket),
     do: {:noreply, socket}
 

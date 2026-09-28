@@ -173,6 +173,12 @@
       </details>
     </header>
 
+    <.notification_banners
+      notifications={@received_notifications}
+      children={@children}
+      scope={Pronotex.Push.inbox_scope(@account.id)}
+    />
+
     <div
       id="dashboard-navigation"
       class="mb-6 flex flex-wrap items-center justify-between gap-x-3 border-b border-base-300 text-[var(--muted-ink)]"
@@ -544,7 +550,7 @@
                       id="open-week-overview"
                       type="button"
                       phx-click="open-week-overview"
-                      class="btn btn-sm btn-soft agenda-fullscreen-button"
+                      class="btn btn-sm btn-soft themed-mini-button"
                       aria-label="Voir l’emploi du temps de la semaine en plein écran"
                       aria-describedby="week-overview-tooltip"
                     >
