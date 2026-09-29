@@ -181,8 +181,90 @@ document.addEventListener("visibilitychange", () => {
 // connect if there are any LiveViews on the page
 if (!restoreLastPage()) liveSocket.connect()
 
+// A temporary overlay keeps the celebration independent of LiveView patches.
+const captainConfetti = () => {
+  document.querySelector(".captain-confetti")?.remove()
+  const overlay = document.createElement("div")
+  overlay.className = "captain-confetti"
+  overlay.setAttribute("aria-hidden", "true")
+  const colors = ["#fbbf24", "#fb7185", "#38bdf8", "#a78bfa", "#34d399", "#f97316"]
+  const particles = Array.from({length: 120}, () => {
+    const piece = document.createElement("span")
+    piece.style.left = `${Math.random() * 100}%`
+    piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)]
+    piece.style.width = `${5 + Math.random() * 5}px`
+    piece.style.height = `${7 + Math.random() * 7}px`
+    overlay.appendChild(piece)
+    return piece
+  })
+  document.body.appendChild(overlay)
+  const animations = particles.map(piece => {
+    const drift = Math.random() * 240 - 120
+    const spin = Math.random() * 1080 - 540
+    return piece.animate([
+      {transform: "translate3d(0, -20px, 0) rotate(0deg)", opacity: 1},
+      {transform: `translate3d(${drift * 0.8}px, 80dvh, 0) rotate(${spin * 0.8}deg)`, opacity: 1, offset: 0.8},
+      {transform: `translate3d(${drift}px, calc(100dvh + 20px), 0) rotate(${spin}deg)`, opacity: 0}
+    ], {duration: 2200 + Math.random() * 1000, delay: Math.random() * 600, easing: "linear", fill: "both"})
+  })
+  Promise.allSettled(animations.map(animation => animation.finished)).then(() => overlay.remove())
+}
+
+// Sample one color per 18px square, then expand it into a chunky pixel.
+let cleanupCaptainPixelate
+const captainPixelate = () => {
+  cleanupCaptainPixelate?.()
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+  svg.setAttribute("aria-hidden", "true")
+  svg.setAttribute("width", "0")
+  svg.setAttribute("height", "0")
+  svg.style.position = "absolute"
+  svg.innerHTML = `
+    <filter id="captain-pixel-filter" x="0" y="0" width="100%" height="100%"
+            primitiveUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood x="8" y="8" width="2" height="2" />
+      <feComposite in2="SourceGraphic" operator="in" x="0" y="0" width="12" height="12" />
+      <feTile result="samples" />
+      <feComposite in="SourceGraphic" in2="samples" operator="in" />
+      <feMorphology operator="dilate" radius="9" />
+    </filter>`
+  document.body.appendChild(svg)
+  document.body.classList.add("captain-pixelated")
+  const cleanup = () => {
+    document.body.classList.remove("captain-pixelated")
+    svg.remove()
+    window.clearTimeout(timer)
+    window.removeEventListener("phx:page-loading-start", cleanup)
+  }
+  cleanupCaptainPixelate = cleanup
+  const timer = window.setTimeout(cleanup, 5000)
+  window.addEventListener("phx:page-loading-start", cleanup, {once: true})
+}
+
+let cleanupCaptainPink
+const captainPink = () => {
+  cleanupCaptainPink?.()
+  document.body.classList.add("captain-pink")
+  const cleanup = () => {
+    document.body.classList.remove("captain-pink")
+    window.clearTimeout(timer)
+    window.removeEventListener("phx:page-loading-start", cleanup)
+  }
+  cleanupCaptainPink = cleanup
+  const timer = window.setTimeout(cleanup, 10000)
+  window.addEventListener("phx:page-loading-start", cleanup, {once: true})
+}
+
 // Short surprises from the captain, including keyboard activation.
 const captainAnimations = [
+  {effect: captainPink},
+  {effect: captainPixelate},
+  {duration: 3800, effect: captainConfetti, frames: [
+    {transform: "scale(1)", offset: 0},
+    {transform: "scale(1.2)", offset: 0.06},
+    {transform: "scale(1)", offset: 0.14},
+    {transform: "scale(1)", offset: 1}
+  ]},
   // Spring: squash, jump, then two smaller rebounds.
   {duration: 1300, frames: [
     {transform: "translateY(0) scale(1, 1)", offset: 0},
@@ -271,6 +353,8 @@ document.addEventListener("click", event => {
   const choices = captainAnimations.filter(animation => animation !== lastCaptainAnimation.get(button))
   const animation = choices[Math.floor(Math.random() * choices.length)]
   lastCaptainAnimation.set(button, animation)
+  animation.effect?.()
+  if (!animation.frames) return
   const frames = typeof animation.frames === "function" ? animation.frames(skull) : animation.frames
   skull.animate(frames, {duration: animation.duration, easing: "ease-in-out"})
 })

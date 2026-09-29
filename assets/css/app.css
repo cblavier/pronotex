@@ -479,6 +479,10 @@ html { touch-action: manipulation; }
 .app-brand-button:focus-visible { outline: 2px solid var(--day-ink); outline-offset: 4px; }
 .app-brand-logo { overflow: visible; }
 .app-brand-skull { transform-origin: 195px 240px; }
+.captain-pixelated .page-shell { filter: url("#captain-pixel-filter"); }
+.captain-confetti { position: fixed; inset: 0; z-index: 1000; overflow: hidden; pointer-events: none; }
+.captain-confetti span { position: absolute; top: 0; border-radius: 1px; }
+
 
 /* Single-column agenda switches panels without removing the LiveView streams. */
 :is(#agenda-subnav, #grades-subnav) { display: none; }
@@ -940,4 +944,39 @@ html:has(#week-overview) { zoom: 1 !important; }
 @media (max-width: 359px) {
   #responsive-header #notification-banners { grid-column: 1 / -1; grid-row: 3; margin-bottom: 0; }
   #responsive-header:has(.notification-banner) #section-navigation { grid-row: 4; }
+}
+
+/* Temporary captain palette; the saved theme remains untouched. */
+:root body.captain-pink :is(.page-shell, .notification-banner) {
+  --day-tint: #fce7f3;
+  --day-ink: #be185d;
+  --day-line: #f9a8d4;
+  --page-background: #fff1f7;
+  --surface-background: #fff7fb;
+  --muted-ink: #9d4772;
+  --color-base-100: #fff7fb;
+  --color-base-200: #fce7f3;
+  --color-base-300: #f9a8d4;
+  --color-base-content: #701a45;
+}
+:root[data-theme="dark"] body.captain-pink :is(.page-shell, .notification-banner) {
+  --day-tint: #542039;
+  --day-ink: #f9a8d4;
+  --day-line: #833455;
+  --page-background: #29121f;
+  --surface-background: #3b192b;
+  --muted-ink: #e8a5c5;
+  --color-base-100: #3b192b;
+  --color-base-200: #542039;
+  --color-base-300: #833455;
+  --color-base-content: #fce7f3;
+}
+body.captain-pink .child-picker-avatar {
+  position: relative;
+}
+body.captain-pink .child-picker-avatar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: url("/images/brand/unicorn-portrait.svg") center / cover;
 }
