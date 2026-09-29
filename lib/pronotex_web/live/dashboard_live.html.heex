@@ -181,12 +181,12 @@
 
     <div
       id="dashboard-navigation"
-      class="mb-6 flex flex-wrap items-center justify-between gap-x-3 border-b border-base-300 text-[var(--muted-ink)]"
+      class="mb-6 flex flex-nowrap items-center justify-between gap-x-3 border-b border-base-300 text-[var(--muted-ink)]"
     >
       <nav
         id="section-navigation"
         aria-label="Rubriques"
-        class="flex max-w-full items-center gap-3 overflow-x-auto sm:gap-6"
+        class="flex max-w-full items-center gap-3 overflow-x-auto lg:gap-6"
       >
         <button
           :for={
@@ -206,7 +206,7 @@
           }
           class="navigation-tab"
         >
-          <.icon name={icon} class="hidden size-4 sm:inline-block" />
+          <.icon name={icon} class="hidden size-4 lg:inline-block" />
           {label}
           <.count_badge
             :if={section == "devoirs" && @homework_badge_count > 0}

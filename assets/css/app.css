@@ -295,7 +295,7 @@ html { touch-action: manipulation; }
 .week-cycle-label { margin-left: 0.25rem; font-size: 1rem; font-weight: 600; color: var(--day-ink); }
 
 /* Mobile identity and date controls share the top row. */
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   .page-shell > main { padding-top: 1.5rem; }
   #responsive-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 0.5rem; row-gap: 1.25rem; margin-bottom: 1.5rem; }
   #dashboard-navigation { display: contents; }
@@ -366,7 +366,7 @@ html { touch-action: manipulation; }
 }
 
 /* Compact week navigation on intermediate widths as well as mobile. */
-@media (min-width: 640px) and (max-width: 1023px) {
+@media (min-width: 768px) and (max-width: 1023px) {
   .navigation-tab { font-size: 0.875rem; }
   #date-navigation { flex-wrap: nowrap; gap: 0.25rem; }
   .week-navigation-label { font-size: 0.75rem; white-space: nowrap; }
@@ -425,7 +425,7 @@ html { touch-action: manipulation; }
   }
 }
 
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   #school-name { display: none; }
 }
 
@@ -451,7 +451,7 @@ html { touch-action: manipulation; }
 .child-picker-logout { margin: 0.5rem 0.5rem 0; padding-top: 0.5rem; border-top: 1px solid var(--color-base-300); }
 .child-picker-logout .child-picker-option { padding-inline: 0; }
 .child-picker-option > :first-child { justify-self: center; }
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   #child-header { grid-column: 1; grid-row: 1; padding: 0; }
   #child-picker-toggle { gap: 0.375rem; }
   .child-picker-avatar { width: 2rem; height: 2rem; }
@@ -467,7 +467,7 @@ html { touch-action: manipulation; }
 
 #child-identity { min-width: 0; }
 .child-picker-name-row { display: flex; align-items: center; gap: 0.75rem; }
-@media (max-width: 639px) { .child-picker-name-row { gap: 0.375rem; } }
+@media (max-width: 767px) { .child-picker-name-row { gap: 0.375rem; } }
 
 .page-shell { background-color: var(--page-background); }
 #child-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
@@ -857,10 +857,7 @@ html:has(#week-overview) { zoom: 1 !important; }
 .week-overview { position: fixed; inset: 0; width: 100dvw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: var(--page-background); color: var(--color-base-content); overflow: hidden; }
 .week-overview::backdrop { background: var(--page-background); }
 .week-overview-surface:focus { outline: none; }
-.week-overview[data-resizing] .week-overview-surface { visibility: hidden; }
 .week-overview-surface { width: 100%; height: 100%; display: flex; flex-direction: column; padding: 8px max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left)); }
-.week-rotate-prompt { display: none; }
-.week-rotate-prompt svg { width: 160px; height: 160px; }
 .week-overview-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; height: 46px; padding-bottom: 10px; }
 .week-overview-header .lesson-back-link { white-space: nowrap; }
 .week-grid { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: 30px repeat(5, minmax(0, 1fr)); gap: 5px; }
@@ -874,7 +871,7 @@ html:has(#week-overview) { zoom: 1 !important; }
 .week-subject { display: block; font-size: clamp(9px, 1.7vmin, 12px); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .week-subject-full, .week-lesson-details { display: none; }
 .week-lesson { border-left-width: 0; }
-@media (min-width: 768px) and (min-height: 600px), (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+@media (orientation: portrait), (min-width: 768px) and (min-height: 600px), (min-width: 1024px) and (hover: hover) and (pointer: fine) {
   .week-lesson { border-left-width: 3px; container: lesson / size; }
   .week-subject-short { display: none; }
   .week-subject-full, .week-lesson-details { display: block; }
@@ -902,11 +899,6 @@ html:has(#week-overview) { zoom: 1 !important; }
   .week-overview-header { justify-content: space-between; font-size: 0.875rem; }
   .week-selector { gap: 0.25rem; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 }
-@media (orientation: portrait) and (width < 768px) {
-  .week-overview-surface > :not(.week-overview-header, .week-rotate-prompt),
-  .week-overview-header .week-selector { display: none; }
-  .week-rotate-prompt { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: #9ca3af; pointer-events: none; text-align: center; font-size: 0.875rem; }
-}
 
 @media (orientation: portrait), (min-width: 768px) and (min-height: 600px), (min-width: 1024px) and (hover: hover) and (pointer: fine) {
   .page-shell:has(.week-overview) { height: auto; min-height: 100dvh; }
@@ -924,7 +916,9 @@ html:has(#week-overview) { zoom: 1 !important; }
 @media (orientation: portrait) and (width < 768px) {
   .page-shell:has(.week-overview) { height: 100dvh; min-height: 0; }
   .page-shell:has(.week-overview) > main { flex: 1; height: auto; }
-  .week-overview-header { display: flex; }
+  .week-overview-surface { overflow-x: auto; }
+  .week-grid { flex-shrink: 0; width: calc(35px + (100% - 35px) * 5 / 3); }
+  .week-subject { font-size: 12px; }
 }
 
 #notification-banners { display: grid; gap: 0.375rem; }
@@ -939,7 +933,7 @@ html:has(#week-overview) { zoom: 1 !important; }
 .notification-banner button:hover { background: var(--surface-background); }
 
 
-@media (min-width: 360px) and (max-width: 639px) {
+@media (min-width: 360px) and (max-width: 767px) {
   #responsive-header #notification-banners { grid-column: 1 / -1; grid-row: 2; margin-bottom: 0; }
   #responsive-header:has(.notification-banner) #section-navigation { grid-row: 3; }
 }
