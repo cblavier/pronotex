@@ -258,13 +258,13 @@ defmodule PronotexWeb.DashboardLive do
       api = socket.assigns.api
       account = socket.assigns.account
       child_id = socket.assigns.child.id
-      generation = socket.assigns.messages_generation
+      generation = make_ref()
       parent_inbox = socket.assigns.section == "parent-messages"
       target_read = Map.get(discussion, :kind) == :information || discussion.unread > 0
 
       {:noreply,
        socket
-       |> assign(:message_saving, id)
+       |> assign(message_saving: id, messages_generation: generation)
        |> start_async({:message_save, generation}, fn ->
          if parent_inbox do
            api_call(api, account, :set_parent_discussion_read, [id, target_read])
@@ -312,7 +312,9 @@ defmodule PronotexWeb.DashboardLive do
       to = Date.add(from, 6)
 
       socket =
-        socket |> assign(homework_saving: id, homework_save_error: nil) |> restream_homework()
+        socket
+        |> assign(homework_saving: id, homework_save_error: nil, messages_generation: make_ref())
+        |> restream_homework()
 
       {:noreply,
        start_async(socket, {:save_homework, generation}, fn ->
@@ -383,7 +385,8 @@ defmodule PronotexWeb.DashboardLive do
 
   def handle_event("refresh", _, socket) do
     if socket.assigns.api == Pronotex.Pronote do
-      api_call(socket.assigns.api, socket.assigns.account, :clear_cache, [])
+      server = Pronotex.Pronote.Session.for_account(socket.assigns.account.id)
+      Pronotex.Pronote.ReadCache.invalidate({:owner_reads, server})
     end
 
     current_date = today()
@@ -432,8 +435,8 @@ defmodule PronotexWeb.DashboardLive do
 
     {:noreply,
      socket
-     |> cache_homework_badge(pending_count(result.urgent_homework))
-     |> put_private(:urgent_homework, result.urgent_homework)
+     |> assign(Map.get(result, :header_counts, []))
+     |> apply_urgent_homework(result.urgent_homework)
      |> apply_result(:events, result.events)
      |> apply_result(:lessons, result.lessons)
      |> apply_result(:homework, result.homework)
@@ -443,7 +446,58 @@ defmodule PronotexWeb.DashboardLive do
      |> mark_loaded()
      |> canonicalize()
      |> load_messages()
+     |> load_notes_badge()
      |> maybe_load_week_overview()}
+  end
+
+  def handle_async({:cached_refresh, name, generation}, result, socket) do
+    current? = generation == refresh_generation(socket, name)
+
+    if current? do
+      case {name, result} do
+        {:load, {:ok, {:ok, data}}} ->
+          socket = assign(socket, children: data.children, child: data.child)
+          socket = apply_urgent_homework(socket, data.urgent_homework)
+
+          socket =
+            Enum.reduce([:events, :lessons, :homework, :menus, :grades], socket, fn kind,
+                                                                                    socket ->
+              case data[kind] do
+                {:ok, _} = value -> apply_result(socket, kind, value)
+                _ -> socket
+              end
+            end)
+
+          socket =
+            if Enum.any?(
+                 [:events, :lessons, :homework, :menus, :grades],
+                 &match?({:error, _}, data[&1])
+               ), do: stale_refresh_warning(socket), else: socket
+
+          {:noreply, socket |> mark_loaded() |> canonicalize()}
+
+        {:week_overview, {:ok, {:ok, _, _}}} ->
+          handle_async(name, result, socket)
+
+        {{:messages_load, _}, {:ok, {:ok, _}}} ->
+          handle_async(name, result, socket)
+
+        _ ->
+          {:noreply, stale_refresh_warning(socket)}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_async({:notes_badge, generation}, result, socket) do
+    case result do
+      {:ok, {:ok, tasks}} when generation == socket.assigns.messages_generation ->
+        {:noreply, apply_urgent_homework(socket, tasks)}
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   def handle_async(:load, {:ok, {:error, error}}, socket),
@@ -626,20 +680,25 @@ defmodule PronotexWeb.DashboardLive do
              child when not is_nil(child) <-
                Enum.find(children, &(child_slug(&1) == selected_slug)) || List.first(children) do
           urgent_homework =
-            case api_call(api, account, :homework, [
-                   child.id,
-                   today,
-                   Pronotex.Pronote.Homework.urgent_until(today)
-                 ]) do
-              {:ok, tasks} ->
-                Enum.filter(
-                  tasks,
-                  &(Date.compare(&1.date, today) != :lt and
-                      Date.compare(&1.date, Pronotex.Pronote.Homework.urgent_until(today)) != :gt)
-                )
+            if section == "notes" do
+              nil
+            else
+              case api_call(api, account, :homework, [
+                     child.id,
+                     today,
+                     Pronotex.Pronote.Homework.urgent_until(today)
+                   ]) do
+                {:ok, tasks} ->
+                  Enum.filter(
+                    tasks,
+                    &(Date.compare(&1.date, today) != :lt and
+                        Date.compare(&1.date, Pronotex.Pronote.Homework.urgent_until(today)) !=
+                          :gt)
+                  )
 
-              _ ->
-                []
+                _ ->
+                  nil
+              end
             end
 
           {:ok,
@@ -689,8 +748,33 @@ defmodule PronotexWeb.DashboardLive do
   # Subsequent navigation remains asynchronous; PRONOTE's read cache avoids
   # repeating remote requests between the two mounts.
   defp start_read(socket, name, read) do
+    case PronotexWeb.DashboardCache.fetch(socket.assigns, name) do
+      :miss ->
+        start_uncached_read(socket, name, read)
+
+      cached ->
+        socket = put_private(socket, :cache_render, true)
+        {:noreply, socket} = handle_async(name, {:ok, cached}, socket)
+        start_async(socket, {:cached_refresh, name, refresh_generation(socket, name)}, read)
+    end
+  end
+
+  defp stale_refresh_warning(socket),
+    do:
+      put_flash(
+        socket,
+        :error,
+        "Actualisation impossible. Les dernières données disponibles restent affichées."
+      )
+
+  defp refresh_generation(socket, :week_overview),
+    do: {socket.assigns.messages_generation, socket.assigns.week_overview_start}
+
+  defp refresh_generation(socket, _name), do: socket.assigns.messages_generation
+
+  defp start_uncached_read(socket, name, read) do
     synchronous? =
-      socket.assigns.initial_load &&
+      socket.assigns.initial_load && !socket.private[:cache_render] &&
         (name in [:load, :week_overview] ||
            socket.assigns.section in ["messages", "parent-messages"])
 
@@ -790,6 +874,39 @@ defmodule PronotexWeb.DashboardLive do
       errors -> put_flash(socket, :error, Enum.join(errors, "\n"))
     end
   end
+
+  defp apply_urgent_homework(socket, nil), do: socket
+
+  defp apply_urgent_homework(socket, tasks) do
+    socket
+    |> cache_homework_badge(pending_count(tasks))
+    |> put_private(:urgent_homework, tasks)
+  end
+
+  defp load_notes_badge(%{assigns: %{section: "notes"}} = socket) do
+    api = socket.assigns.api
+    account = socket.assigns.account
+    child_id = socket.assigns.child.id
+    today = socket.assigns.today
+
+    start_async(socket, {:notes_badge, socket.assigns.messages_generation}, fn ->
+      until = Pronotex.Pronote.Homework.urgent_until(today)
+
+      case api_call(api, account, :homework, [child_id, today, until]) do
+        {:ok, tasks} ->
+          {:ok,
+           Enum.filter(
+             tasks,
+             &(Date.compare(&1.date, today) != :lt and Date.compare(&1.date, until) != :gt)
+           )}
+
+        error ->
+          error
+      end
+    end)
+  end
+
+  defp load_notes_badge(socket), do: socket
 
   defp cache_homework_badge(socket, count) do
     key = {child_slug(socket.assigns.child), socket.assigns.today}

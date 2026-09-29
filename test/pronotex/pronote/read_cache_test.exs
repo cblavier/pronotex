@@ -21,6 +21,40 @@ defmodule Pronotex.Pronote.ReadCacheTest do
     assert {:miss, _} = ReadCache.fetch(key, cache)
   end
 
+  test "display snapshots survive read expiry, stay isolated and expire after a day", %{
+    cache: cache,
+    clock: clock
+  } do
+    owner = self()
+    raw = {owner, {:identity, {:grades, "alice", "semester-1"}}}
+    display = {owner, {:display, {:grades, {"alice", "semester-1"}}}}
+    {:miss, generation} = ReadCache.fetch(raw, cache)
+    ReadCache.put(raw, :report, ReadCache.ttl(:grades), generation, cache)
+    ReadCache.put(display, :snapshot, :timer.hours(24), generation, cache)
+    Agent.update(clock, fn _ -> ReadCache.ttl(:grades) end)
+    assert {:miss, _} = ReadCache.fetch(raw, cache)
+    assert [:snapshot] = ReadCache.notes(owner, cache)
+    assert [] = ReadCache.notes(:other_owner, cache)
+    Agent.update(clock, fn _ -> :timer.hours(24) end)
+    assert [] = ReadCache.notes(owner, cache)
+  end
+
+  test "refresh preserves display data while a write invalidates it", %{cache: cache} do
+    owner = self()
+    raw = {owner, {:identity, {:homework, "alice", ~D[2026-09-14], ~D[2026-09-20]}}}
+    display = {owner, {:display, {:homework, "alice", ~D[2026-09-14], ~D[2026-09-20]}}}
+    {:miss, generation} = ReadCache.fetch(raw, cache)
+    ReadCache.put(raw, :tasks, 300_000, generation, cache)
+    ReadCache.put(display, :tasks, :timer.hours(24), generation, cache)
+    ReadCache.invalidate({:owner_kinds, owner, [:homework]}, cache)
+    assert {:miss, _} = ReadCache.fetch(raw, cache)
+    assert {:hit, :tasks} = ReadCache.fetch(display, cache)
+    ReadCache.invalidate({:owner_reads, owner}, cache)
+    assert {:hit, :tasks} = ReadCache.fetch(display, cache)
+    ReadCache.invalidate({:kind, :homework}, cache)
+    assert %{} = ReadCache.display(owner, cache)
+  end
+
   for affected <- [:homework, :discussions, :parent_discussions] do
     test "#{affected} invalidation preserves unrelated caches and in-flight reads" do
       affected = unquote(affected)

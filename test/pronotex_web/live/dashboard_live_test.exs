@@ -1732,6 +1732,161 @@ defmodule PronotexWeb.DashboardLiveTest do
     refute has_element?(view, "#lesson-detail article")
   end
 
+  defmodule ControlledSession do
+    use GenServer
+
+    def start_link({owner, children, name}),
+      do: GenServer.start_link(__MODULE__, {owner, children}, name: name)
+
+    def init(state), do: {:ok, state}
+    def handle_call(:children, _from, {_, children} = state), do: {:reply, {:ok, children}, state}
+    def handle_call({:homework, _, _, _}, _from, state), do: {:reply, {:ok, []}, state}
+
+    def handle_call(operation, from, {owner, _} = state) do
+      send(owner, {:pending_read, operation, from})
+      {:noreply, state}
+    end
+  end
+
+  test "cached agenda stays visible during refresh and survives a failed refresh", %{conn: conn} do
+    {:ok, children} = API.children()
+    {:ok, lessons} = API.lessons("a", ~D[2026-09-14], ~D[2026-09-20])
+    old = Pronotex.Pronote.Session.for_account("family")
+    DynamicSupervisor.terminate_child(Pronotex.Pronote.Supervisor, old)
+
+    name =
+      {:via, Registry,
+       {Pronotex.Pronote.Registry, {"family", Pronotex.Accounts.fingerprint("family")}}}
+
+    server = start_supervised!({ControlledSession, {self(), children, name}})
+    Pronotex.Pronote.ReadCache.remember(server, {:children}, children)
+
+    Pronotex.Pronote.ReadCache.remember(
+      server,
+      {:lessons, "a", ~D[2026-09-14], ~D[2026-09-20]},
+      lessons
+    )
+
+    Application.put_env(:pronotex, :pronote_client, Pronotex.Pronote)
+    {:ok, view, _} = live(conn, "/alice?week=2026-09-14")
+    assert_receive {:pending_read, {:events, "a"}, events_from}
+    assert has_element?(view, "#page-content:not([hidden])", "Maths a")
+    GenServer.reply(events_from, {:ok, []})
+    assert_receive {:pending_read, {:lessons, "a", _, _}, lessons_from}
+    updated = Enum.map(lessons, &%{&1 | subject: "Cours actualisé"})
+    GenServer.reply(lessons_from, {:ok, updated})
+    render_async(view)
+    assert has_element?(view, "#page-content:not([hidden])", "Cours actualisé")
+
+    Pronotex.Pronote.ReadCache.remember(
+      server,
+      {:lessons, "a", ~D[2026-09-14], ~D[2026-09-20]},
+      updated
+    )
+
+    render_click(view, "refresh")
+    assert_receive {:pending_read, {:events, "a"}, events_from}
+    assert has_element?(view, "#page-content:not([hidden])", "Cours actualisé")
+    GenServer.reply(events_from, {:error, Pronotex.Pronote.Error.new(:network)})
+    assert_receive {:pending_read, {:lessons, "a", _, _}, lessons_from}
+    GenServer.reply(lessons_from, {:error, Pronotex.Pronote.Error.new(:network)})
+    render_async(view)
+    assert has_element?(view, "#page-content:not([hidden])", "Cours actualisé")
+    assert render(view) =~ "dernières données disponibles restent affichées"
+  end
+
+  for {path, profile, text} <- [
+        {"/alice?week=2026-09-14", "family", "Maths a"},
+        {"/alice/timetable?week=2026-09-14", "family", "Maths a"},
+        {"/alice/devoirs?week=2026-09-14", "family", "Français a"},
+        {"/alice/menu?week=2026-09-14", "family", "Gratin"},
+        {"/alice/messages", "child-1", "Sujet discussion"},
+        {"/alice/parent-messages", "parent-1", "Sujet discussion"},
+        {"/alice/reglages", "family", "Réglages"}
+      ] do
+    test "cached #{path} renders without waiting for Pronote" do
+      Application.put_env(:pronotex, :dashboard_test_mode, :communications)
+      {:ok, children} = API.children()
+      server = Pronotex.Pronote.Session.for_account(unquote(profile))
+      Pronotex.Pronote.ReadCache.remember(server, {:children}, children)
+
+      for {operation, args} <- [
+            {:lessons, ["a", ~D[2026-09-14], ~D[2026-09-20]]},
+            {:homework, ["a", ~D[2026-09-14], ~D[2026-09-20]]},
+            {:menus, ["a", ~D[2026-09-14], ~D[2026-09-20]]},
+            {:events, ["a"]},
+            {:discussions, ["a"]},
+            {:parent_discussions, []}
+          ] do
+        {:ok, value} = apply(API, operation, args)
+        Pronotex.Pronote.ReadCache.remember(server, List.to_tuple([operation | args]), value)
+      end
+
+      Application.put_env(:pronotex, :pronote_client, Pronotex.Pronote)
+      :sys.suspend(server)
+
+      try do
+        conn =
+          build_conn() |> Plug.Test.init_test_session(Pronotex.Auth.session(unquote(profile)))
+
+        html = conn |> get(unquote(path)) |> html_response(200)
+        assert html =~ unquote(text)
+        assert [_] = html |> Floki.parse_document!() |> Floki.find("#page-content:not([hidden])")
+        refute html =~ "Chargement des messages…"
+      after
+        :sys.resume(server)
+        Pronotex.Pronote.ReadCache.invalidate(server)
+      end
+    end
+  end
+
+  test "HTTP notes render from cache while the Pronote session is blocked", %{conn: conn} do
+    {:ok, children} = API.children()
+    {:ok, report} = API.grades("a", nil)
+    report = Map.put(report, :average_history, [])
+    server = Pronotex.Pronote.Session.for_account("family")
+    period = Pronotex.Pronote.Grades.period_key(report.period)
+    key = {server, {:display, {:grades, {"a", period}}}}
+    generation = Pronotex.Pronote.ReadCache.generation(key)
+
+    snapshot = %{
+      children: children,
+      child: hd(children),
+      report: report,
+      period: period,
+      default?: true
+    }
+
+    Pronotex.Pronote.ReadCache.put(key, snapshot, :timer.hours(24), generation)
+    Application.put_env(:pronotex, :pronote_client, Pronotex.Pronote)
+    :ok = :sys.suspend(server)
+
+    try do
+      html = conn |> get("/alice/notes") |> html_response(200)
+      assert html =~ "Moyenne générale"
+      assert html =~ "overall-average"
+
+      assert [_] =
+               html
+               |> Floki.parse_document!()
+               |> Floki.find("#page-content:not([hidden]) #overall-average")
+    after
+      :sys.resume(server)
+      Pronotex.Pronote.ReadCache.invalidate(server)
+    end
+  end
+
+  test "initial notes render without waiting for the homework badge", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :slow_homework)
+    {:ok, view, html} = live(conn, "/alice/notes")
+    assert html =~ "Moyenne générale"
+    assert_receive {:homework_pending, task}
+    assert has_element?(view, "#page-content:not([hidden]) #overall-average")
+    send(task, :finish_homework)
+    render_async(view)
+    assert has_element?(view, "#homework-nav-badge", "1")
+  end
+
   test "homework badge stays visible during navigation without leaking to another child", %{
     conn: conn
   } do
@@ -1741,7 +1896,8 @@ defmodule PronotexWeb.DashboardLiveTest do
     Application.put_env(:pronotex, :dashboard_test_mode, :slow_homework)
     view |> element("#nav-notes") |> render_click()
     assert_receive {:homework_pending, task}
-    assert has_element?(view, "#nav-devoirs[disabled] #homework-nav-badge", "1")
+    assert has_element?(view, "#nav-devoirs:not([disabled]) #homework-nav-badge", "1")
+    assert has_element?(view, "#page-content:not([hidden]) #overall-average")
     send(task, :finish_homework)
     render_async(view)
     assert has_element?(view, "#homework-nav-badge", "1")

@@ -70,6 +70,9 @@ defmodule Pronotex.Pronote do
     GenServer.call(server, {:grades, child_id, period_name}, :infinity)
   end
 
+  def refresh_grades(child_id, period_name, server),
+    do: GenServer.call(server, {:refresh_grades, child_id, period_name}, :infinity)
+
   @doc "Reads upcoming school agenda events, including events shared with the family."
   def events(child_id, server \\ Session),
     do: GenServer.call(server, {:events, child_id}, :infinity)

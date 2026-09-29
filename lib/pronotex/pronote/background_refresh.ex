@@ -6,7 +6,7 @@ defmodule Pronotex.Pronote.BackgroundRefresh do
   alias Pronotex.Pronote.{ReadCache, Session}
 
   @interval :timer.minutes(5)
-  @kinds [:lessons, :events, :grades, :discussions, :parent_discussions]
+  @kinds [:lessons, :events, :discussions, :parent_discussions]
 
   def start_link(options) do
     GenServer.start_link(__MODULE__, options, name: Keyword.get(options, :name, __MODULE__))
@@ -105,7 +105,7 @@ defmodule Pronotex.Pronote.BackgroundRefresh do
           operations = [
             {:lessons, [week, Date.add(week, 6)]},
             {:events, []},
-            {:grades, [nil]}
+            {:refresh_grades, [nil]}
           ]
 
           operations =

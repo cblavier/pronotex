@@ -45,8 +45,11 @@ defmodule Pronotex.Pronote.Session do
     if match?({:send_message, _, _, _}, operation),
       do: ReadCache.invalidate({:kind, :discussions})
 
+    state = Map.put(state, :display_generations, display_generations(operation))
+
     try do
       result = handle_operation(operation, from, state)
+      remember_display(operation, result)
 
       if operation == :logout or match?({:reply, {:error, _}, _}, result),
         do: ReadCache.invalidate(self())
@@ -61,6 +64,51 @@ defmodule Pronotex.Pronote.Session do
         do: ReadCache.invalidate({:kind, :discussions})
     end
   end
+
+  defp display_read?(operation) do
+    operation in [:children, :login, :sender_name, :message_recipients] or
+      (is_tuple(operation) and
+         elem(operation, 0) in [
+           :lessons,
+           :homework,
+           :menus,
+           :events,
+           :discussions,
+           :parent_discussions
+         ])
+  end
+
+  defp display_operation(operation) when is_atom(operation), do: {operation}
+  defp display_operation(operation), do: operation
+
+  defp display_generations(operation) do
+    if display_read?(operation) do
+      %{
+        children: ReadCache.generation({self(), {:display, {:children}}}),
+        operation: ReadCache.generation({self(), {:display, display_operation(operation)}})
+      }
+    end
+  end
+
+  defp remember_display(operation, {:reply, {:ok, value}, state}) do
+    if display_read?(operation) do
+      ReadCache.remember(
+        self(),
+        {:children},
+        Client.children(state.client),
+        state.display_generations.children
+      )
+
+      ReadCache.remember(
+        self(),
+        display_operation(operation),
+        value,
+        state.display_generations.operation
+      )
+    end
+  end
+
+  defp remember_display(_operation, _result), do: :ok
 
   defp handle_operation(:logout, _from, state),
     do: {:reply, :ok, %{state | client: nil, students: %{}}}
@@ -141,6 +189,7 @@ defmodule Pronotex.Pronote.Session do
 
   defp execute(operation, %{client: nil} = state) do
     ReadCache.invalidate(self())
+    state = Map.put(state, :display_generations, display_generations(operation))
 
     config =
       case Keyword.get(state.options, :config) do
@@ -197,17 +246,37 @@ defmodule Pronotex.Pronote.Session do
     {:ok, menus, %{state | client: client}}
   end
 
-  defp execute({:grades, child_id, period_name}, state) do
+  defp execute({operation, child_id, period_name}, state)
+       when operation in [:grades, :refresh_grades] do
+    {period, _} = Client.grade_period(state.client, child_id, period_name)
+    period_key = Pronotex.Pronote.Grades.period_key(period["L"])
+    key = {self(), {:display, {:grades, {child_id, period_key}}}}
+    generation = ReadCache.generation(key)
+
     {grades, client} =
       cached_read(
         state.client,
-        {:grades, child_id, period_name},
-        Keyword.get(state.options, :account, "family")
+        {:grades, child_id, period_key},
+        Keyword.get(state.options, :account, "family"),
+        operation == :refresh_grades
       )
 
     history = average_history(client, child_id, grades)
     grades = Map.update!(grades, :grades, &grades_by_publication(client, child_id, grades, &1))
-    {:ok, Map.put(grades, :average_history, history), %{state | client: client}}
+    grades = Map.put(grades, :average_history, history)
+    children = Client.children(client)
+    {default, _} = Client.grade_period(client, child_id, nil)
+
+    snapshot = %{
+      children: children,
+      child: Enum.find(children, &(&1.id == child_id)),
+      report: grades,
+      period: period_key,
+      default?: default["N"] == period["N"]
+    }
+
+    ReadCache.put(key, snapshot, :timer.hours(24), generation)
+    {:ok, grades, %{state | client: client}}
   end
 
   defp execute({:events, child_id}, state) do
@@ -336,7 +405,7 @@ defmodule Pronotex.Pronote.Session do
     end
   end
 
-  defp cached_read(client, operation, account_id \\ nil) do
+  defp cached_read(client, operation, account_id \\ nil, force? \\ false) do
     # Never cache or restore a Client: its ordered transport and write-validation
     # state must remain the current state of this serialized session.
     transport = client.transport
@@ -347,7 +416,10 @@ defmodule Pronotex.Pronote.Session do
 
     key = {self(), {:crypto.hash(:sha256, :erlang.term_to_binary(identity)), operation}}
 
-    case ReadCache.fetch(key) do
+    cached = ReadCache.fetch(key)
+    cached = if force?, do: {:miss, ReadCache.generation(key)}, else: cached
+
+    case cached do
       {:hit, reply} ->
         {reply, client}
 

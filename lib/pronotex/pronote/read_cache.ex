@@ -12,6 +12,18 @@ defmodule Pronotex.Pronote.ReadCache do
 
   def invalidate(scope, server \\ __MODULE__), do: GenServer.call(server, {:invalidate, scope})
 
+  # Display snapshots survive ordinary read expiry, but share logout/session invalidation.
+  def generation(key), do: GenServer.call(__MODULE__, {:generation, key})
+
+  def notes(owner, server \\ __MODULE__), do: GenServer.call(server, {:notes, owner})
+
+  def display(owner, server \\ __MODULE__), do: GenServer.call(server, {:display, owner})
+
+  def remember(owner, operation, value, token \\ nil) do
+    key = {owner, {:display, operation}}
+    put(key, value, :timer.hours(24), token || generation(key))
+  end
+
   def ttl(kind) when kind in [:lessons, :events], do: 300_000
   def ttl(kind) when kind in [:homework, :discussions, :parent_discussions], do: 300_000
   def ttl(:grades), do: 300_000
@@ -30,13 +42,46 @@ defmodule Pronotex.Pronote.ReadCache do
   end
 
   @impl true
-  def handle_call({:invalidate, {:owner_kinds, owner, kinds}}, _from, state) do
+  def handle_call({:invalidate, {:owner_reads, owner}}, _from, state) do
     entries =
-      Map.reject(state.entries, fn {{pid, _} = key, _} ->
-        pid == owner and kind(key) in kinds
+      Map.reject(state.entries, fn
+        {{pid, {identity, _}}, _} -> pid == owner and identity != :display
+        _ -> false
       end)
 
     {:reply, :ok, %{state | entries: entries, generation: make_ref()}}
+  end
+
+  def handle_call({:invalidate, {:owner_kinds, owner, kinds}}, _from, state) do
+    entries =
+      Map.reject(state.entries, fn
+        {{pid, {identity, _}} = key, _} ->
+          pid == owner and identity != :display and kind(key) in kinds
+
+        _ ->
+          false
+      end)
+
+    {:reply, :ok, %{state | entries: entries, generation: make_ref()}}
+  end
+
+  def handle_call({:generation, key}, _from, state), do: {:reply, generation(state, key), state}
+
+  def handle_call({:display, owner}, _from, state) do
+    state = prune(state)
+
+    entries =
+      for {{^owner, {:display, operation}}, {value, _, _}} <- state.entries,
+          into: %{},
+          do: {operation, value}
+
+    {:reply, entries, state}
+  end
+
+  def handle_call({:notes, owner}, _from, state) do
+    state = prune(state)
+    notes = for {{^owner, {:display, {:grades, _}}}, {value, _, _}} <- state.entries, do: value
+    {:reply, notes, state}
   end
 
   def handle_call({:fetch, key}, _from, state) do

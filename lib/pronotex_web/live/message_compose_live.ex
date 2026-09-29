@@ -40,6 +40,7 @@ defmodule PronotexWeb.MessageComposeLive do
           uncertain: false
         )
 
+      socket = cached_recipients(socket)
       {:ok, if(connected?(socket), do: load_recipients(socket), else: socket)}
     else
       {:ok,
@@ -49,13 +50,43 @@ defmodule PronotexWeb.MessageComposeLive do
     end
   end
 
+  defp cached_recipients(%{assigns: %{api: Pronotex.Pronote}} = socket) do
+    entries =
+      socket.assigns.account.id
+      |> Pronotex.Pronote.Session.for_account()
+      |> Pronotex.Pronote.ReadCache.display()
+
+    with {:ok, children} <- Map.fetch(entries, {:children}),
+         child when not is_nil(child) <-
+           Enum.find(children, &(child_slug(&1) == socket.assigns.slug)),
+         {:ok, recipients} <- Map.fetch(entries, {:message_recipients}) do
+      socket =
+        assign(
+          socket,
+          PronotexWeb.DashboardCache.header_counts(entries, child, socket.assigns.account)
+        )
+
+      assign(socket,
+        children: children,
+        child: child,
+        recipients: recipients,
+        loading: false,
+        sender_name: Map.get(entries, {:sender_name}, socket.assigns.sender_name)
+      )
+    else
+      _ -> socket
+    end
+  end
+
+  defp cached_recipients(socket), do: socket
+
   defp load_recipients(socket) do
     api = socket.assigns.api
     account = socket.assigns.account
     slug = socket.assigns.slug
 
     socket
-    |> assign(loading: true, load_error: nil)
+    |> assign(loading: socket.assigns.loading, load_error: nil)
     |> start_async(:recipients, fn ->
       with {:ok, children} <- call(api, account, :children, []),
            true <- Enum.any?(children, &(child_slug(&1) == slug)) do

@@ -231,7 +231,7 @@ defmodule PronotexWeb.AppHeader do
             }
             class="navigation-tab"
           >
-            <.icon name={icon} class="hidden size-4 lg:inline-block" />
+            <.icon name={icon} class="navigation-tab-icon size-4" />
             {label}
             <.count_badge
               :if={section == "devoirs" && @homework_badge_count > 0}

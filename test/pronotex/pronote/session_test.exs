@@ -133,6 +133,34 @@ defmodule Pronotex.Pronote.SessionTest do
     assert length(Agent.get(agent, & &1.calls)) > length(calls)
   end
 
+  test "default and explicit grade periods share one remote read" do
+    {server, agent} = session()
+    assert {:ok, report} = Pronote.grades("child-a", nil, server)
+    period = Pronotex.Pronote.Grades.period_key(report.period)
+    assert {:ok, ^report} = Pronote.grades("child-a", period, server)
+    assert {:ok, ^report} = Pronote.grades("child-a", report.period, server)
+    assert Enum.count(Agent.get(agent, & &1.calls), &(elem(&1, 0) == "DernieresNotes")) == 1
+  end
+
+  test "display notes remain readable while the numbered session is busy and are cleared on logout" do
+    {server, _} = session()
+    assert {:ok, report} = Pronote.grades("child-a", nil, server)
+    :ok = :sys.suspend(server)
+
+    try do
+      task = Task.async(fn -> Pronotex.Pronote.ReadCache.notes(server) end)
+      assert [%{report: ^report, default?: true}] = Task.await(task, 500)
+      # Refreshing unrelated resources must not remove the displayed notes.
+      Pronotex.Pronote.ReadCache.invalidate({:owner_kinds, server, [:lessons, :events]})
+      assert [%{report: ^report}] = Pronotex.Pronote.ReadCache.notes(server)
+    after
+      :sys.resume(server)
+    end
+
+    assert :ok = Pronote.logout(server)
+    assert [] = Pronotex.Pronote.ReadCache.notes(server)
+  end
+
   test "fresh lesson reads persist cancellation observations for the session profile" do
     alias Pronotex.Push.Baseline
     Pronotex.Repo.delete_all(Baseline)

@@ -85,6 +85,29 @@ defmodule PronotexWeb.MessageComposeLiveTest do
     {:ok, conn: build_conn() |> Plug.Test.init_test_session(Pronotex.Auth.session("parent-1"))}
   end
 
+  test "cached composer renders before contacting a busy session", %{conn: conn} do
+    server = Pronotex.Pronote.Session.for_account("parent-1")
+
+    for operation <- [:children, :sender_name, :message_recipients] do
+      {:ok, value} = apply(API, operation, [])
+      Pronotex.Pronote.ReadCache.remember(server, {operation}, value)
+    end
+
+    Application.put_env(:pronotex, :pronote_client, Pronotex.Pronote)
+    :sys.suspend(server)
+
+    try do
+      html = conn |> get("/alice/parent-messages/new") |> html_response(200)
+      assert html =~ "Christian Blavier"
+
+      assert [_] =
+               html |> Floki.parse_document!() |> Floki.find("#recipient-query:not([disabled])")
+    after
+      :sys.resume(server)
+      Pronotex.Pronote.ReadCache.invalidate(server)
+    end
+  end
+
   defp compose(conn) do
     {:ok, view, _} = live(conn, "/alice/parent-messages/new")
     render_async(view)

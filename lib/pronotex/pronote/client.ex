@@ -499,7 +499,7 @@ defmodule Pronotex.Pronote.Client do
     {discussions, client}
   end
 
-  def grades(client, child_id, period_name) do
+  def grade_period(client, child_id, period_name) do
     child = Enum.find(client.children, &(&1["N"] == child_id))
     unless child, do: raise(Error.new(:child_not_found))
     unless contains?(client.tabs, 198), do: raise(Error.new(:forbidden))
@@ -516,6 +516,12 @@ defmodule Pronotex.Pronote.Client do
         Enum.find(periods, &(&1["N"] == default)) || List.first(periods)
 
     unless period, do: raise(Error.new(:forbidden))
+
+    {period, periods}
+  end
+
+  def grades(client, child_id, period_name) do
+    {period, periods} = grade_period(client, child_id, period_name)
 
     {data, transport} =
       Transport.call(client.transport, "DernieresNotes", %{
