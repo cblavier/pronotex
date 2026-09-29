@@ -55,13 +55,21 @@ defmodule Pronotex.Pronote.Lesson do
   defp evaluation(raw) do
     notebook = get_in(raw, ["cahierDeTextes", "V"]) || %{}
 
-    if notebook["estEval"] == true do
+    category =
+      cond do
+        notebook["estDevoir"] == true -> {"DS", "Devoir sur table"}
+        notebook["estEval"] == true -> {"EVA", "Évaluation"}
+        true -> nil
+      end
+
+    if category do
+      {icon, fallback} = category
       categories = get_in(notebook, ["originesCategorie", "V"]) || []
 
       Enum.find_value(categories, fn
-        %{"libelleIcone" => "EVA", "L" => label} when is_binary(label) and label != "" -> label
+        %{"libelleIcone" => ^icon, "L" => label} when is_binary(label) and label != "" -> label
         _ -> nil
-      end) || "Évaluation"
+      end) || fallback
     end
   end
 

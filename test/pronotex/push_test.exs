@@ -95,6 +95,52 @@ defmodule Pronotex.PushTest do
              Push.observe_cancellations("family", c.context, c.child, [cancelled_lesson()], @now)
   end
 
+  test "an active duplicate suppresses the cancellation without marking it seen", c do
+    subscribe()
+    lesson = cancelled_lesson(%{subject: "ANGLAIS LV1"})
+    active = %{lesson | id: "replacement", canceled: false}
+
+    for lessons <- [[lesson, active], [active, lesson]] do
+      assert {:ok, 0} = Push.observe_cancellations("family", c.context, c.child, lessons, @now)
+      assert Repo.all(Delivery) == []
+    end
+
+    assert {:ok, 1} =
+             Push.observe_cancellations("family", c.context, c.child, [lesson], @now)
+
+    assert [_] = Repo.all(Delivery)
+  end
+
+  test "partial replacements suppress cancellations but adjacent lessons do not", c do
+    subscribe()
+    lesson = cancelled_lesson()
+
+    replacement =
+      cancelled_lesson(%{
+        subject: "Français",
+        canceled: false,
+        start: ~N[2026-09-23 16:30:00],
+        end: ~N[2026-09-23 17:00:00]
+      })
+
+    assert {:ok, 0} =
+             Push.observe_cancellations("family", c.context, c.child, [lesson, replacement], @now)
+
+    assert Repo.all(Delivery) == []
+    adjacent = cancelled_lesson(%{start: ~N[2026-09-23 17:00:00], end: ~N[2026-09-23 18:00:00]})
+
+    assert {:ok, 1} =
+             Push.observe_cancellations(
+               "family",
+               c.context,
+               c.child,
+               [lesson, replacement, adjacent],
+               @now
+             )
+
+    assert [_] = Repo.all(Delivery)
+  end
+
   test "cancellations survive ID rotation, disappearance, repeat reads and delivery", c do
     subscribe()
     lesson = cancelled_lesson()
@@ -320,6 +366,47 @@ defmodule Pronotex.PushTest do
              )
 
     assert length(Repo.all(Delivery)) == 2
+  end
+
+  test "notifications invalidate only the corresponding cache before sending" do
+    alias Pronotex.Pronote.ReadCache
+    sub = subscribe()
+
+    for {notification, affected} <- [{"grades", :grades}, {"cancellation", :lessons}] do
+      keys =
+        for profile <- [:parent, :child], kind <- [:grades, :lessons, :menus] do
+          key = {self(), {profile, {kind, "child"}}}
+          {:miss, generation} = ReadCache.fetch(key)
+          ReadCache.put(key, :cached, 300_000, generation)
+          {kind, key, generation}
+        end
+
+      Repo.insert!(%Delivery{
+        subscription_id: sub.id,
+        payload: %{"kind" => notification, "tag" => notification <> "-test"},
+        due_at: @now,
+        expires_at: DateTime.add(@now, 86400)
+      })
+
+      Push.deliver_pending(
+        fn _, _ ->
+          for {kind, key, generation} <- keys do
+            if kind == affected do
+              assert {:miss, _} = ReadCache.fetch(key)
+              ReadCache.put(key, :stale_inflight_response, 300_000, generation)
+              assert {:miss, _} = ReadCache.fetch(key)
+            else
+              assert {:hit, :cached} = ReadCache.fetch(key)
+            end
+          end
+
+          :ok
+        end,
+        @now
+      )
+
+      ReadCache.invalidate(self())
+    end
   end
 
   test "delivery retries with a stable tag, success removes queue entry", c do

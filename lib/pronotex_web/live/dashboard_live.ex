@@ -100,6 +100,11 @@ defmodule PronotexWeb.DashboardLive do
     socket = assign(socket, :now, now())
 
     socket =
+      Enum.reduce(socket.private[:visible_grades] || [], socket, fn grade, socket ->
+        stream_insert(socket, :grades, grade)
+      end)
+
+    socket =
       Enum.reduce(socket.private[:lesson_days] || [], socket, fn day, socket ->
         stream_insert(socket, :lesson_days, day)
       end)
@@ -275,6 +280,9 @@ defmodule PronotexWeb.DashboardLive do
 
   def handle_event("show-more-grades", _, socket) do
     {grades, remaining} = Enum.split(socket.assigns.remaining_grades, 5)
+
+    socket =
+      put_private(socket, :visible_grades, (socket.private[:visible_grades] || []) ++ grades)
 
     {:noreply,
      socket
@@ -604,6 +612,7 @@ defmodule PronotexWeb.DashboardLive do
         Map.get(socket.assigns.homework_badge_cache, {selected_slug, today}, 0)
     )
     |> stream(:events, [], reset: true)
+    |> put_private(:visible_grades, [])
     |> stream(:grades, [], reset: true)
     |> stream(:averages, [], reset: true)
     |> stream(:menu_days, [], reset: true)
@@ -984,6 +993,13 @@ defmodule PronotexWeb.DashboardLive do
       else: push_patch(socket, to: url, replace: true)
   end
 
+  defp subject_sort_key(subject) do
+    subject
+    |> String.downcase()
+    |> String.normalize(:nfd)
+    |> String.replace(~r/\p{Mn}/u, "")
+  end
+
   defp apply_result(socket, :events, {:ok, events}) do
     socket
     |> assign(
@@ -1017,8 +1033,11 @@ defmodule PronotexWeb.DashboardLive do
       class_overall: report.class_overall,
       overall_out_of: report.overall_out_of
     )
+    |> put_private(:visible_grades, Enum.take(report.grades, 5))
     |> stream(:grades, Enum.take(report.grades, 5), reset: true)
-    |> stream(:averages, report.averages, reset: true)
+    |> stream(:averages, Enum.sort_by(report.averages, &subject_sort_key(&1.subject)),
+      reset: true
+    )
   end
 
   defp apply_result(socket, :menus, {:ok, menus}) do

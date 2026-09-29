@@ -428,6 +428,22 @@ defmodule PronotexWeb.DashboardLiveTest do
           }
         })
 
+      report =
+        if mode == :sorted_averages do
+          [average] = report.averages
+
+          %{
+            report
+            | averages:
+                Enum.map(
+                  ["Maths", "français", "Éducation musicale", "Anglais"],
+                  &%{average | id: &1, subject: &1}
+                )
+          }
+        else
+          report
+        end
+
       case mode do
         :grades_failure ->
           {:error, Pronotex.Pronote.Error.new(:forbidden)}
@@ -1065,6 +1081,23 @@ defmodule PronotexWeb.DashboardLiveTest do
     view |> element("#retry-error") |> render_click()
     render_async(view)
     assert has_element?(view, "#menu-days", "Gratin")
+  end
+
+  test "subject averages are alphabetized regardless of case and accents", %{conn: conn} do
+    Application.put_env(:pronotex, :dashboard_test_mode, :sorted_averages)
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    view |> element("#nav-notes") |> render_click()
+    html = render_async(view)
+
+    subjects =
+      html
+      |> Floki.parse_document!()
+      |> Floki.find("#subject-averages th")
+      |> Enum.map(&(Floki.text(&1) |> String.trim()))
+
+    assert subjects == ["Anglais", "Éducation musicale", "français", "Maths"]
+    refute has_element?(view, "#overall-trend")
   end
 
   test "notes display official averages and reload on period and child changes", %{conn: conn} do

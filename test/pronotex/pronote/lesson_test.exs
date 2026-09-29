@@ -36,6 +36,33 @@ defmodule Pronotex.Pronote.LessonTest do
            ).evaluation == nil
   end
 
+  test "reads devoir sur table categories and falls back when the label is missing" do
+    raw = %{
+      "N" => "history",
+      "DateDuCours" => %{"V" => "01/10/2026 09:05:00"},
+      "DateDuCoursFin" => %{"V" => "01/10/2026 10:00:00"},
+      "ListeContenus" => %{"V" => [%{"G" => 16, "L" => "HISTOIRE-GEOGRAPHIE"}]}
+    }
+
+    for categories <- [
+          [%{"G" => 3, "L" => "Devoir sur table", "libelleIcone" => "DS"}],
+          [%{"L" => "", "libelleIcone" => "DS"}],
+          []
+        ] do
+      notebook = %{"estDevoir" => true, "originesCategorie" => %{"V" => categories}}
+      lesson = Lesson.parse(Map.put(raw, "cahierDeTextes", %{"V" => notebook}), %{}, "child")
+      assert lesson.evaluation == "Devoir sur table"
+    end
+
+    notebook = %{
+      "estDevoir" => false,
+      "originesCategorie" => %{"V" => [%{"L" => "Devoir sur table", "libelleIcone" => "DS"}]}
+    }
+
+    assert Lesson.parse(Map.put(raw, "cahierDeTextes", %{"V" => notebook}), %{}, "child").evaluation ==
+             nil
+  end
+
   test "uses the explicit end date and preserves multiple teachers and rooms" do
     raw = %{
       "N" => "lesson",

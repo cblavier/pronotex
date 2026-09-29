@@ -5,6 +5,12 @@ defmodule PronotexWeb.GradeTrendChart do
   attr :class_points, :list, default: []
 
   def chart(assigns) do
+    assigns =
+      assign(assigns,
+        points: visible_points(assigns.points),
+        class_points: visible_points(assigns.class_points)
+      )
+
     domain = assigns.points ++ assigns.class_points
     coordinates = coordinates(assigns.points, domain)
     class_coordinates = coordinates(assigns.class_points, domain)
@@ -25,7 +31,13 @@ defmodule PronotexWeb.GradeTrendChart do
         role="img"
         aria-label="Évolution des moyennes générales de l’élève et de la classe sur la période ; classe en gris clair"
       >
-        <g class="class-average-trend" stroke="#d1d5db" fill="#d1d5db" opacity="0.5">
+        <g
+          :if={@class_points != []}
+          class="class-average-trend"
+          stroke="#d1d5db"
+          fill="#d1d5db"
+          opacity="0.5"
+        >
           <title>Moyenne générale de la classe</title>
           <path
             d={@class_path}
@@ -37,6 +49,7 @@ defmodule PronotexWeb.GradeTrendChart do
           />
         </g>
         <path
+          :if={@points != []}
           d={@path}
           fill="none"
           stroke="currentColor"
@@ -102,14 +115,19 @@ defmodule PronotexWeb.GradeTrendChart do
     end)
   end
 
+  defp visible_points([_, _ | _] = points), do: points
+  defp visible_points(_points), do: []
+
   defp coordinates([], _domain), do: []
 
   defp coordinates(points, domain) do
     {first, _} = Enum.min_by(domain, fn {date, _} -> elapsed(date, elem(hd(domain), 0)) end)
     {last, _} = Enum.max_by(domain, fn {date, _} -> elapsed(date, first) end)
     duration = max(elapsed(last, first), 1)
-    {lower_bound, maximum} = domain |> Enum.map(&elem(&1, 1)) |> Enum.min_max()
-    score_range = maximum + 2 - lower_bound
+    {minimum, maximum} = domain |> Enum.map(&elem(&1, 1)) |> Enum.min_max()
+    upper_bound = min(maximum + 2, 20)
+    lower_bound = max(minimum - 2, 0)
+    score_range = upper_bound - lower_bound
 
     Enum.map(points, fn {date, value} ->
       {Float.round(12 + elapsed(date, first) / duration * 576, 2),

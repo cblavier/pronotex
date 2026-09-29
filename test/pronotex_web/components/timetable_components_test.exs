@@ -52,6 +52,16 @@ defmodule PronotexWeb.TimetableComponentsTest do
     assert cards([canceled]) |> Floki.find("[aria-current=time]") == []
   end
 
+  test "the shared badge and timetable retain the evaluation label unless canceled" do
+    exam = %{lesson("HISTOIRE-GEOGRAPHIE") | evaluation: "Devoir sur table"}
+    assert Floki.text(cards([exam])) =~ "Devoir sur table"
+
+    assert render_component(&PronotexWeb.CoreComponents.lesson_badges/1, lesson: exam) =~
+             "Devoir sur table"
+
+    refute Floki.text(cards([%{exam | canceled: true}])) =~ "Devoir sur table"
+  end
+
   defp cards(lessons, now \\ ~N[2026-09-21 09:30:00]) do
     render_component(&TimetableComponents.week_timetable/1,
       lessons: lessons,

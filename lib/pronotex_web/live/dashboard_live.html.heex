@@ -364,10 +364,18 @@
                 :for={{dom_id, grade} <- @streams.grades}
                 id={dom_id}
                 class="day-group"
-                data-today={to_string(grade.date == @today)}
+                data-new={to_string(Pronotex.GradeHistory.new?(grade))}
               >
                 <div class="day-heading flex flex-wrap items-center justify-between gap-2">
-                  <h4 class="text-sm font-semibold">{grade.subject}</h4>
+                  <h4 class="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                    {grade.subject}
+                    <span
+                      :if={Pronotex.GradeHistory.new?(grade)}
+                      class="badge badge-sm border-0 bg-[var(--day-ink)] text-white"
+                    >
+                      Nouveau
+                    </span>
+                  </h4>
                   <time class="text-xs" datetime={Date.to_iso8601(grade.date)}>
                     {Calendar.strftime(grade.date, "%d/%m/%Y")}
                   </time>

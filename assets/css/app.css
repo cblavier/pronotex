@@ -197,7 +197,6 @@ html { touch-action: manipulation; }
   border-bottom: 1px solid var(--day-line);
 }
 #grade-list .day-heading { padding-block: 0.5rem; }
-#grade-list > article[data-today="true"] { border-left: 3px solid var(--day-ink); }
 
 /* Child-specific accents on a shared neutral background. */
 .page-shell, .notification-banner {
@@ -496,7 +495,7 @@ html { touch-action: manipulation; }
   #agenda-content[data-panel="events"] #timetable { display: none; }
 }
 
-.show-more-button { height: 3rem; min-height: 3rem; font-size: 1rem; color: var(--day-ink); border-color: var(--day-line); box-shadow: none; }
+.show-more-button { height: 2.5rem; min-height: 2.5rem; font-size: 1rem; color: var(--day-ink); border-color: var(--day-line); box-shadow: none; }
 
 .page-shell > main { padding-bottom: 1rem; }
 @media (min-width: 640px) {

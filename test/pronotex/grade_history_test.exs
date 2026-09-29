@@ -25,6 +25,15 @@ defmodule Pronotex.GradeHistoryTest do
     %{context: context, report: report}
   end
 
+  test "new marks use a strict 24-hour window from detection" do
+    grade = %{date: ~D[2026-09-17], first_seen_at: @now}
+    assert GradeHistory.new?(grade, @now)
+    assert GradeHistory.new?(grade, DateTime.add(@later, -1, :microsecond))
+    refute GradeHistory.new?(grade, @later)
+    refute GradeHistory.new?(grade, DateTime.add(@now, -1, :microsecond))
+    refute GradeHistory.new?(%{date: ~D[2026-09-24]}, @later)
+  end
+
   test "official history survives rotated student IDs and adopts a matching legacy scope", %{
     context: original,
     report: report
@@ -132,6 +141,10 @@ defmodule Pronotex.GradeHistoryTest do
     assert Enum.map(GradeHistory.by_publication(context, [rotated, late]), & &1.id) ==
              ["late", "rotated"]
 
+    [_, detected] = GradeHistory.by_publication(context, [rotated, late])
+    assert detected.first_seen_at == @now
+    refute GradeHistory.new?(detected, @later)
+
     other_context = %{context | period: "semester2"}
     GradeHistory.record(other_context, %{report | grades: [original, late]}, @now)
 
@@ -154,6 +167,9 @@ defmodule Pronotex.GradeHistoryTest do
     assert grade.published_at == published
     assert grade.first_seen_at == @now
     refute grade.publication_estimated
+    [displayed] = GradeHistory.by_publication(context, report.grades)
+    assert displayed.first_seen_at == @now
+    assert GradeHistory.new?(displayed, @now)
   end
 
   test "class and subject average changes are saved even when overall stays unchanged", %{

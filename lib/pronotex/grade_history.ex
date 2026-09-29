@@ -83,32 +83,48 @@ defmodule Pronotex.GradeHistory do
     # an otherwise identical mark, ignoring changing class statistics.
     by_content = Enum.group_by(history, &grade_identity(&1.data))
 
-    Enum.sort_by(
-      current_grades,
-      fn grade ->
-        matches = Map.get(by_content, grade_identity(json(grade)), [])
-        existing = Map.get(by_id, grade.id)
-        matches = if existing, do: [existing | matches], else: matches
+    current_grades
+    |> Enum.map(fn grade ->
+      matches = Map.get(by_content, grade_identity(json(grade)), [])
+      existing = Map.get(by_id, grade.id)
+      matches = if existing, do: [existing | matches], else: matches
 
-        published_at =
-          Map.get(grade, :published_at) ||
-            matches
-            |> Enum.map(& &1.published_at)
-            |> Enum.min(DateTime, fn -> nil end)
+      published_at =
+        Map.get(grade, :published_at) ||
+          matches
+          |> Enum.map(& &1.published_at)
+          |> Enum.min(DateTime, fn -> nil end)
 
-        timestamp =
-          if published_at,
-            do: DateTime.to_unix(published_at, :microsecond),
-            else: DateTime.to_unix(DateTime.new!(grade.date, ~T[00:00:00]), :microsecond)
+      timestamp =
+        if published_at,
+          do: DateTime.to_unix(published_at, :microsecond),
+          else: DateTime.to_unix(DateTime.new!(grade.date, ~T[00:00:00]), :microsecond)
 
-        {timestamp, Date.to_gregorian_days(grade.date), grade.id}
-      end,
-      :desc
-    )
+      first_seen_at =
+        matches
+        |> Enum.map(& &1.first_seen_at)
+        |> Enum.min(DateTime, fn -> nil end)
+
+      {{timestamp, Date.to_gregorian_days(grade.date), grade.id},
+       Map.put(grade, :first_seen_at, first_seen_at)}
+    end)
+    |> Enum.sort_by(&elem(&1, 0), :desc)
+    |> Enum.map(&elem(&1, 1))
+  end
+
+  def new?(grade, now \\ DateTime.utc_now()) do
+    case Map.get(grade, :first_seen_at) do
+      %DateTime{} = detected ->
+        age = DateTime.diff(now, detected, :microsecond)
+        age >= 0 and age < 86_400_000_000
+
+      _ ->
+        false
+    end
   end
 
   defp grade_identity(data),
-    do: Map.drop(data, ["id", "average", "min", "max", "published_at"])
+    do: Map.drop(data, ["id", "average", "min", "max", "published_at", "first_seen_at"])
 
   def averages(context) do
     case Repo.get_by(Scope, context) do

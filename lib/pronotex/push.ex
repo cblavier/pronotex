@@ -172,6 +172,7 @@ defmodule Pronotex.Push do
 
       cancellations =
         lessons
+        |> Pronotex.Agenda.without_replaced_cancellations()
         |> Enum.filter(
           &(&1.canceled && NaiveDateTime.to_date(&1.start) == today &&
               NaiveDateTime.compare(&1.end, local_now) == :gt)
@@ -402,6 +403,8 @@ defmodule Pronotex.Push do
         sub ->
           if Accounts.get(sub.account_id) &&
                sub.account_fingerprint == Accounts.fingerprint(sub.account_id) do
+            invalidate_notification_cache(delivery.payload)
+
             result =
               try do
                 sender.(sub, delivery.payload)
@@ -459,6 +462,19 @@ defmodule Pronotex.Push do
     end)
 
     :ok
+  end
+
+  # Invalidate before sending: a device can open the notification immediately.
+  # Other family profiles may hold the same data under different PRONOTE IDs.
+  defp invalidate_notification_cache(payload) do
+    kind =
+      case payload["kind"] do
+        "grades" -> :grades
+        "cancellation" -> :lessons
+        _ -> nil
+      end
+
+    if kind, do: Pronotex.Pronote.ReadCache.invalidate({:kind, kind})
   end
 
   defp normalize(value),

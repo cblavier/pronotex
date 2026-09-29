@@ -1,13 +1,19 @@
 defmodule Pronotex.Agenda do
   @moduledoc "Presentation of a day's lessons, replacements and gaps."
 
-  def entries(lessons) do
+  @doc "Hides canceled lessons replaced by an overlapping active lesson."
+  def without_replaced_cancellations(lessons) do
     active = Enum.reject(lessons, & &1.canceled)
 
     lessons
     |> Enum.reject(fn lesson ->
       lesson.canceled and Enum.any?(active, &overlap?(lesson, &1))
     end)
+  end
+
+  def entries(lessons) do
+    lessons
+    |> without_replaced_cancellations()
     |> Enum.sort_by(& &1.start, NaiveDateTime)
     |> Enum.map_reduce(nil, fn lesson, previous_end ->
       pause =

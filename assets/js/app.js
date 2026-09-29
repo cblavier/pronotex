@@ -259,12 +259,7 @@ const captainPink = () => {
 const captainAnimations = [
   {effect: captainPink},
   {effect: captainPixelate},
-  {duration: 3800, effect: captainConfetti, frames: [
-    {transform: "scale(1)", offset: 0},
-    {transform: "scale(1.2)", offset: 0.06},
-    {transform: "scale(1)", offset: 0.14},
-    {transform: "scale(1)", offset: 1}
-  ]},
+  {effect: captainConfetti},
   // Spring: squash, jump, then two smaller rebounds.
   {duration: 1300, frames: [
     {transform: "translateY(0) scale(1, 1)", offset: 0},
@@ -340,17 +335,24 @@ const captainAnimations = [
     ]
   }}
 ]
+// Safari (including installed iOS apps) cannot reliably render this SVG filter.
+const availableCaptainAnimations = captainAnimations.filter(animation =>
+  animation.effect !== captainPixelate || !/^Apple/.test(navigator.vendor || "")
+)
 const lastCaptainAnimation = new WeakMap()
 document.addEventListener("click", event => {
   const button = event.target.closest("[data-logo-easter-egg]")
   if (!button || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
   const skull = button.querySelector(".app-brand-skull")
   if (!skull || skull.getAnimations().length) return
+  if (!availableCaptainAnimations.length) return
   // Optional haptic feedback; unsupported or blocked vibration must not interrupt the animation.
   if (typeof navigator.vibrate === "function") {
     try { navigator.vibrate(12) } catch { /* Browser or device policy may block vibration. */ }
   }
-  const choices = captainAnimations.filter(animation => animation !== lastCaptainAnimation.get(button))
+  const choices = availableCaptainAnimations.length > 1
+    ? availableCaptainAnimations.filter(animation => animation !== lastCaptainAnimation.get(button))
+    : availableCaptainAnimations
   const animation = choices[Math.floor(Math.random() * choices.length)]
   lastCaptainAnimation.set(button, animation)
   animation.effect?.()

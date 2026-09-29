@@ -43,7 +43,7 @@ defmodule PronotexWeb.CoreComponents do
       :if={@lesson.evaluation && !@lesson.canceled}
       class="badge badge-soft badge-xs lesson-evaluation-badge"
     >
-      Évaluation
+      {@lesson.evaluation}
     </span>
     <span
       :if={@lesson.status && @lesson.status != "" && !@lesson.canceled}

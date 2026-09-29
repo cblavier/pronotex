@@ -27,13 +27,12 @@ defmodule Pronotex.Pronote.GradeTrendTest do
     end
   end
 
-  test "chart displays one official point without an invented past" do
+  test "chart waits for two official points without an invented past" do
     import Phoenix.LiveViewTest
     alias PronotexWeb.GradeTrendChart
     refute render_component(&GradeTrendChart.chart/1, points: []) =~ "overall-trend"
     html = render_component(&GradeTrendChart.chart/1, points: [{~U[2026-09-01 08:00:00Z], 15.0}])
-    assert html =~ "trend-point-0"
-    assert html =~ "moyenne officielle 15,00"
+    refute html =~ "overall-trend"
     refute html =~ "estimée"
 
     html =
@@ -68,18 +67,26 @@ defmodule Pronotex.Pronote.GradeTrendTest do
 
     html =
       render_component(&GradeTrendChart.chart/1,
-        points: [{middle, 15.0}],
+        points: [{middle, 15.0}, {last, 15.0}],
         class_points: [{first, 10.0}, {last, 15.0}]
       )
 
     document = Floki.parse_fragment!(html)
     assert Floki.attribute(document, ".class-average-trend", "stroke") == ["#d1d5db"]
-    assert Floki.attribute(document, "svg > path", "d") == ["M 300.0 45.14"]
+
+    assert Floki.attribute(document, "svg > path", "d") == [
+             "M 300.0 37.78 C 444.0 37.78, 444.0 37.78, 588.0 37.78"
+           ]
 
     assert Floki.attribute(document, ".class-average-trend path", "d") ==
-             ["M 12.0 128.0 C 300.0 128.0, 300.0 45.14, 588.0 45.14"]
+             ["M 12.0 102.22 C 300.0 102.22, 300.0 37.78, 588.0 37.78"]
 
-    html = render_component(&GradeTrendChart.chart/1, points: [], class_points: [{first, 12.0}])
+    html =
+      render_component(&GradeTrendChart.chart/1,
+        points: [],
+        class_points: [{first, 12.0}, {last, 13.0}]
+      )
+
     assert html =~ "class-average-trend"
     refute html =~ "<circle"
     document = Floki.parse_fragment!(html)
