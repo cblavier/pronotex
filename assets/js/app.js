@@ -1,3 +1,4 @@
+import {MessageComposer} from "./message_composer"
 import {NotificationBanners} from "./notification_banners"
 import {WeekOverview} from "./week_overview"
 import {updatePushWorker, listenForPushNavigation} from "./push"
@@ -135,7 +136,7 @@ const AgendaScroll = {
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, NotificationBanners, WeekOverview, AgendaScroll, StartupSplash, Settings, RememberPage},
+  hooks: {...colocatedHooks, MessageComposer, NotificationBanners, WeekOverview, AgendaScroll, StartupSplash, Settings, RememberPage},
 })
 
 // Show progress bar on live navigation and form submits

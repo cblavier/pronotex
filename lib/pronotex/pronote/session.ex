@@ -36,10 +36,14 @@ defmodule Pronotex.Pronote.Session do
         {:set_homework_done, _, _, _} -> :homework
         {:set_discussion_read, _, _, _} -> :discussions
         {:set_parent_discussion_read, _, _} -> :parent_discussions
+        {:send_message, _, _, _} -> :parent_discussions
         _ -> nil
       end
 
     if affected, do: ReadCache.invalidate({:kind, affected})
+
+    if match?({:send_message, _, _, _}, operation),
+      do: ReadCache.invalidate({:kind, :discussions})
 
     try do
       result = handle_operation(operation, from, state)
@@ -52,11 +56,22 @@ defmodule Pronotex.Pronote.Session do
       # Even an uncertain write may have reached PRONOTE. Also discard reads
       # that started before or during the write in another profile.
       if affected, do: ReadCache.invalidate({:kind, affected})
+
+      if match?({:send_message, _, _, _}, operation),
+        do: ReadCache.invalidate({:kind, :discussions})
     end
   end
 
   defp handle_operation(:logout, _from, state),
     do: {:reply, :ok, %{state | client: nil, students: %{}}}
+
+  # An uncertain send must never be replayed after reconnecting.
+  defp handle_operation({:send_message, _, _, _} = operation, _from, state) do
+    case safely(fn -> execute(operation, state) end) do
+      {:ok, reply, updated} -> {:reply, {:ok, reply}, updated}
+      {:error, error} -> {:reply, {:error, error}, %{state | client: nil, students: %{}}}
+    end
+  end
 
   defp handle_operation(operation, _from, state)
        when elem(operation, 0) in [
@@ -143,6 +158,8 @@ defmodule Pronotex.Pronote.Session do
     end
   end
 
+  defp execute(:sender_name, state), do: {:ok, state.client.sender_name, state}
+
   defp execute(operation, state) when operation in [:login, :children],
     do: {:ok, Client.children(state.client), state}
 
@@ -202,6 +219,16 @@ defmodule Pronotex.Pronote.Session do
     authorize_parent!(state)
     {reply, client} = cached_read(state.client, {:parent_discussions})
     {:ok, reply, %{state | client: client}}
+  end
+
+  defp execute(:message_recipients, state) do
+    {recipients, client} = Client.message_recipients(state.client)
+    {:ok, recipients, %{state | client: client}}
+  end
+
+  defp execute({:send_message, ids, subject, content}, state) do
+    {result, client} = Client.send_message(state.client, ids, subject, content)
+    {:ok, result, %{state | client: client}}
   end
 
   defp execute({:set_parent_discussion_read, id, read}, state) do

@@ -1,7 +1,6 @@
 defmodule PronotexWeb.DashboardLive do
   use PronotexWeb, :live_view
   import PronotexWeb.TimetableComponents
-  import PronotexWeb.NotificationComponents
 
   @impl true
   def mount(_params, _session, socket) do
@@ -1230,8 +1229,6 @@ defmodule PronotexWeb.DashboardLive do
 
   defp child_theme(_children, nil), do: "blue"
   defp child_theme(children, child), do: Pronotex.Family.theme(children, child)
-  defp avatar_src(nil), do: nil
-  defp avatar_src(child), do: Pronotex.Family.avatar(child)
 
   defp messages_label(%{role: :parent, label: name}, _child, "parent-messages"),
     do: "Messages " <> name

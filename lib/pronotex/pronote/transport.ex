@@ -1,6 +1,9 @@
 defmodule Pronotex.Pronote.Transport do
   @moduledoc false
   alias Pronotex.Pronote.{Crypto, Error}
+  require Logger
+
+  @environment Application.compile_env(:pronotex, :environment, :dev)
 
   @derive {Inspect, only: [:root, :order]}
   defstruct [
@@ -69,7 +72,27 @@ defmodule Pronotex.Pronote.Transport do
     {parameters, state}
   end
 
-  def call(state, function, data, response_iv \\ nil) do
+  def call(state, function, data, response_iv \\ nil)
+
+  # Reading status uses the same RPC but never sends a message.
+  def call(state, "SaisieMessage", %{"data" => %{"commande" => "pourLu"}} = data, response_iv),
+    do: remote_call(state, "SaisieMessage", data, response_iv)
+
+  # Guard the transport itself, before encryption, HTTP and request numbering.
+  # This is fixed at build time: runtime settings cannot enable delivery in dev/test.
+  def call(state, "SaisieMessage", data, _response_iv) when @environment != :prod do
+    Logger.warning(fn ->
+      "[Pronote] Envoi simulé (#{@environment}) — aucun message envoyé. Payload : " <>
+        Jason.encode!(%{"function" => "SaisieMessage", "payload" => data})
+    end)
+
+    {%{simulated: true}, state}
+  end
+
+  def call(state, function, data, response_iv),
+    do: remote_call(state, function, data, response_iv)
+
+  defp remote_call(state, function, data, response_iv) do
     number = Crypto.encrypt(Integer.to_string(state.order), state.key, state.iv) |> Crypto.hex()
 
     payload = %{

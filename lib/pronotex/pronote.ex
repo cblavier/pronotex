@@ -1,14 +1,21 @@
 defmodule Pronotex.Pronote do
   @moduledoc """
-  PRONOTE reads and explicit status updates, serialized in isolated profile sessions.
+  PRONOTE reads and explicit writes, serialized in isolated profile sessions.
 
       {:ok, children} = Pronotex.Pronote.children()
       {:ok, lessons} = Pronotex.Pronote.lessons(hd(children).id, ~D[2026-09-14], ~D[2026-09-20])
 
   Credentials are read from the selected numbered profile or PRONOTE_FAMILY
-  at first use, not on Phoenix startup. Homework and discussion statuses change only through their explicit write functions.
+  at first use, not on Phoenix startup. Messages are sent only through the explicit send function.
   """
   alias Pronotex.Pronote.{Error, Session}
+
+  def sender_name(server), do: GenServer.call(server, :sender_name, :infinity)
+
+  def message_recipients(server), do: GenServer.call(server, :message_recipients, :infinity)
+
+  def send_message(ids, subject, content, server),
+    do: GenServer.call(server, {:send_message, ids, subject, content}, :infinity)
 
   def parent_discussions(server), do: GenServer.call(server, {:parent_discussions}, :infinity)
 

@@ -377,9 +377,9 @@ html { touch-action: manipulation; }
 #homework-nav-badge[data-expanded="true"] { width: auto; }
 .count-badge[data-status="due"] { color: var(--due-ink); background-color: var(--due-tint); }
 .count-badge[data-status="future"] { color: var(--future-ink); background-color: var(--future-tint); }
-.lesson-evaluation-badge { color: #9a3412; background-color: #ffedd5; border-color: transparent; }
+.warm-badge { color: #9a3412; background-color: #ffedd5; border-color: transparent; }
 :root[data-theme="dark"] {
-  .lesson-evaluation-badge { color: #fdba74; background-color: #431f12; }
+  .warm-badge { color: #fdba74; background-color: #431f12; }
 }
 
 :root {
@@ -442,7 +442,7 @@ html { touch-action: manipulation; }
 .child-picker-avatar img, .child-option-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .child-picker-chevron { flex-shrink: 0; color: var(--muted-ink); }
 #child-picker[open] .child-picker-chevron { transform: rotate(180deg); }
-#child-picker-panel { position: absolute; top: calc(100% + 0.5rem); left: 0; z-index: 30; width: 16rem; max-width: calc(100vw - 2rem); padding: 0.5rem; border: 1px solid var(--color-base-300); border-radius: 0.5rem; background: var(--surface-background); box-shadow: 0 12px 32px #163f351a; }
+#child-picker-panel { position: absolute; top: calc(100% + 0.5rem); left: 0; z-index: 30; width: 16rem; max-width: calc(100vw - 2rem); padding: 0.5rem; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); box-shadow: 0 12px 32px #163f351a; }
 .child-picker-option { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr) auto; width: 100%; min-height: 3.25rem; align-items: center; gap: 0.875rem; padding: 0.5rem; border: 0; border-radius: 0.25rem; text-align: left; font-size: 1rem; color: var(--muted-ink); background: transparent; cursor: pointer; }
 .child-picker-option:hover:not(:disabled) { background: var(--day-tint); }
 .child-picker-option:disabled { cursor: wait; }
@@ -523,7 +523,7 @@ html { touch-action: manipulation; }
 .messages-empty { padding: 1.5rem 0; color: var(--muted-ink); font-size: 0.875rem; }
 .discussion-list, .discussion-messages { display: grid; gap: 1rem; }
 .discussion-list { margin-top: 1rem; }
-.discussion-card { position: relative; transition: background-color 150ms; border: 1px solid var(--color-base-300); border-radius: 0.5rem; background: var(--surface-background); overflow: hidden; }
+.discussion-card { position: relative; transition: background-color 150ms; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); overflow: hidden; }
 
 .discussion-summary { display: grid; gap: 0.5rem; width: 100%; padding: 1rem; text-align: left; cursor: pointer; background: transparent; border: 0; }
 
@@ -534,7 +534,7 @@ html { touch-action: manipulation; }
 .discussion-status:disabled { opacity: 0.6; cursor: wait; }
 .discussion-summary:focus-visible, .discussion-status:focus-visible { outline: 2px solid var(--day-ink); outline-offset: -2px; }
 .discussion-card[data-view="detail"] { border: 1px solid var(--day-line); border-radius: 0.6rem; background: var(--surface-background); overflow: hidden; }
-.discussion-message { padding: 1rem; border: 1px solid var(--color-base-300); border-radius: 0.5rem; background: var(--surface-background); }
+.discussion-message { padding: 1rem; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); }
 .discussion-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 0.75rem; font-size: 0.875rem; }
 
 /* Keep the retry action distinct from the error alert in both themes. */
@@ -978,4 +978,52 @@ body.captain-pink .child-picker-avatar::after {
   position: absolute;
   inset: 0;
   background: url("/images/brand/unicorn-portrait.svg") center / cover;
+}
+
+/* Message composition uses the same page and field colors as the dashboard. */
+.new-message-button { flex-shrink: 0; }
+.message-composer { display: flex; flex-direction: column; gap: 1.25rem; }
+#message-form fieldset { min-width: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+.message-field-label { font-size: 0.875rem; font-weight: 600; margin-top: 0.5rem; }
+#message-form input, #message-form textarea { width: 100%; padding: 0.75rem 0.875rem; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); color: var(--color-base-content); font-size: 1rem; }
+#message-form input { height: calc((1lh + 1.5rem + 2px) * 0.75); padding-block: 0; }
+#message-form #message-sender { background: color-mix(in srgb, var(--day-ink) 10%, transparent); color: var(--color-base-content); opacity: 1; -webkit-text-fill-color: var(--color-base-content); cursor: default; }
+#message-form input:focus, #message-form textarea:focus { outline: 2px solid var(--day-ink); outline-offset: 2px; }
+#message-form textarea { height: 11.25rem; min-height: 11.25rem; resize: vertical; }
+.recipient-picker { position: relative; display: flex; flex-direction: column; gap: 0.75rem; }
+.recipient-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; max-height: 18rem; overflow-y: auto; margin-top: 0.25rem; background: var(--color-base-100); border: 1px solid var(--color-base-300); border-radius: 0.5rem; box-shadow: 0 8px 24px #00000015; }
+.recipient-dropdown button { width: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; padding: 0.8rem; text-align: left; cursor: pointer; }
+.recipient-dropdown button:hover, .recipient-dropdown button:focus { background: var(--day-tint); outline: 2px solid var(--day-ink); outline-offset: -2px; }
+.recipient-name { overflow-wrap: anywhere; }
+.recipient-subject-badge { background: var(--surface-background); color: var(--day-ink); border-color: var(--day-ink); font-weight: 500; height: auto; min-height: 1.125rem; white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
+.recipient-empty { padding: 1rem; color: var(--muted-ink); font-size: 0.875rem; }
+.selected-recipients { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.selected-recipient { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; padding: 0.35rem 0.65rem; background: var(--day-tint); border-radius: 0.5rem; max-width: 100%; font-size: 0.875rem; }
+.recipient-remove { min-width: 1.75rem; min-height: 1.75rem; font-size: 1.25rem; cursor: pointer; }
+.message-form-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; }
+.message-form-error { color: var(--color-error); font-size: 0.875rem; }
+.message-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 1rem; background: color-mix(in srgb, var(--color-base-content) 25%, transparent); backdrop-filter: blur(3px); overflow-y: auto; }
+#message-confirmation-focus { width: min(100%, 32rem); }
+.message-modal { padding: 1.25rem; border: 1px solid var(--day-line); border-radius: 0.5rem; background: var(--surface-background); color: var(--color-base-content); box-shadow: 0 8px 30px #0002; overflow-wrap: anywhere; }
+.message-primary-button { background: var(--day-tint); color: var(--day-ink); border-color: var(--day-line); box-shadow: none; }
+.message-composer .btn, .message-modal .btn, .new-message-button { box-shadow: none; font-weight: 500; }
+.message-composer .btn, .message-modal .btn {
+  min-height: 2.5rem;
+  height: auto;
+  max-width: 100%;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.9375rem;
+  line-height: 1.25;
+  white-space: normal;
+}
+.new-message-button { min-height: 2.5rem; height: auto; padding: 0.5rem 0.875rem; font-size: 0.9375rem; gap: 0.5rem; }
+.message-modal #confirmation-description { font-size: 1rem; line-height: 1.6; color: var(--muted-ink); }
+.message-modal h2 { margin-bottom: 1rem; }
+.message-modal p + p { margin-top: 0.5rem; }
+.message-sent { display: flex; gap: 0.75rem; align-items: center; padding: 1rem; background: var(--done-tint); color: var(--done-ink); border-radius: 0.5rem; }
+@media (max-width: 480px) {
+  .selected-recipient { width: 100%; }
+  .selected-recipient .recipient-remove { margin-left: auto; }
+  .new-message-button { font-size: 0.875rem; padding-inline: 0.625rem; }
+  .message-modal .message-form-actions > button { width: 100%; }
 }

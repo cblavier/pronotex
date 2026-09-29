@@ -1,6 +1,7 @@
 defmodule Pronotex.Pronote.SessionTest do
   use ExUnit.Case, async: false
   alias Pronotex.Pronote
+  import ExUnit.CaptureLog
   alias Pronotex.Pronote.{Config, Error, Session}
   alias Pronotex.Test.PronoteServer
 
@@ -44,6 +45,71 @@ defmodule Pronotex.Pronote.SessionTest do
     Req.Test.allow(__MODULE__, self(), server)
     Req.Test.allow(__MODULE__.Student, self(), server)
     {server, if(options[:student], do: student_agent, else: agent)}
+  end
+
+  test "new messages log the connected account payload without writing to Pronote" do
+    for options <- [[], [direct_student: true]] do
+      # Each iteration uses distinct supervised session processes.
+      {server, agent} = session(options)
+      assert {:ok, recipients} = Pronote.message_recipients(server)
+
+      assert Enum.map(recipients, & &1.type) |> Enum.sort() == [
+               "Personnel",
+               "Professeur",
+               "Responsable"
+             ]
+
+      assert Enum.all?(recipients, &(!Map.has_key?(&1, :resource)))
+      teacher = Enum.find(recipients, &(&1.type == "Professeur"))
+      assert teacher.subjects == ["Mathématiques"]
+
+      log =
+        capture_log(fn ->
+          assert {:ok, :simulated} =
+                   Pronote.send_message(
+                     ["3:contact-3", "34:contact-34"],
+                     "Rendez-vous",
+                     "Bonjour, serait-il possible de nous rencontrer ?",
+                     server
+                   )
+        end)
+
+      assert log =~ "Envoi simulé (test)"
+      assert log =~ "Rendez-vous"
+      assert log =~ "Bonjour, serait-il possible de nous rencontrer ?"
+      assert log =~ "contact-3"
+      assert log =~ "contact-34"
+      refute log =~ "PaSsWord-TEST"
+      refute Enum.any?(Agent.get(agent, & &1.calls), &(elem(&1, 0) == "SaisieMessage"))
+      # The next real read still has the correct PRONOTE sequence number.
+      assert {:ok, _} = Pronote.events("child-a", server)
+      stop_supervised(Session)
+      stop_supervised(:student_agent)
+      stop_supervised(Agent)
+    end
+  end
+
+  test "forged recipients and empty messages never reach Pronote" do
+    {server, agent} = session()
+    assert {:ok, _} = Pronote.message_recipients(server)
+
+    assert {:error, %Error{reason: :invalid_message}} =
+             Pronote.send_message(["3:foreign"], "Objet", "Message", server)
+
+    refute Enum.any?(Agent.get(agent, & &1.calls), &(elem(&1, 0) == "SaisieMessage"))
+    assert {:error, %Error{reason: :invalid_message}} = Pronote.send_message([], "", "", server)
+  end
+
+  test "simulated sends cannot reach even a server configured to reject writes" do
+    {server, agent} = session(write_error: 10)
+    assert {:ok, _} = Pronote.message_recipients(server)
+
+    capture_log(fn ->
+      assert {:ok, :simulated} = Pronote.send_message(["3:contact-3"], "Objet", "Message", server)
+    end)
+
+    refute Enum.any?(Agent.get(agent, & &1.calls), &(elem(&1, 0) == "SaisieMessage"))
+    assert Agent.get(agent, & &1.logins) == 1
   end
 
   test "repeated reads use the cache without rolling back ordered transport state" do
@@ -303,6 +369,7 @@ defmodule Pronotex.Pronote.SessionTest do
     test "login and timetable with encryption=#{encrypted}, compression=#{compressed}" do
       {server, agent} = session(encrypted: unquote(encrypted), compressed: unquote(compressed))
       assert {:ok, [%{id: "child-a"}, %{id: "child-b"}]} = Pronote.login(server)
+      assert {:ok, "Christian Blavier"} = Pronote.sender_name(server)
       assert {:ok, [lesson]} = Pronote.lessons("child-b", ~D[2026-09-14], ~D[2026-09-20], server)
       assert lesson.child_id == "child-b"
       assert lesson.subject == "Maths child-b"

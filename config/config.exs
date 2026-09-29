@@ -7,6 +7,8 @@
 # General application configuration
 import Config
 
+config :pronotex, :environment, config_env()
+
 config :pronotex, ecto_repos: [Pronotex.Repo]
 
 config :pronotex, Pronotex.Repo,
@@ -18,6 +20,7 @@ config :pronotex, Pronotex.Repo,
   busy_timeout: 5_000
 
 config :phoenix, :filter_parameters, [
+  "draft",
   "password",
   "pin",
   "token",

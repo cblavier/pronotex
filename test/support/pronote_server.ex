@@ -186,6 +186,7 @@ defmodule Pronotex.Test.PronoteServer do
 
     {%{
        "ressource" => %{
+         "L" => "Christian Blavier",
          "listeRessources" => [
            %{
              "N" => "child-a",
@@ -579,6 +580,51 @@ defmodule Pronotex.Test.PronoteServer do
            end
        }
      }, state, nil, false}
+  end
+
+  defp data("ListeRessourcesPourCommunication", payload, state) do
+    kind = payload["data"]["onglet"]["G"]
+    assert kind in [3, 5, 34]
+    child = payload["data"]["filtreElement"]["N"]
+    assert child in ["child-a", "child-b"]
+
+    expected =
+      if state.options[:space] == 3,
+        do: %{"onglet" => 131},
+        else: %{"onglet" => 131, "membre" => %{"N" => child, "G" => 4}}
+
+    assert payload["Signature"] == expected
+
+    rows = [
+      %{
+        "N" => "contact-#{kind}",
+        "G" => kind,
+        "L" => "Contact #{kind}",
+        "listeRessources" => %{"V" => [%{"G" => 16, "L" => "Mathématiques"}]},
+        "avecDiscussion" => true
+      },
+      %{"N" => "blocked", "G" => kind, "L" => "Non joignable", "avecDiscussion" => false}
+    ]
+
+    {%{"listeRessourcesPourCommunication" => %{"V" => rows}}, state, nil, false}
+  end
+
+  defp data("SaisieMessage", %{"data" => %{"objet" => subject}} = payload, state) do
+    assert subject == "Rendez-vous"
+    assert payload["data"]["contenu"] == "Bonjour, serait-il possible de nous rencontrer ?"
+
+    assert payload["data"]["listeDestinataires"] == [
+             %{"N" => "contact-3", "G" => 3, "L" => "Contact 3"},
+             %{"N" => "contact-34", "G" => 34, "L" => "Contact 34"}
+           ]
+
+    expected =
+      if state.options[:space] == 3,
+        do: %{"onglet" => 131},
+        else: %{"onglet" => 131, "membre" => %{"N" => "child-a", "G" => 4}}
+
+    assert payload["Signature"] == expected
+    {%{}, state, nil, false}
   end
 
   defp data("SaisieMessage", payload, state) do

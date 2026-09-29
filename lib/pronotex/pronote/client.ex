@@ -3,7 +3,16 @@ defmodule Pronotex.Pronote.Client do
   alias Pronotex.Pronote.{Crypto, Error, Homework, Lesson, Transport}
 
   @derive {Inspect, only: []}
-  defstruct [:transport, :general, :children, :tabs, homework_reads: %{}, discussion_reads: %{}]
+  defstruct [
+    :transport,
+    :general,
+    :children,
+    :tabs,
+    :sender_name,
+    homework_reads: %{},
+    discussion_reads: %{},
+    recipients: %{}
+  ]
 
   def login(config, req_options) do
     {parameters, transport} = Transport.open(config, req_options)
@@ -48,7 +57,7 @@ defmodule Pronotex.Pronote.Client do
 
     transport = %{transport | key: Crypto.md5(key_bytes)}
 
-    # Registering a device alters account settings. This read-only client never does it.
+    # Registering a device alters account settings and is intentionally unsupported.
     actions = get_in(auth, ["actionsDoubleAuth", "V"])
 
     if actions && Jason.decode!(actions) != [],
@@ -65,6 +74,7 @@ defmodule Pronotex.Pronote.Client do
       transport: transport,
       general: Map.fetch!(parameters, "General"),
       children: children,
+      sender_name: get_in(user, ["ressource", "L"]),
       tabs: Map.fetch!(user, "listeOnglets")
     }
   end
@@ -236,6 +246,52 @@ defmodule Pronotex.Pronote.Client do
   # Parent requests require a child context in their signature, even for the
   # parent's own mailbox. The authenticated PRONOTE account owns the messages.
   defp discussion_signature(client), do: signature(client, hd(client.children)["N"], 131)
+
+  def message_recipients(client) do
+    unless client.transport.space in [2, 3] and contains?(client.tabs, 131),
+      do: raise(Error.new(:forbidden))
+
+    {recipients, transport} =
+      Enum.map_reduce(client.children, client.transport, fn child, transport ->
+        Enum.map_reduce([3, 5, 34], transport, fn kind, transport ->
+          {data, transport} =
+            Transport.call(transport, "ListeRessourcesPourCommunication", %{
+              "Signature" => signature(client, child["N"], 131),
+              "data" => %{
+                "onglet" => %{"N" => 0, "G" => kind},
+                "filtreElement" => Map.take(child, ["N", "G", "L"])
+              }
+            })
+
+          rows = get_in(data, ["listeRessourcesPourCommunication", "V"])
+          unless is_list(rows), do: raise(Error.new(:protocol))
+          {Enum.map(rows, &Pronotex.Pronote.Recipient.parse/1), transport}
+        end)
+      end)
+
+    recipients = recipients |> List.flatten() |> Pronotex.Pronote.Recipient.merge()
+
+    {Enum.map(recipients, &Map.delete(&1, :resource)),
+     %{client | transport: transport, recipients: Map.new(recipients, &{&1.id, &1.resource})}}
+  end
+
+  def send_message(client, ids, subject, content) do
+    unless Pronotex.Pronote.Recipient.valid_message?(ids, subject, content) and
+             Enum.all?(ids, &Map.has_key?(client.recipients, &1)),
+           do: raise(Error.new(:invalid_message))
+
+    {result, transport} =
+      Transport.call(client.transport, "SaisieMessage", %{
+        "Signature" => discussion_signature(client),
+        "data" => %{
+          "objet" => String.trim(subject),
+          "contenu" => content,
+          "listeDestinataires" => Enum.map(Enum.uniq(ids), &Map.fetch!(client.recipients, &1))
+        }
+      })
+
+    {if(result[:simulated], do: :simulated, else: :sent), %{client | transport: transport}}
+  end
 
   defp discussion_threads(client) do
     unless client.transport.space in [2, 3], do: raise(Error.new(:forbidden))

@@ -1341,6 +1341,13 @@ defmodule PronotexWeb.DashboardLiveTest do
     render_async(view)
     assert has_element?(view, "#discussion-thread-parent")
     assert has_element?(view, "#messages-title", "Messages Camille")
+
+    assert has_element?(
+             view,
+             "#new-message[href='/alice/parent-messages/new']",
+             "Nouveau message"
+           )
+
     refute has_element?(view, "#discussion-thread-a")
     view |> element("#discussion-thread-parent a") |> render_click()
     assert_patch(view, "/alice/parent-messages/thread-parent")
@@ -1359,6 +1366,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     view |> element("#open-messages") |> render_click()
     render_async(view)
     assert has_element?(view, "#messages-title", "Messages Alice")
+    refute has_element?(view, "#new-message")
     view |> element("#discussion-thread-a a") |> render_click()
     assert has_element?(view, "#messages-breadcrumb a", "Retour aux messages")
   end

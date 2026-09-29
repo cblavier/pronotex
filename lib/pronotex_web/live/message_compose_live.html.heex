@@ -1,0 +1,154 @@
+<Layouts.app
+  flash={@flash}
+  child_theme={if @child, do: Pronotex.Family.theme(@children, @child), else: "blue"}
+>
+  <PronotexWeb.AppHeader.header
+    account={@account}
+    children={@children}
+    child={@child}
+    section={@section}
+    loading={is_nil(@child) || @sending}
+    current_url={@back_url}
+    today={@today}
+    messages_unread={@messages_unread}
+    parent_messages_unread={@parent_messages_unread}
+    homework_badge_count={@homework_badge_count}
+    logout_event="request-logout"
+  />
+  <section
+    id="message-composer"
+    phx-hook="MessageComposer"
+    data-dirty={to_string(dirty?(assigns))}
+    data-sending={to_string(@sending)}
+    class="message-composer"
+    aria-label="Rédaction d’un message"
+  >
+    <.back_link :if={!@sent && !@sending} event="cancel" label="Retour aux messages" />
+    <p :if={@loading} role="status">Chargement des destinataires…</p>
+    <div :if={@load_error} role="alert" class="message-form-error">
+      <p>{@load_error}</p>
+      <button type="button" class="btn btn-sm themed-mini-button" phx-click="refresh">
+        Réessayer
+      </button>
+    </div>
+    <.form for={%{}} as={:draft} id="message-form" phx-change="change" phx-submit="review-send">
+      <fieldset disabled={@sending}>
+        <label for="message-sender" class="message-field-label">Expéditeur</label>
+        <input id="message-sender" type="text" value={@sender_name} disabled />
+        <div id="recipient-picker" class="recipient-picker" phx-click-away="hide-recipients">
+          <label for="recipient-query" class="message-field-label">Destinataires</label>
+          <div
+            :if={@selected != []}
+            id="selected-recipients"
+            class="selected-recipients"
+            aria-label="Destinataires sélectionnés"
+          >
+            <span :for={recipient <- selected_recipients(assigns)} class="selected-recipient">
+              <.recipient_badges recipient={recipient} />
+              <button
+                type="button"
+                phx-click="remove-recipient"
+                phx-value-id={recipient.id}
+                aria-label={"Retirer #{recipient.name}"}
+                class="recipient-remove"
+              >
+                ×
+              </button>
+            </span>
+          </div>
+          <input
+            id="recipient-query"
+            name="draft[query]"
+            value={@query}
+            type="text"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-haspopup="listbox"
+            aria-expanded={to_string(@dropdown && !@loading && is_nil(@load_error))}
+            aria-controls="recipient-options"
+            autocomplete="off"
+            placeholder="Rechercher un nom, un type ou une matière…"
+            phx-focus="show-recipients"
+            disabled={@loading || !!@load_error}
+          />
+          <div :if={@dropdown && !@loading && !@load_error} class="recipient-dropdown">
+            <ul id="recipient-options" role="listbox" aria-label="Destinataires disponibles">
+              <li :for={recipient <- matching_recipients(assigns)} role="presentation">
+                <button
+                  id={"recipient-#{recipient.id}"}
+                  type="button"
+                  role="option"
+                  aria-selected="false"
+                  tabindex="-1"
+                  phx-click="add-recipient"
+                  phx-value-id={recipient.id}
+                >
+                  <.recipient_badges recipient={recipient} />
+                </button>
+              </li>
+            </ul>
+            <p :if={matching_recipients(assigns) == []} role="status" class="recipient-empty">
+              Aucun destinataire disponible pour cette recherche.
+            </p>
+          </div>
+        </div>
+        <label for="message-subject" class="message-field-label">Objet</label>
+        <input
+          id="message-subject"
+          name="draft[subject]"
+          value={@subject}
+          type="text"
+          maxlength="200"
+          required
+        />
+        <label for="message-content" class="message-field-label">Message</label>
+        <textarea
+          id="message-content"
+          name="draft[content]"
+          rows="10"
+          maxlength="20000"
+          required
+        >{@content}</textarea>
+        <p :if={@form_error} id="message-form-error" class="message-form-error" role="alert">
+          {@form_error}
+        </p>
+        <button
+          :if={@uncertain}
+          id="verified-not-sent"
+          type="button"
+          class="btn btn-sm themed-mini-button"
+          phx-click="verified-not-sent"
+        >
+          J’ai vérifié : le message n’a pas été envoyé
+        </button>
+        <div class="message-form-actions">
+          <button
+            type="button"
+            id="cancel-message"
+            class="btn btn-sm themed-mini-button"
+            phx-click="cancel"
+          >
+            Annuler
+          </button>
+          <button
+            type="submit"
+            id="send-message"
+            class="btn btn-sm themed-mini-button message-primary-button"
+            disabled={@loading || !!@load_error || @selected == [] || @uncertain}
+            phx-disable-with="Envoi…"
+          >
+            <.icon name="hero-paper-airplane" class="size-4" />
+            {if @sending, do: "Envoi…", else: "Envoyer"}
+          </button>
+        </div>
+      </fieldset>
+    </.form>
+    <p :if={@sending} role="status">Envoi du message en cours…</p>
+    <.message_confirmation
+      :if={@confirmation}
+      kind={@confirmation}
+      recipients={selected_recipients(assigns)}
+      subject={@subject}
+    />
+  </section>
+</Layouts.app>

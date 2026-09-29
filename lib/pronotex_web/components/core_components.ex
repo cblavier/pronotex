@@ -39,12 +39,9 @@ defmodule PronotexWeb.CoreComponents do
     >
       Annulé
     </span>
-    <span
-      :if={@lesson.evaluation && !@lesson.canceled}
-      class="badge badge-soft badge-xs lesson-evaluation-badge"
-    >
+    <.label_badge :if={@lesson.evaluation && !@lesson.canceled}>
       {@lesson.evaluation}
-    </span>
+    </.label_badge>
     <span
       :if={@lesson.status && @lesson.status != "" && !@lesson.canceled}
       class="badge badge-soft badge-info badge-xs"
@@ -53,6 +50,14 @@ defmodule PronotexWeb.CoreComponents do
         do: "Modifié",
         else: @lesson.status}
     </span>
+    """
+  end
+
+  slot :inner_block, required: true
+
+  def label_badge(assigns) do
+    ~H"""
+    <span class="badge badge-soft badge-xs warm-badge">{render_slot(@inner_block)}</span>
     """
   end
 

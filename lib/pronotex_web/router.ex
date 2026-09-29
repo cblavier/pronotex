@@ -35,6 +35,7 @@ defmodule PronotexWeb.Router do
     get "/avatars/:index", AvatarController, :show
 
     live_session :authenticated, on_mount: [PronotexWeb.Auth] do
+      live "/:child/:section/new", MessageComposeLive, :new
       live "/", DashboardLive, :index
       live "/:child", DashboardLive, :index
       live "/:child/:section", DashboardLive, :index
