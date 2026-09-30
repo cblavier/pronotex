@@ -68,7 +68,7 @@ defmodule PronotexWeb.DashboardCache do
           children: children,
           child: child,
           urgent_homework: urgent,
-          header_counts: header_counts(entries, child, assigns.account),
+          header_counts: header_counts(entries, child, assigns.account, today),
           events: {:ok, []},
           lessons: {:ok, []},
           homework: {:ok, []},
@@ -124,16 +124,45 @@ defmodule PronotexWeb.DashboardCache do
   defp lessons_with_cycle(lessons, other, monday, other_monday, cycle),
     do: WeekCycle.overlay(lessons, other, monday, other_monday, cycle)
 
-  def header_counts(entries, child, account) do
-    counts = [messages_unread: unread(entries, {:discussions, child.id})]
+  def header_counts(entries, child, account, today) do
+    until = Pronotex.Pronote.Homework.urgent_until(today)
 
-    if account.role == :parent,
-      do: Keyword.put(counts, :parent_messages_unread, unread(entries, {:parent_discussions})),
-      else: counts
+    counts =
+      case read(entries, {:homework, child.id, today, until}) do
+        {:ok, tasks} -> [homework_badge_count: homework_count(tasks, today)]
+        :miss -> []
+      end
+
+    counts =
+      case read(entries, {:discussions, child.id}) do
+        {:ok, rows} ->
+          Keyword.put(counts, :messages_unread, Enum.sum(Enum.map(rows, & &1.unread)))
+
+        :miss ->
+          counts
+      end
+
+    if account.role == :parent do
+      case read(entries, {:parent_discussions}) do
+        {:ok, rows} ->
+          Keyword.put(counts, :parent_messages_unread, Enum.sum(Enum.map(rows, & &1.unread)))
+
+        :miss ->
+          counts
+      end
+    else
+      counts
+    end
   end
 
-  defp unread(entries, operation),
-    do: entries |> Map.get(operation, []) |> Enum.map(& &1.unread) |> Enum.sum()
+  def homework_count(tasks, today) do
+    until = Pronotex.Pronote.Homework.urgent_until(today)
+
+    Enum.count(
+      tasks,
+      &(!&1.done and Date.compare(&1.date, today) != :lt and Date.compare(&1.date, until) != :gt)
+    )
+  end
 
   def read(entries, {kind, child, from, to} = operation)
       when kind in [:lessons, :homework, :menus] do

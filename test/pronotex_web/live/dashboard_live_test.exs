@@ -185,71 +185,88 @@ defmodule PronotexWeb.DashboardLiveTest do
     def discussions(id) do
       mode = Application.get_env(:pronotex, :dashboard_test_mode)
 
-      if mode == :communications do
+      if mode == :many_messages do
         {:ok,
-         for kind <- [:discussion, :information, :survey] do
+         for n <- 1..25 do
            %{
-             id: "#{kind}-#{id}",
-             kind: kind,
-             acknowledgement_required: kind == :information,
-             acknowledged: false,
-             can_acknowledge: kind == :information,
-             subject: "Sujet #{kind}",
-             author: "Établissement",
-             date: "09/09/2026 11:22:35",
-             unread: 1,
-             preview: "Contenu",
+             id: "thread-#{id}-#{n}",
+             subject: "Message #{n}",
+             author: "Professeur",
+             date: "28/09/2026",
+             unread: 0,
+             preview: "Bonjour",
              messages: [
-               %{
-                 id: "entry",
-                 author: "Établissement",
-                 date: "09/09/2026 11:22:35",
-                 content: "Contenu #{kind}",
-                 resources: [%{name: "Fichier", url: "https://school.test/file.pdf"}],
-                 choices: ["Oui", "Non"]
-               }
+               %{id: "message-#{n}", author: "Professeur", date: "28/09/2026", content: "Bonjour"}
              ]
            }
          end}
       else
-        if mode == :messages do
+        if mode == :communications do
           {:ok,
-           [
+           for kind <- [:discussion, :information, :survey] do
              %{
-               id: "thread-#{id}",
-               subject: "Discussion #{id}",
-               author: "Professeur",
-               date: "18/09/2026",
-               unread: 2,
-               preview: "Bonjour",
+               id: "#{kind}-#{id}",
+               kind: kind,
+               acknowledgement_required: kind == :information,
+               acknowledged: false,
+               can_acknowledge: kind == :information,
+               subject: "Sujet #{kind}",
+               author: "Établissement",
+               date: "09/09/2026 11:22:35",
+               unread: 1,
+               preview: "Contenu",
                messages: [
                  %{
-                   id: "m1",
-                   author: "Professeur",
-                   date: "18/09/2026",
-                   content: "<script>privé</script>"
-                 }
-               ]
-             },
-             %{
-               id: "other-#{id}",
-               subject: "Autre discussion",
-               author: "Autre professeur",
-               date: "18/09/2026",
-               unread: 0,
-               preview: "Autre contenu",
-               messages: [
-                 %{
-                   id: "m2",
-                   author: "Autre professeur",
-                   date: "18/09/2026",
-                   content: "Autre contenu"
+                   id: "entry",
+                   author: "Établissement",
+                   date: "09/09/2026 11:22:35",
+                   content: "Contenu #{kind}",
+                   resources: [%{name: "Fichier", url: "https://school.test/file.pdf"}],
+                   choices: ["Oui", "Non"]
                  }
                ]
              }
-           ]}
+           end}
         else
-          {:ok, []}
+          if mode == :messages do
+            {:ok,
+             [
+               %{
+                 id: "thread-#{id}",
+                 subject: "Discussion #{id}",
+                 author: "Professeur",
+                 date: "18/09/2026",
+                 unread: 2,
+                 preview: "Bonjour",
+                 messages: [
+                   %{
+                     id: "m1",
+                     author: "Professeur",
+                     date: "18/09/2026",
+                     content: "<script>privé</script>"
+                   }
+                 ]
+               },
+               %{
+                 id: "other-#{id}",
+                 subject: "Autre discussion",
+                 author: "Autre professeur",
+                 date: "18/09/2026",
+                 unread: 0,
+                 preview: "Autre contenu",
+                 messages: [
+                   %{
+                     id: "m2",
+                     author: "Autre professeur",
+                     date: "18/09/2026",
+                     content: "Autre contenu"
+                   }
+                 ]
+               }
+             ]}
+          else
+            {:ok, []}
+          end
         end
       end
     end
@@ -1328,6 +1345,37 @@ defmodule PronotexWeb.DashboardLiveTest do
     refute_received :parent_discussions
   end
 
+  test "message lists reveal ten more conversations at a time and preserve detail access" do
+    Application.put_env(:pronotex, :dashboard_test_mode, :many_messages)
+    conn = build_conn() |> Plug.Test.init_test_session(Pronotex.Auth.session("parent-1"))
+    {:ok, view, _} = live(conn, "/alice/parent-messages")
+    render_async(view)
+
+    assert length(view |> render() |> Floki.parse_document!() |> Floki.find(".discussion-card")) ==
+             10
+
+    view |> element("#show-more-messages") |> render_click()
+
+    assert length(view |> render() |> Floki.parse_document!() |> Floki.find(".discussion-card")) ==
+             20
+
+    view |> element("#show-more-messages") |> render_click()
+
+    assert length(view |> render() |> Floki.parse_document!() |> Floki.find(".discussion-card")) ==
+             25
+
+    refute has_element?(view, "#show-more-messages")
+    render_patch(view, "/alice/parent-messages/thread-parent-25")
+    assert has_element?(view, "#discussion-body-thread-parent-25")
+    refute has_element?(view, "#show-more-messages")
+    view |> element("#messages-breadcrumb a") |> render_click()
+    assert has_element?(view, "#discussion-thread-parent-25")
+
+    {:ok, detail, _} = live(conn, "/alice/parent-messages/thread-parent-25")
+    render_async(detail)
+    assert has_element?(detail, "#discussion-body-thread-parent-25")
+  end
+
   test "parents have a separate inbox with its own breadcrumb and unread status" do
     Application.put_env(:pronotex, :dashboard_test_mode, :messages)
     conn = build_conn() |> Plug.Test.init_test_session(Pronotex.Auth.session("parent-1"))
@@ -1351,6 +1399,13 @@ defmodule PronotexWeb.DashboardLiveTest do
     refute has_element?(view, "#discussion-thread-a")
     view |> element("#discussion-thread-parent a") |> render_click()
     assert_patch(view, "/alice/parent-messages/thread-parent")
+
+    assert has_element?(
+             view,
+             "#reply-message[href='/alice/parent-messages/thread-parent/reply']",
+             "Répondre"
+           )
+
     assert has_element?(view, "#messages-breadcrumb a", "Retour aux messages")
     view |> element(".communication-detail-header .discussion-status") |> render_click()
     render_async(view)
@@ -1368,6 +1423,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert has_element?(view, "#messages-title", "Messages Alice")
     refute has_element?(view, "#new-message")
     view |> element("#discussion-thread-a a") |> render_click()
+    refute has_element?(view, "#reply-message")
     assert has_element?(view, "#messages-breadcrumb a", "Retour aux messages")
   end
 

@@ -655,7 +655,7 @@
     aria-busy={to_string(@loading || @messages_loading)}
   >
     <div
-      :if={!@open_discussion && Phoenix.Flash.get(@flash, :message_sent)}
+      :if={Phoenix.Flash.get(@flash, :message_sent)}
       id="message-sent"
       role="status"
       class="message-sent mb-4"
@@ -722,11 +722,14 @@
       id="no-messages"
       text="Aucun message."
     />
-    <div class="discussion-list">
+    <div id="discussion-list" class="discussion-list">
       <article
         :for={
           discussion <-
-            Enum.filter(@discussions, &(is_nil(@open_discussion) or &1.id == @open_discussion))
+            if(@open_discussion,
+              do: Enum.filter(@discussions, &(&1.id == @open_discussion)),
+              else: Enum.take(@discussions, @messages_limit)
+            )
         }
         id={"discussion-#{discussion.id}"}
         class="discussion-card"
@@ -746,7 +749,8 @@
             <strong>{discussion.subject}</strong>
           </span>
           <span class="discussion-meta">
-            {discussion.author} · {communication_date(discussion.date)}
+            <.message_correspondents message={List.last(discussion.messages, discussion)} />
+            · {communication_date(discussion.date)}
           </span>
           <span :if={@open_discussion != discussion.id} class="discussion-preview">
             {discussion.preview}
@@ -781,9 +785,17 @@
           <p :if={Map.get(discussion, :kind) == :survey} class="discussion-meta">
             Pour répondre à ce sondage, utilisez Pronote.
           </p>
-          <article :for={entry <- discussion.messages} class="discussion-message">
+          <article
+            :for={{entry, index} <- Enum.with_index(discussion.messages)}
+            class="discussion-message"
+          >
             <p class="discussion-heading">
-              <strong>{entry.author}</strong><span class="discussion-meta">{communication_date(entry.date)}</span>
+              <.message_correspondents
+                id={"correspondents-#{discussion.id}-#{index}"}
+                message={entry}
+                details={Map.get(discussion, :kind, :discussion) == :discussion}
+              />
+              <span class="discussion-meta">{communication_date(entry.date)}</span>
             </p>
             <h3 :if={Map.get(entry, :title, "") != ""}>{Map.get(entry, :title)}</h3>
             <p class="discussion-text" phx-no-format>{entry.content}</p>
@@ -794,6 +806,31 @@
           </article>
         </div>
       </article>
+    </div>
+    <.show_more_button
+      :if={!@open_discussion && length(@discussions) > @messages_limit}
+      id="show-more-messages"
+      phx-click="show-more-messages"
+      aria-controls="discussion-list"
+      disabled={@loading || @messages_loading}
+    />
+    <div
+      :for={discussion <- Enum.filter(@discussions, &(&1.id == @open_discussion))}
+      :if={
+        @open_discussion == discussion.id &&
+          Map.get(discussion, :kind, :discussion) == :discussion &&
+          !Map.get(discussion, :closed, false) &&
+          PronotexWeb.MessageComposeLive.allowed?(@account, @section)
+      }
+      class="message-form-actions"
+    >
+      <.link
+        id="reply-message"
+        navigate={~p"/#{@selected_slug}/#{@section}/#{discussion.id}/reply"}
+        class="btn btn-sm themed-mini-button message-primary-button"
+      >
+        <.icon name="hero-arrow-uturn-left" class="size-4" /> Répondre
+      </.link>
     </div>
   </section>
 </Layouts.app>

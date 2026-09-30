@@ -9,7 +9,7 @@ defmodule Pronotex.Pronote.Discussion do
 
         %{
           id: raw["N"],
-          author: if(raw["emetteur"] == true, do: "Moi", else: raw["public_gauche"] || ""),
+          author: raw["public_gauche"] || "",
           own: raw["emetteur"] == true,
           seen: Map.get(raw, "lu", true) == true,
           date: get_in(raw, ["date", "V"]) || "",
@@ -54,6 +54,7 @@ defmodule Pronotex.Pronote.Discussion do
     %{
       id: id(raw),
       kind: :discussion,
+      closed: raw["ferme"] == true,
       subject: if(raw["objet"] in [nil, ""], do: "Sans objet", else: raw["objet"]),
       author: raw["initiateur"] || "",
       date: messages |> List.last(%{date: raw["libelleDate"] || ""}) |> Map.fetch!(:date),

@@ -47,6 +47,87 @@ defmodule Pronotex.Pronote.SessionTest do
     {server, if(options[:student], do: student_agent, else: agent)}
   end
 
+  test "replies preserve the conversation reference and are simulated without HTTP writes" do
+    {server, agent} = session(account: "parent-1")
+    assert {:ok, context} = Pronote.reply_context("discussion", server)
+    assert context.subject == "Réunion"
+    assert context.recipients == [%{name: "Mme Martin"}, %{name: "M. Dupont"}]
+    before = Agent.get(agent, & &1.calls)
+
+    log =
+      capture_log(fn ->
+        assert {:ok, :simulated} = Pronote.reply_message("discussion", "Bonjour, merci !", server)
+      end)
+
+    assert Agent.get(agent, & &1.calls) == before
+    assert log =~ ~s("messagePourReponse":{"G":1,"N":"message-2"})
+    assert log =~ ~s("contenu":"Bonjour, merci !")
+    refute log =~ "listeDestinataires"
+    refute log =~ ~s("objet")
+
+    assert {:error, %Error{reason: :reply_unavailable}} =
+             Pronote.reply_message("discussion", "Encore", server)
+  end
+
+  test "reply preparation rejects missing and closed conversations" do
+    {server, _} = session(account: "parent-1", closed_discussion: true)
+
+    for id <- ["discussion", "foreign"] do
+      assert {:error, %Error{reason: :reply_unavailable}} = Pronote.reply_context(id, server)
+    end
+  end
+
+  test "reply preparation rejects conversations with no reply action" do
+    {server, _} = session(account: "parent-1", no_reply: true)
+
+    assert {:error, %Error{reason: :reply_unavailable}} =
+             Pronote.reply_context("discussion", server)
+  end
+
+  test "student replies use the student session" do
+    {server, _} = session(direct_student: true)
+    assert {:ok, _} = Pronote.reply_context("discussion", server)
+
+    capture_log(fn ->
+      assert {:ok, :simulated} = Pronote.reply_message("discussion", "Merci", server)
+    end)
+  end
+
+  test "the account name is consistent in the composer and both sides of a conversation" do
+    {server, _} =
+      session(
+        account: "parent-1",
+        own_message: true,
+        sender_name: "M. BLAVIER Christian",
+        recipient_names: ["M. BLAVIER C. - BLAVIER Alice (5B)"]
+      )
+
+    assert {:ok, "Christian Blavier"} = Pronote.sender_name(server)
+    assert {:ok, [discussion]} = Pronote.parent_discussions(server)
+    assert List.last(discussion.messages).author == "Christian Blavier"
+    assert Enum.all?(discussion.messages, &(&1.recipients == ["Christian Blavier"]))
+  end
+
+  test "the current user's full name replaces Moi in recipients and reply recipients" do
+    {server, _} = session(account: "parent-1", recipient_names: ["Moi", "Mme Martin"])
+    assert {:ok, [discussion]} = Pronote.parent_discussions(server)
+    assert Enum.all?(discussion.messages, &(&1.recipients == ["Christian Blavier", "Mme Martin"]))
+    assert {:ok, context} = Pronote.reply_context("discussion", server)
+    assert context.recipients == [%{name: "Christian Blavier"}, %{name: "Mme Martin"}]
+  end
+
+  test "sent messages load all recipients while received messages retain their author" do
+    {server, _agent} = session(own_message: true, account: "parent-1")
+    assert {:ok, [discussion]} = Pronote.parent_discussions(server)
+    [received, sent] = discussion.messages
+    assert received.author == "Professeur"
+    assert received.recipients == ["Mme Martin", "M. Dupont"]
+    refute received.own
+    assert sent.own
+    assert sent.author == "Christian Blavier"
+    assert sent.recipients == ["Mme Martin", "M. Dupont"]
+  end
+
   test "new messages log the connected account payload without writing to Pronote" do
     for options <- [[], [direct_student: true]] do
       # Each iteration uses distinct supervised session processes.
@@ -211,7 +292,10 @@ defmodule Pronotex.Pronote.SessionTest do
       assert Enum.count(calls, &(elem(&1, 0) == function)) == 2
     end
 
-    refute Enum.any?(calls, fn {name, _} -> String.starts_with?(name, "Saisie") end)
+    # SaisiePublicMessage only reads the recipients; it neither sends nor marks as read.
+    refute Enum.any?(calls, fn {name, _} ->
+             String.starts_with?(name, "Saisie") and name != "SaisiePublicMessage"
+           end)
   end
 
   test "only fresh grade responses persist history, shared by parent and student" do

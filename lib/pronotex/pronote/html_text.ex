@@ -1,10 +1,44 @@
 defmodule Pronotex.Pronote.HTMLText do
-  @moduledoc "Converts Pronote HTML into compact plain text with paragraph breaks."
+  @moduledoc "Converts Pronote HTML to plain text. Messages retain intentional blank lines."
 
   def parse(html) do
     html
     |> Floki.parse_fragment!()
-    |> from_tree()
+    |> Floki.filter_out("script, style")
+    |> message_text()
+    |> String.replace(~r/[^\S\n]+\n/u, "\n")
+    |> String.trim()
+  end
+
+  defp message_text(nodes) do
+    Enum.reduce(nodes, "", fn
+      {"br", _, _}, text ->
+        text <> "\n"
+
+      {tag, _, children}, text when tag in ["p", "div", "li"] ->
+        content = message_text(children)
+
+        separator =
+          if text == "" or String.ends_with?(String.trim_trailing(text, " "), "\n"),
+            do: "",
+            else: "\n"
+
+        ending = if String.ends_with?(content, "\n"), do: "", else: "\n"
+        String.trim_trailing(text, " ") <> separator <> content <> ending
+
+      {_, _, children}, text ->
+        text <> message_text(children)
+
+      value, text when is_binary(value) ->
+        value = String.replace(value, ~r/[\s\x{00A0}]+/u, " ")
+
+        if value == " " and (text == "" or String.ends_with?(text, "\n")),
+          do: text,
+          else: text <> value
+
+      _, text ->
+        text
+    end)
   end
 
   def from_tree(tree) do

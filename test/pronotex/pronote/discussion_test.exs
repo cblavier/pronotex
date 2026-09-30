@@ -2,7 +2,7 @@ defmodule Pronotex.Pronote.DiscussionTest do
   use ExUnit.Case, async: true
   alias Pronotex.Pronote.Discussion
 
-  test "HTML messages use compact paragraphs while plain text keeps intentional spacing" do
+  test "HTML and plain text messages preserve intentional blank lines" do
     html = "<div><p>Bonjour<br></p></div>\n<p>&nbsp;</p><div><p>À demain</p></div>"
     plain = "Bonjour\n\nÀ demain"
 
@@ -16,7 +16,7 @@ defmodule Pronotex.Pronote.DiscussionTest do
         }
       })
 
-    assert Enum.find(messages, &(&1.id == "html")).content == "Bonjour\nÀ demain"
+    assert Enum.find(messages, &(&1.id == "html")).content == "Bonjour\n\nÀ demain"
     assert Enum.find(messages, &(&1.id == "plain")).content == plain
   end
 

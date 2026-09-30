@@ -38,6 +38,25 @@ defmodule PronotexWeb.MessageComposeLiveTest do
       end
     end
 
+    def reply_context("thread-parent") do
+      if Application.get_env(:pronotex, :composer_mode) == :load_error,
+        do: {:error, :unavailable},
+        else:
+          {:ok, %{subject: "Réunion", recipients: [%{name: "Mme Martin"}, %{name: "M. Dupont"}]}}
+    end
+
+    def reply_context(_), do: {:error, :unavailable}
+
+    def reply_message(id, content) do
+      send(Application.fetch_env!(:pronotex, :composer_pid), {:replied, id, content})
+
+      case Application.get_env(:pronotex, :composer_mode) do
+        :send_error -> {:error, :offline}
+        :updated_thread -> {:ok, {:sent, "updated-thread"}}
+        _ -> {:ok, :simulated}
+      end
+    end
+
     def send_message(ids, subject, content) do
       send(Application.fetch_env!(:pronotex, :composer_pid), {:sent, ids, subject, content})
 
@@ -83,6 +102,136 @@ defmodule PronotexWeb.MessageComposeLiveTest do
     end)
 
     {:ok, conn: build_conn() |> Plug.Test.init_test_session(Pronotex.Auth.session("parent-1"))}
+  end
+
+  test "reply composer locks correspondents, omits subject and returns to the conversation", %{
+    conn: conn
+  } do
+    {:ok, view, _} = live(conn, "/alice/parent-messages/thread-parent/reply")
+    render_async(view)
+    assert has_element?(view, "#message-composer", "Retour à la conversation")
+    assert has_element?(view, "#message-sender[readonly][value='Christian Blavier']")
+    assert has_element?(view, "#reply-recipients[readonly][value='Mme Martin, M. Dupont']")
+    refute has_element?(view, "#recipient-picker")
+    refute has_element?(view, "#message-subject")
+    assert has_element?(view, "#message-composer[data-dirty=false]")
+    render_click(view, "cancel")
+    assert_redirect(view, "/alice/parent-messages/thread-parent")
+  end
+
+  test "reply submission ignores forged correspondents and subject and confirms on the conversation",
+       %{conn: conn} do
+    {:ok, view, _} = live(conn, "/alice/parent-messages/thread-parent/reply")
+    render_async(view)
+    render_click(view, "add-recipient", %{"id" => "foreign"})
+    render_click(view, "remove-recipient", %{"id" => "3:teacher"})
+
+    render_click(view, "review-send", %{
+      "draft" => %{"content" => "Merci !", "subject" => "Forgé"}
+    })
+
+    assert has_element?(view, "[role=alertdialog]", "Mme Martin, M. Dupont")
+    refute has_element?(view, "[role=alertdialog]", "Forgé")
+    refute_received {:replied, _, _}
+    render_click(view, "confirm-send")
+    assert_receive {_, {:redirect, _, redirect}}
+    assert_received {:replied, "thread-parent", "Merci !"}
+    Application.put_env(:pronotex, :pronote_client, PronotexWeb.DashboardLiveTest.API)
+    Application.put_env(:pronotex, :dashboard_test_mode, :messages)
+    Application.put_env(:pronotex, :dashboard_test_pid, self())
+
+    {:ok, conversation, _} =
+      follow_redirect(
+        {:error, {:live_redirect, redirect}},
+        conn,
+        "/alice/parent-messages/thread-parent"
+      )
+
+    render_async(conversation)
+    assert has_element?(conversation, "#message-sent", "Envoi simulé")
+    assert has_element?(conversation, "#discussion-body-thread-parent")
+  end
+
+  test "successful replies follow the updated conversation identifier", %{conn: conn} do
+    Application.put_env(:pronotex, :composer_mode, :updated_thread)
+    {:ok, view, _} = live(conn, "/alice/parent-messages/thread-parent/reply")
+    render_async(view)
+    view |> form("#message-form", draft: %{content: "Merci !"}) |> render_submit()
+    render_click(view, "confirm-send")
+    flash = assert_redirect(view, "/alice/parent-messages/updated-thread")
+    assert flash["message_sent"] == "Votre message a été envoyé."
+  end
+
+  test "reply failures retain the draft and require verification before retrying", %{conn: conn} do
+    Application.put_env(:pronotex, :composer_mode, :send_error)
+    {:ok, view, _} = live(conn, "/alice/parent-messages/thread-parent/reply")
+    render_async(view)
+    view |> form("#message-form", draft: %{content: "Ma réponse"}) |> render_submit()
+    render_click(view, "confirm-send")
+    render_async(view)
+    assert has_element?(view, "#message-content", "Ma réponse")
+    assert has_element?(view, "#send-message[disabled]")
+    assert has_element?(view, "#verified-not-sent")
+    render_click(view, "confirm-send")
+    assert_received {:replied, "thread-parent", "Ma réponse"}
+    refute_received {:replied, _, _}
+  end
+
+  test "unavailable replies and empty content cannot be sent", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/alice/parent-messages/missing/reply")
+    render_async(view)
+    assert has_element?(view, "#send-message[disabled]")
+    assert has_element?(view, "[role=alert]", "Impossible")
+    {:ok, view, _} = live(conn, "/alice/parent-messages/thread-parent/reply")
+    render_async(view)
+    view |> form("#message-form", draft: %{content: "   "}) |> render_submit()
+    refute has_element?(view, "[role=alertdialog]")
+    assert has_element?(view, "#message-form-error")
+    refute_received {:replied, _, _}
+  end
+
+  test "reply draft cancellation asks for confirmation", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/alice/parent-messages/thread-parent/reply")
+    render_async(view)
+    view |> form("#message-form", draft: %{content: "Brouillon"}) |> render_change()
+    render_click(view, "cancel")
+    assert has_element?(view, "[role=alertdialog]", "Abandonner")
+    render_click(view, "confirm-cancel")
+    assert_redirect(view, "/alice/parent-messages/thread-parent")
+  end
+
+  test "reply header and theme render from cached children while preparation is pending", %{
+    conn: conn
+  } do
+    server = Pronotex.Pronote.Session.for_account("parent-1")
+    Pronotex.Pronote.ReadCache.invalidate(server)
+    {:ok, children} = API.children()
+    Pronotex.Pronote.ReadCache.remember(server, {:children}, children)
+    today = Application.get_env(:pronotex, :today, &Date.utc_today/0).()
+    until = Pronotex.Pronote.Homework.urgent_until(today)
+
+    Pronotex.Pronote.ReadCache.remember(server, {:homework, "b", today, until}, [
+      %{date: today, done: false},
+      %{date: until, done: false},
+      %{date: today, done: true}
+    ])
+
+    Application.put_env(:pronotex, :pronote_client, Pronotex.Pronote)
+    :sys.suspend(server)
+
+    try do
+      for path <- ["/marius/parent-messages/thread-parent/reply", "/marius/parent-messages/new"] do
+        html = conn |> get(path) |> html_response(200) |> Floki.parse_document!()
+        assert Floki.find(html, "#child-name") |> Floki.text() == "Marius"
+        assert [_] = Floki.find(html, ".page-shell[data-child-theme=green]")
+        assert html |> Floki.find("#homework-nav-badge") |> Floki.text() |> String.trim() == "2"
+        assert [_] = Floki.find(html, "#send-message[disabled]")
+        assert [_] = Floki.find(html, "#nav-agenda:not([disabled])")
+      end
+    after
+      :sys.resume(server)
+      Pronotex.Pronote.ReadCache.invalidate(server)
+    end
   end
 
   test "cached composer renders before contacting a busy session", %{conn: conn} do

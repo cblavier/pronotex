@@ -36,6 +36,7 @@ defmodule PronotexWeb.Router do
 
     live_session :authenticated, on_mount: [PronotexWeb.Auth] do
       live "/:child/:section/new", MessageComposeLive, :new
+      live "/:child/:section/:discussion/reply", MessageComposeLive, :reply
       live "/", DashboardLive, :index
       live "/:child", DashboardLive, :index
       live "/:child/:section", DashboardLive, :index

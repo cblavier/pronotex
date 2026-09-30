@@ -8,14 +8,19 @@ defmodule PronotexWeb.MessageComposeLive do
   def allowed?(_, _), do: false
 
   @impl true
-  def mount(%{"child" => slug, "section" => section}, _session, socket) do
+  def mount(%{"child" => slug, "section" => section} = params, _session, socket) do
     if allowed?(socket.assigns.account, section) do
+      reply_id = params["discussion"]
+
       socket =
         assign(socket,
-          page_title: "Nouveau message",
+          page_title: if(reply_id, do: "Répondre à la conversation", else: "Nouveau message"),
+          reply_id: reply_id,
+          reply_ready: false,
           slug: slug,
           section: section,
-          back_url: ~p"/#{slug}/#{section}",
+          back_url:
+            if(reply_id, do: ~p"/#{slug}/#{section}/#{reply_id}", else: ~p"/#{slug}/#{section}"),
           api: Application.get_env(:pronotex, :pronote_client, Pronotex.Pronote),
           children: [],
           child: nil,
@@ -40,8 +45,14 @@ defmodule PronotexWeb.MessageComposeLive do
           uncertain: false
         )
 
-      socket = cached_recipients(socket)
-      {:ok, if(connected?(socket), do: load_recipients(socket), else: socket)}
+      socket = cached_composer(socket)
+
+      if connected?(socket) do
+        socket = if socket.assigns.child, do: load_header_counts(socket), else: socket
+        {:ok, load_recipients(socket)}
+      else
+        {:ok, socket}
+      end
     else
       {:ok,
        socket
@@ -50,7 +61,7 @@ defmodule PronotexWeb.MessageComposeLive do
     end
   end
 
-  defp cached_recipients(%{assigns: %{api: Pronotex.Pronote}} = socket) do
+  defp cached_composer(%{assigns: %{api: Pronotex.Pronote}} = socket) do
     entries =
       socket.assigns.account.id
       |> Pronotex.Pronote.Session.for_account()
@@ -58,35 +69,44 @@ defmodule PronotexWeb.MessageComposeLive do
 
     with {:ok, children} <- Map.fetch(entries, {:children}),
          child when not is_nil(child) <-
-           Enum.find(children, &(child_slug(&1) == socket.assigns.slug)),
-         {:ok, recipients} <- Map.fetch(entries, {:message_recipients}) do
+           Enum.find(children, &(child_slug(&1) == socket.assigns.slug)) do
       socket =
         assign(
           socket,
-          PronotexWeb.DashboardCache.header_counts(entries, child, socket.assigns.account)
+          PronotexWeb.DashboardCache.header_counts(
+            entries,
+            child,
+            socket.assigns.account,
+            socket.assigns.today
+          )
         )
 
-      assign(socket,
-        children: children,
-        child: child,
-        recipients: recipients,
-        loading: false,
-        sender_name: Map.get(entries, {:sender_name}, socket.assigns.sender_name)
-      )
+      socket =
+        assign(socket,
+          children: children,
+          child: child,
+          sender_name: Map.get(entries, {:sender_name}, socket.assigns.sender_name)
+        )
+
+      case {socket.assigns.reply_id, Map.fetch(entries, {:message_recipients})} do
+        {nil, {:ok, recipients}} -> assign(socket, recipients: recipients, loading: false)
+        _ -> socket
+      end
     else
       _ -> socket
     end
   end
 
-  defp cached_recipients(socket), do: socket
+  defp cached_composer(socket), do: socket
 
   defp load_recipients(socket) do
     api = socket.assigns.api
     account = socket.assigns.account
     slug = socket.assigns.slug
+    reply_id = socket.assigns.reply_id
 
     socket
-    |> assign(loading: socket.assigns.loading, load_error: nil)
+    |> assign(loading: socket.assigns.loading || !is_nil(reply_id), load_error: nil)
     |> start_async(:recipients, fn ->
       with {:ok, children} <- call(api, account, :children, []),
            true <- Enum.any?(children, &(child_slug(&1) == slug)) do
@@ -96,7 +116,12 @@ defmodule PronotexWeb.MessageComposeLive do
             _ -> account.label
           end
 
-        {:ok, children, sender_name, call(api, account, :message_recipients, [])}
+        result =
+          if reply_id,
+            do: call(api, account, :reply_context, [reply_id]),
+            else: call(api, account, :message_recipients, [])
+
+        {:ok, children, sender_name, result}
       else
         false -> {:error, Pronotex.Pronote.Error.new(:child_not_found)}
         error -> error
@@ -108,12 +133,21 @@ defmodule PronotexWeb.MessageComposeLive do
   def handle_async(:recipients, {:ok, {:ok, children, sender_name, result}}, socket) do
     child = Enum.find(children, &(child_slug(&1) == socket.assigns.slug))
 
-    socket =
-      socket
-      |> assign(children: children, child: child, sender_name: sender_name)
-      |> load_header_counts()
+    header_missing = is_nil(socket.assigns.child)
+    socket = assign(socket, children: children, child: child, sender_name: sender_name)
+    socket = if header_missing, do: load_header_counts(socket), else: socket
 
     case result do
+      {:ok, %{recipients: recipients, subject: subject}} ->
+        {:noreply,
+         assign(socket,
+           loading: false,
+           recipients: recipients,
+           subject: subject,
+           reply_ready: true,
+           load_error: nil
+         )}
+
       {:ok, recipients} ->
         {:noreply, assign(socket, loading: false, recipients: recipients, load_error: nil)}
 
@@ -130,8 +164,23 @@ defmodule PronotexWeb.MessageComposeLive do
       {:noreply,
        assign(socket,
          loading: false,
-         load_error: "Impossible de charger les destinataires depuis Pronote."
+         reply_ready: false,
+         load_error:
+           if(socket.assigns.reply_id,
+             do:
+               "Impossible de préparer la réponse. La conversation est indisponible, fermée ou Pronote ne répond pas.",
+             else: "Impossible de charger les destinataires depuis Pronote."
+           )
        )}
+
+  def handle_async(:send, {:ok, {:ok, {:sent, discussion_id}}}, socket) do
+    socket =
+      assign(socket,
+        back_url: ~p"/#{socket.assigns.slug}/#{socket.assigns.section}/#{discussion_id}"
+      )
+
+    handle_async(:send, {:ok, {:ok, :sent}}, socket)
+  end
 
   def handle_async(:send, {:ok, {:ok, result}}, socket) when result in [:sent, :simulated] do
     confirmation =
@@ -159,8 +208,12 @@ defmodule PronotexWeb.MessageComposeLive do
 
   @impl true
   def handle_event("refresh", _, socket) do
-    {:noreply,
-     if(socket.assigns.sending or socket.assigns.sent, do: socket, else: load_recipients(socket))}
+    if socket.assigns.sending or socket.assigns.sent do
+      {:noreply, socket}
+    else
+      socket = if socket.assigns.child, do: load_header_counts(socket), else: socket
+      {:noreply, load_recipients(socket)}
+    end
   end
 
   def handle_event(_, _, %{assigns: %{sending: true}} = socket), do: {:noreply, socket}
@@ -208,7 +261,11 @@ defmodule PronotexWeb.MessageComposeLive do
   def handle_event("change", %{"draft" => draft} = params, socket) do
     {:noreply,
      assign(socket,
-       subject: Map.get(draft, "subject", socket.assigns.subject),
+       subject:
+         if(socket.assigns.reply_id,
+           do: socket.assigns.subject,
+           else: Map.get(draft, "subject", socket.assigns.subject)
+         ),
        content: Map.get(draft, "content", socket.assigns.content),
        query: Map.get(draft, "query", socket.assigns.query),
        dropdown: params["_target"] == ["draft", "query"],
@@ -216,6 +273,10 @@ defmodule PronotexWeb.MessageComposeLive do
        form_error: nil
      )}
   end
+
+  def handle_event(event, _, %{assigns: %{reply_id: id}} = socket)
+      when not is_nil(id) and event in ["show-recipients", "add-recipient", "remove-recipient"],
+      do: {:noreply, socket}
 
   def handle_event("show-recipients", _, socket), do: {:noreply, assign(socket, dropdown: true)}
   def handle_event("hide-recipients", _, socket), do: {:noreply, assign(socket, dropdown: false)}
@@ -242,7 +303,12 @@ defmodule PronotexWeb.MessageComposeLive do
        assign(socket, selected: List.delete(socket.assigns.selected, id), confirmation: nil)}
 
   def handle_event("review-send", %{"draft" => draft}, socket) do
-    socket = assign(socket, subject: draft["subject"] || "", content: draft["content"] || "")
+    socket =
+      assign(socket,
+        subject:
+          if(socket.assigns.reply_id, do: socket.assigns.subject, else: draft["subject"] || ""),
+        content: draft["content"] || ""
+      )
 
     if valid?(socket.assigns) do
       {:noreply, assign(socket, confirmation: :send, dropdown: false, form_error: nil)}
@@ -250,7 +316,11 @@ defmodule PronotexWeb.MessageComposeLive do
       {:noreply,
        assign(socket,
          form_error:
-           "Choisissez au moins un destinataire et renseignez l’objet et le message (200 et 20 000 caractères maximum)."
+           if(socket.assigns.reply_id,
+             do: "Renseignez le message (20 000 caractères maximum).",
+             else:
+               "Choisissez au moins un destinataire et renseignez l’objet et le message (200 et 20 000 caractères maximum)."
+           )
        )}
     end
   end
@@ -260,11 +330,15 @@ defmodule PronotexWeb.MessageComposeLive do
       %{api: api, account: account, selected: ids, subject: subject, content: content} =
         socket.assigns
 
+      reply_id = socket.assigns.reply_id
+
       {:noreply,
        socket
        |> assign(sending: true, confirmation: nil)
        |> start_async(:send, fn ->
-         call(api, account, :send_message, [ids, subject, content])
+         if reply_id,
+           do: call(api, account, :reply_message, [reply_id, content]),
+           else: call(api, account, :send_message, [ids, subject, content])
        end)}
     else
       {:noreply, assign(socket, confirmation: nil)}
@@ -301,14 +375,10 @@ defmodule PronotexWeb.MessageComposeLive do
       homework =
         case call(api, account, :homework, [child.id, today, until]) do
           {:ok, tasks} ->
-            Enum.count(
-              tasks,
-              &(!&1.done and Date.compare(&1.date, today) != :lt and
-                  Date.compare(&1.date, until) != :gt)
-            )
+            PronotexWeb.DashboardCache.homework_count(tasks, today)
 
           _ ->
-            0
+            nil
         end
 
       child_available = account.role == :child or api.homework_writable?(child)
@@ -322,11 +392,18 @@ defmodule PronotexWeb.MessageComposeLive do
           else: 0
 
       [homework_badge_count: homework, messages_unread: messages, parent_messages_unread: parent]
+      |> Enum.reject(fn {_, count} -> is_nil(count) end)
     end)
   end
 
   defp unread({:ok, discussions}), do: Enum.sum(Enum.map(discussions, & &1.unread))
-  defp unread(_), do: 0
+  defp unread(_), do: nil
+
+  defp valid?(%{reply_id: id} = assigns) when not is_nil(id) do
+    !assigns.loading and !assigns.uncertain and is_nil(assigns.load_error) and
+      assigns.reply_ready and assigns.recipients != [] and
+      Recipient.valid_content?(assigns.content)
+  end
 
   defp valid?(assigns) do
     !assigns.loading and !assigns.uncertain and is_nil(assigns.load_error) and
@@ -334,8 +411,12 @@ defmodule PronotexWeb.MessageComposeLive do
       Enum.all?(assigns.selected, fn id -> Enum.any?(assigns.recipients, &(&1.id == id)) end)
   end
 
+  defp dirty?(%{reply_id: id} = assigns) when not is_nil(id), do: assigns.content != ""
+
   defp dirty?(assigns),
     do: assigns.selected != [] or assigns.subject != "" or assigns.content != ""
+
+  defp selected_recipients(%{reply_id: id} = assigns) when not is_nil(id), do: assigns.recipients
 
   defp selected_recipients(assigns),
     do: Enum.filter(assigns.recipients, &(&1.id in assigns.selected))

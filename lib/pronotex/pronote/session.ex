@@ -37,12 +37,13 @@ defmodule Pronotex.Pronote.Session do
         {:set_discussion_read, _, _, _} -> :discussions
         {:set_parent_discussion_read, _, _} -> :parent_discussions
         {:send_message, _, _, _} -> :parent_discussions
+        {:reply_message, _, _} -> :parent_discussions
         _ -> nil
       end
 
     if affected, do: ReadCache.invalidate({:kind, affected})
 
-    if match?({:send_message, _, _, _}, operation),
+    if message_write?(operation),
       do: ReadCache.invalidate({:kind, :discussions})
 
     state = Map.put(state, :display_generations, display_generations(operation))
@@ -60,7 +61,7 @@ defmodule Pronotex.Pronote.Session do
       # that started before or during the write in another profile.
       if affected, do: ReadCache.invalidate({:kind, affected})
 
-      if match?({:send_message, _, _, _}, operation),
+      if message_write?(operation),
         do: ReadCache.invalidate({:kind, :discussions})
     end
   end
@@ -110,11 +111,15 @@ defmodule Pronotex.Pronote.Session do
 
   defp remember_display(_operation, _result), do: :ok
 
+  defp message_write?(operation),
+    do: is_tuple(operation) and elem(operation, 0) in [:send_message, :reply_message]
+
   defp handle_operation(:logout, _from, state),
     do: {:reply, :ok, %{state | client: nil, students: %{}}}
 
   # An uncertain send must never be replayed after reconnecting.
-  defp handle_operation({:send_message, _, _, _} = operation, _from, state) do
+  defp handle_operation(operation, _from, state)
+       when elem(operation, 0) in [:send_message, :reply_message] do
     case safely(fn -> execute(operation, state) end) do
       {:ok, reply, updated} -> {:reply, {:ok, reply}, updated}
       {:error, error} -> {:reply, {:error, error}, %{state | client: nil, students: %{}}}
@@ -207,7 +212,8 @@ defmodule Pronotex.Pronote.Session do
     end
   end
 
-  defp execute(:sender_name, state), do: {:ok, state.client.sender_name, state}
+  defp execute(:sender_name, state),
+    do: {:ok, Pronotex.Pronote.DisplayName.full(state.client.sender_name), state}
 
   defp execute(operation, state) when operation in [:login, :children],
     do: {:ok, Client.children(state.client), state}
@@ -293,6 +299,16 @@ defmodule Pronotex.Pronote.Session do
   defp execute(:message_recipients, state) do
     {recipients, client} = Client.message_recipients(state.client)
     {:ok, recipients, %{state | client: client}}
+  end
+
+  defp execute({:reply_context, id}, state) do
+    {context, client} = Client.reply_context(state.client, id)
+    {:ok, context, %{state | client: client}}
+  end
+
+  defp execute({:reply_message, id, content}, state) do
+    {result, client} = Client.reply_message(state.client, id, content)
+    {:ok, result, %{state | client: client}}
   end
 
   defp execute({:send_message, ids, subject, content}, state) do

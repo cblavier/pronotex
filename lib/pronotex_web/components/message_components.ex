@@ -1,6 +1,85 @@
 defmodule PronotexWeb.MessageComponents do
   use PronotexWeb, :html
 
+  attr :loading, :boolean, required: true
+  slot :inner_block, required: true
+
+  def recipient_field(assigns) do
+    ~H"""
+    <div class="recipient-field" data-loading={to_string(@loading)} aria-busy={to_string(@loading)}>
+      {render_slot(@inner_block)}
+      <span :if={@loading} class="recipient-field-spinner" role="status">
+        <span class="recipient-loading-ring" aria-hidden="true"></span>
+        <span class="sr-only">Chargement des destinataires…</span>
+      </span>
+    </div>
+    """
+  end
+
+  attr :message, :map, required: true
+  attr :details, :boolean, default: false
+  attr :id, :string, default: "message-correspondents"
+
+  def message_correspondents(assigns) do
+    own = Map.get(assigns.message, :own, false)
+
+    recipients =
+      (Map.get(assigns.message, :recipients) || [])
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+
+    sender = %{direction: "received", label: "De :", names: assigns.message.author}
+    expandable = assigns.details and length(recipients) > 2
+
+    recipient = %{
+      direction: "sent",
+      label: "À :",
+      names: if(expandable, do: hd(recipients), else: Enum.join(recipients, ", "))
+    }
+
+    rows =
+      if assigns.details,
+        do: [sender, recipient],
+        else: [if(own, do: recipient, else: sender)]
+
+    rows = Enum.reject(rows, &(&1.direction == "sent" and &1.names == ""))
+    assigns = assign(assigns, rows: rows, recipients: recipients, expandable: expandable)
+
+    ~H"""
+    <span :if={@rows != []} class="message-correspondents">
+      <strong :for={row <- @rows} class="message-correspondent-line">
+        <span class="message-direction" data-direction={row.direction}>{row.label}</span>
+        {row.names}
+        <.link
+          :if={row.direction == "sent" && @expandable}
+          id={@id <> "-toggle"}
+          href="#"
+          class="message-recipients-toggle"
+          aria-expanded="false"
+          aria-controls={@id <> "-all"}
+          aria-label="Afficher ou masquer tous les destinataires"
+          phx-click={
+            JS.toggle(to: "##{@id}-all")
+            |> JS.toggle_attribute({"aria-expanded", "true", "false"}, to: "##{@id}-toggle")
+          }
+        >
+          <span class="message-recipients-count">+{length(@recipients) - 1}</span>
+          <.icon name="hero-chevron-down" class="message-recipients-chevron size-4" />
+        </.link>
+        <span
+          :if={row.direction == "sent" && @expandable}
+          id={@id <> "-all"}
+          class="message-recipients-all"
+          style="display: none;"
+        >
+          {Enum.join(@recipients, ", ")}
+        </span>
+      </strong>
+    </span>
+    """
+  end
+
   attr :recipient, :map, required: true
 
   def recipient_badges(assigns) do
@@ -16,6 +95,7 @@ defmodule PronotexWeb.MessageComponents do
   attr :kind, :atom, required: true
   attr :recipients, :list, required: true
   attr :subject, :string, required: true
+  attr :return_focus, :string, default: "#message-subject"
 
   def message_confirmation(assigns) do
     ~H"""
@@ -23,7 +103,7 @@ defmodule PronotexWeb.MessageComponents do
       <.focus_wrap
         id="message-confirmation-focus"
         phx-mounted={JS.focus_first(to: "#message-confirmation-focus")}
-        phx-remove={JS.focus(to: "#message-subject")}
+        phx-remove={JS.focus(to: @return_focus)}
       >
         <section
           role="alertdialog"

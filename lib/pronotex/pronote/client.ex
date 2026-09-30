@@ -9,8 +9,10 @@ defmodule Pronotex.Pronote.Client do
     :children,
     :tabs,
     :sender_name,
+    :sender_resource,
     homework_reads: %{},
     discussion_reads: %{},
+    replies: %{},
     recipients: %{}
   ]
 
@@ -75,6 +77,7 @@ defmodule Pronotex.Pronote.Client do
       general: Map.fetch!(parameters, "General"),
       children: children,
       sender_name: get_in(user, ["ressource", "L"]),
+      sender_resource: Map.take(user["ressource"], ["N", "G"]),
       tabs: Map.fetch!(user, "listeOnglets")
     }
   end
@@ -293,6 +296,84 @@ defmodule Pronotex.Pronote.Client do
     {if(result[:simulated], do: :simulated, else: :sent), %{client | transport: transport}}
   end
 
+  def reply_context(client, id) do
+    {threads, client} = discussion_threads(client)
+    thread = Enum.find(threads, &(&1.id == id))
+
+    unless thread && !thread.closed && thread.messages != [],
+      do: raise(Error.new(:reply_unavailable))
+
+    message = List.last(thread.messages)
+
+    {detail, transport} =
+      Transport.call(client.transport, "ListeMessages", %{
+        "Signature" => discussion_signature(client),
+        "data" => %{
+          "listePossessionsMessages" => Map.fetch!(client.discussion_reads, id),
+          "message" => %{"N" => message.id}
+        }
+      })
+
+    reference = get_in(detail, ["messagePourReponse", "V"])
+    button = List.first(get_in(detail, ["listeBoutons", "V"]) || [])
+    unless is_map(reference) && button, do: raise(Error.new(:reply_unavailable))
+
+    {public, transport} =
+      Transport.call(transport, "SaisiePublicMessage", %{
+        "Signature" => discussion_signature(client),
+        "data" => %{
+          "message" => reference,
+          "estDestinatairesReponse" => true
+        }
+      })
+
+    recipients =
+      for recipient <- get_in(public, ["listeDest", "V"]) || [],
+          is_binary(recipient["L"]),
+          do: %{name: correspondent_name(recipient["L"], client)}
+
+    unless recipients != [], do: raise(Error.new(:reply_unavailable))
+    context = %{reference: reference, button: button, message_id: message.id}
+
+    {%{subject: thread.subject, recipients: recipients},
+     %{client | transport: transport, replies: Map.put(client.replies, id, context)}}
+  end
+
+  def reply_message(client, id, content) do
+    unless Pronotex.Pronote.Recipient.valid_content?(content),
+      do: raise(Error.new(:invalid_message))
+
+    context = client.replies[id]
+    unless context, do: raise(Error.new(:reply_unavailable))
+
+    {result, transport} =
+      Transport.call(client.transport, "SaisieMessage", %{
+        "Signature" => discussion_signature(client),
+        "data" => %{
+          "messagePourReponse" => context.reference,
+          "contenu" => content,
+          "listeFichiers" => [],
+          "bouton" => context.button
+        }
+      })
+
+    client = %{client | transport: transport, replies: Map.delete(client.replies, id)}
+
+    if result[:simulated] do
+      {:simulated, client}
+    else
+      {threads, client} = discussion_threads(client)
+
+      thread =
+        Enum.find(threads, fn thread ->
+          Enum.any?(thread.messages, &(&1.id == context.message_id))
+        end)
+
+      unless thread, do: raise(Error.new(:message_unconfirmed))
+      {{:sent, thread.id}, client}
+    end
+  end
+
   defp discussion_threads(client) do
     unless client.transport.space in [2, 3], do: raise(Error.new(:forbidden))
 
@@ -320,7 +401,31 @@ defmodule Pronotex.Pronote.Client do
             }
           })
 
-        messages = Pronotex.Pronote.Discussion.messages(detail)
+        {messages, transport} =
+          detail
+          |> Pronotex.Pronote.Discussion.messages()
+          |> Enum.map_reduce(transport, fn message, transport ->
+            {public, transport} =
+              Transport.call(transport, "SaisiePublicMessage", %{
+                "Signature" => discussion_signature(client),
+                "data" => %{"message" => %{"N" => message.id}}
+              })
+
+            recipients =
+              (get_in(public, ["listeDest", "V"]) || [])
+              |> Pronotex.Pronote.DisplayName.recipients(
+                client.sender_name,
+                Map.get(client, :sender_resource)
+              )
+
+            author =
+              if message.own,
+                do: Pronotex.Pronote.DisplayName.full(client.sender_name),
+                else: correspondent_name(message.author, client)
+
+            {Map.merge(message, %{author: author, recipients: recipients}), transport}
+          end)
+
         {Pronotex.Pronote.Discussion.parse(raw, messages), transport}
       end)
 
@@ -331,6 +436,10 @@ defmodule Pronotex.Pronote.Client do
       )
 
     {discussions, %{client | transport: transport, discussion_reads: reads}}
+  end
+
+  defp correspondent_name(name, client) do
+    Pronotex.Pronote.DisplayName.correspondent(name, client.sender_name)
   end
 
   def discussions(client) do

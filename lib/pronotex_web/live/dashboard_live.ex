@@ -1,6 +1,7 @@
 defmodule PronotexWeb.DashboardLive do
   use PronotexWeb, :live_view
   import PronotexWeb.TimetableComponents
+  import PronotexWeb.MessageComponents
 
   @impl true
   def mount(_params, _session, socket) do
@@ -15,6 +16,7 @@ defmodule PronotexWeb.DashboardLive do
         received_notifications: [],
         section: "agenda",
         discussions: [],
+        messages_limit: 10,
         messages_loading: false,
         messages_error: nil,
         messages_available: false,
@@ -287,6 +289,10 @@ defmodule PronotexWeb.DashboardLive do
      socket
      |> stream(:grades, grades)
      |> assign(:remaining_grades, remaining)}
+  end
+
+  def handle_event("show-more-messages", _, socket) do
+    {:noreply, assign(socket, :messages_limit, socket.assigns.messages_limit + 10)}
   end
 
   def handle_event("show-more-events", _, socket) do
@@ -632,6 +638,7 @@ defmodule PronotexWeb.DashboardLive do
       agenda_from: lessons_from,
       messages_generation: make_ref(),
       discussions: [],
+      messages_limit: 10,
       messages_unread: 0,
       parent_messages_unread: 0,
       messages_error: nil,

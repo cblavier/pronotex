@@ -23,8 +23,11 @@
     class="message-composer"
     aria-label="Rédaction d’un message"
   >
-    <.back_link :if={!@sent && !@sending} event="cancel" label="Retour aux messages" />
-    <p :if={@loading} role="status">Chargement des destinataires…</p>
+    <.back_link
+      :if={!@sent && !@sending}
+      event="cancel"
+      label={if @reply_id, do: "Retour à la conversation", else: "Retour aux messages"}
+    />
     <div :if={@load_error} role="alert" class="message-form-error">
       <p>{@load_error}</p>
       <button type="button" class="btn btn-sm themed-mini-button" phx-click="refresh">
@@ -34,8 +37,30 @@
     <.form for={%{}} as={:draft} id="message-form" phx-change="change" phx-submit="review-send">
       <fieldset disabled={@sending}>
         <label for="message-sender" class="message-field-label">Expéditeur</label>
-        <input id="message-sender" type="text" value={@sender_name} disabled />
-        <div id="recipient-picker" class="recipient-picker" phx-click-away="hide-recipients">
+        <input
+          id="message-sender"
+          type="text"
+          value={@sender_name}
+          readonly={!!@reply_id}
+          disabled={!@reply_id}
+        />
+        <div :if={@reply_id} class="recipient-picker">
+          <label for="reply-recipients" class="message-field-label">Destinataires</label>
+          <.recipient_field loading={@loading}>
+            <input
+              id="reply-recipients"
+              type="text"
+              value={Enum.map_join(@recipients, ", ", & &1.name)}
+              readonly
+            />
+          </.recipient_field>
+        </div>
+        <div
+          :if={!@reply_id}
+          id="recipient-picker"
+          class="recipient-picker"
+          phx-click-away="hide-recipients"
+        >
           <label for="recipient-query" class="message-field-label">Destinataires</label>
           <div
             :if={@selected != []}
@@ -56,21 +81,23 @@
               </button>
             </span>
           </div>
-          <input
-            id="recipient-query"
-            name="draft[query]"
-            value={@query}
-            type="text"
-            role="combobox"
-            aria-autocomplete="list"
-            aria-haspopup="listbox"
-            aria-expanded={to_string(@dropdown && !@loading && is_nil(@load_error))}
-            aria-controls="recipient-options"
-            autocomplete="off"
-            placeholder="Rechercher un nom, un type ou une matière…"
-            phx-focus="show-recipients"
-            disabled={@loading || !!@load_error}
-          />
+          <.recipient_field loading={@loading}>
+            <input
+              id="recipient-query"
+              name="draft[query]"
+              value={@query}
+              type="text"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-haspopup="listbox"
+              aria-expanded={to_string(@dropdown && !@loading && is_nil(@load_error))}
+              aria-controls="recipient-options"
+              autocomplete="off"
+              placeholder="Rechercher un nom, un type ou une matière…"
+              phx-focus="show-recipients"
+              disabled={@loading || !!@load_error}
+            />
+          </.recipient_field>
           <div :if={@dropdown && !@loading && !@load_error} class="recipient-dropdown">
             <ul id="recipient-options" role="listbox" aria-label="Destinataires disponibles">
               <li :for={recipient <- matching_recipients(assigns)} role="presentation">
@@ -92,8 +119,9 @@
             </p>
           </div>
         </div>
-        <label for="message-subject" class="message-field-label">Objet</label>
+        <label :if={!@reply_id} for="message-subject" class="message-field-label">Objet</label>
         <input
+          :if={!@reply_id}
           id="message-subject"
           name="draft[subject]"
           value={@subject}
@@ -134,7 +162,10 @@
             type="submit"
             id="send-message"
             class="btn btn-sm themed-mini-button message-primary-button"
-            disabled={@loading || !!@load_error || @selected == [] || @uncertain}
+            disabled={
+              @loading || !!@load_error || if(@reply_id, do: !@reply_ready, else: @selected == []) ||
+                @uncertain
+            }
             phx-disable-with="Envoi…"
           >
             <.icon name="hero-paper-airplane" class="size-4" />
@@ -149,6 +180,7 @@
       kind={@confirmation}
       recipients={selected_recipients(assigns)}
       subject={@subject}
+      return_focus={if @reply_id, do: "#message-content", else: "#message-subject"}
     />
   </section>
 </Layouts.app>

@@ -246,6 +246,7 @@ html { touch-action: manipulation; }
 }
 
 /* Underlined section navigation, distinct from date controls. */
+.navigation-tab, .week-navigation-label { font-size: 1rem; }
 .navigation-tab {
   display: inline-flex;
   align-items: center;
@@ -258,7 +259,6 @@ html { touch-action: manipulation; }
   border-bottom: 3px solid transparent;
   background: transparent;
   color: var(--muted-ink);
-  font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
 }
@@ -300,7 +300,7 @@ html { touch-action: manipulation; }
 .navigation-tab:disabled { cursor: wait; }
 
 .week-selector { display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem; }
-.week-navigation-label { display: inline-flex; align-items: center; font-size: 0.875rem; font-weight: 500; line-height: 1.25rem; color: var(--muted-ink); }
+.week-navigation-label { display: inline-flex; align-items: center; font-weight: 500; line-height: 1.25rem; color: var(--muted-ink); }
 .week-cycle-label { margin-left: 0.25rem; font-size: 1rem; font-weight: 600; color: var(--day-ink); }
 
 /* Width controls navigation placement, not identity size. */
@@ -311,7 +311,7 @@ html { touch-action: manipulation; }
   #section-navigation { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; width: 100%; border-bottom: 1px solid var(--color-base-300); }
   .navigation-tab { padding-inline: 0.25rem; }
   #date-navigation { grid-column: 2; grid-row: 1; margin: 0; padding: 0; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 0.25rem; }
-  .week-navigation-label { font-size: 0.75rem; white-space: nowrap; }
+  .week-navigation-label { white-space: nowrap; }
   .week-selector .btn { width: 2rem; height: 2rem; min-height: 2rem; padding: 0; }
   #grade-period-form { grid-column: 2; grid-row: 1; margin: 0; padding: 0; min-width: 0; max-width: 8rem; }
   #grade-period { width: 100%; height: 1.875rem; min-height: 1.875rem; padding-left: 0.5rem; padding-right: 1.5rem; font-size: 0.75rem; }
@@ -320,7 +320,6 @@ html { touch-action: manipulation; }
 @media (max-width: 359px) {
   #responsive-header { column-gap: 0.25rem; }
   .week-selector .btn { width: 1.75rem; height: 1.75rem; min-height: 1.75rem; }
-  .week-navigation-label { font-size: 0.6875rem; }
   #week-label { max-width: 6rem; overflow: hidden; text-overflow: ellipsis; }
 }
 
@@ -543,12 +542,18 @@ html { touch-action: manipulation; }
 .messages-empty { padding: 1.5rem 0; color: var(--muted-ink); font-size: 0.875rem; }
 .discussion-list, .discussion-messages { display: grid; gap: 1rem; }
 .discussion-list { margin-top: 1rem; }
+.discussion-list + .show-more-button { margin-top: 1rem; }
 .discussion-card { position: relative; transition: background-color 150ms; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); overflow: hidden; }
 
 .discussion-summary { display: grid; gap: 0.5rem; width: 100%; padding: 1rem; text-align: left; cursor: pointer; background: transparent; border: 0; }
 
 .discussion-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; color: var(--day-ink); }
+.discussion-message > .discussion-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+.discussion-message > .discussion-heading > .discussion-meta { text-align: right; }
 .discussion-meta { color: var(--muted-ink); font-size: 0.75rem; }
+.message-correspondents { display: inline-grid; gap: 0.25rem; overflow-wrap: anywhere; min-width: 0; }
+.message-direction { color: #4b5563; }
+:root[data-theme="dark"] .message-direction { color: #d1d5db; }
 .discussion-preview { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted-ink); font-size: 0.875rem; }
 .discussion-actions { display: flex; justify-content: flex-end; padding: 0.5rem 1rem; }
 .discussion-status:disabled { opacity: 0.6; cursor: wait; }
@@ -1006,7 +1011,7 @@ body.captain-pink .child-picker-avatar::after {
 .message-field-label { font-size: 0.875rem; font-weight: 600; margin-top: 0.5rem; }
 #message-form input, #message-form textarea { width: 100%; padding: 0.75rem 0.875rem; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); color: var(--color-base-content); font-size: 1rem; }
 #message-form input { height: calc((1lh + 1.5rem + 2px) * 0.75); padding-block: 0; }
-#message-form #message-sender { background: color-mix(in srgb, var(--day-ink) 10%, transparent); color: var(--color-base-content); opacity: 1; -webkit-text-fill-color: var(--color-base-content); cursor: default; }
+#message-form #message-sender, #message-form input[readonly] { background: color-mix(in srgb, var(--day-ink) 10%, transparent); color: var(--color-base-content); opacity: 1; -webkit-text-fill-color: var(--color-base-content); cursor: default; }
 #message-form input:focus, #message-form textarea:focus { outline: 2px solid var(--day-ink); outline-offset: 2px; }
 #message-form textarea { height: 11.25rem; min-height: 11.25rem; resize: vertical; }
 .recipient-picker { position: relative; display: flex; flex-direction: column; gap: 0.75rem; }
@@ -1025,8 +1030,8 @@ body.captain-pink .child-picker-avatar::after {
 #message-confirmation-focus { width: min(100%, 32rem); }
 .message-modal { padding: 1.25rem; border: 1px solid var(--day-line); border-radius: 0.5rem; background: var(--surface-background); color: var(--color-base-content); box-shadow: 0 8px 30px #0002; overflow-wrap: anywhere; }
 .message-primary-button { background: var(--day-tint); color: var(--day-ink); border-color: var(--day-line); box-shadow: none; }
-.message-composer .btn, .message-modal .btn, .new-message-button { box-shadow: none; font-weight: 500; }
-.message-composer .btn, .message-modal .btn {
+.message-composer .btn, .message-modal .btn, .new-message-button, .message-primary-button { box-shadow: none; font-weight: 500; }
+.message-composer .btn, .message-modal .btn, .message-primary-button {
   min-height: 2.5rem;
   height: auto;
   max-width: 100%;
@@ -1046,3 +1051,18 @@ body.captain-pink .child-picker-avatar::after {
   .new-message-button { font-size: 0.875rem; padding-inline: 0.625rem; }
   .message-modal .message-form-actions > button { width: 100%; }
 }
+
+.message-recipients-toggle { display: inline; margin-left: 0.25rem; color: var(--muted-ink); cursor: pointer; font: inherit; text-underline-offset: 0.15em; }
+.message-recipients-toggle:hover { text-decoration: underline; }
+.message-recipients-toggle:focus-visible { outline: 2px solid var(--day-ink); outline-offset: 2px; }
+.message-recipients-chevron { display: none; vertical-align: -0.125em; }
+.message-recipients-toggle[aria-expanded="true"] .message-recipients-count { display: none; }
+.message-recipients-toggle[aria-expanded="true"] .message-recipients-chevron { display: inline-block; }
+.message-recipients-all { margin-top: 0.25rem; font-weight: 400; }
+
+.recipient-field { position: relative; }
+.recipient-field-spinner { position: absolute; right: 0.875rem; top: 50%; transform: translateY(-50%); display: flex; align-items: center; color: var(--muted-ink); pointer-events: none; }
+.recipient-loading-ring { display: block; width: 1rem; height: 1rem; flex: none; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: recipient-loading-spin 0.75s linear infinite; }
+@keyframes recipient-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .recipient-loading-ring { animation: none; } }
+#message-form .recipient-field[data-loading="true"] input { padding-right: 2.75rem; }

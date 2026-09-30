@@ -5,6 +5,9 @@ defmodule Pronotex.Pronote.Error do
   def new(reason, code \\ nil) do
     message =
       case reason do
+        :reply_unavailable ->
+          "Cette conversation n’est plus accessible ou ne permet pas de répondre."
+
         :invalid_message ->
           "Vérifiez les destinataires, l’objet et le message. Rechargez les destinataires si nécessaire."
 

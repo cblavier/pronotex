@@ -186,7 +186,7 @@ defmodule Pronotex.Test.PronoteServer do
 
     {%{
        "ressource" => %{
-         "L" => "Christian Blavier",
+         "L" => state.options[:sender_name] || "Christian Blavier",
          "listeRessources" => [
            %{
              "N" => "child-a",
@@ -547,6 +547,7 @@ defmodule Pronotex.Test.PronoteServer do
              "estUneDiscussion" => true,
              "profondeur" => 0,
              "objet" => "Réunion",
+             "ferme" => state.options[:closed_discussion] == true,
              "lu" => state.discussion_read,
              "nbNonLus" => if(state.discussion_read, do: 0, else: 2),
              "listePossessionsMessages" => %{"V" => [%{"N" => "possession"}]}
@@ -566,12 +567,18 @@ defmodule Pronotex.Test.PronoteServer do
     assert payload["data"]["listePossessionsMessages"] == [%{"N" => "possession"}]
 
     {%{
+       "messagePourReponse" =>
+         if(payload["data"]["message"], do: %{"V" => %{"N" => "message-2", "G" => 1}}),
+       "listeBoutons" => %{
+         "V" => if(state.options[:no_reply], do: [], else: [%{"G" => 1, "L" => "Répondre"}])
+       },
        "listeMessages" => %{
          "V" =>
            for n <- 1..2 do
              %{
                "N" => "message-#{n}",
                "public_gauche" => "Professeur",
+               "emetteur" => state.options[:own_message] == true and n == 2,
                "lu" => state.discussion_read,
                "date" => %{"V" => "18/09/2026 10:00:00"},
                "estHTML" => true,
@@ -580,6 +587,24 @@ defmodule Pronotex.Test.PronoteServer do
            end
        }
      }, state, nil, false}
+  end
+
+  defp data("SaisiePublicMessage", payload, state) do
+    assert payload["Signature"]["onglet"] == 131
+
+    if payload["data"]["estDestinatairesReponse"] do
+      assert payload["data"] == %{
+               "message" => %{"N" => "message-2", "G" => 1},
+               "estDestinatairesReponse" => true
+             }
+    else
+      assert payload["data"]["message"]["N"] in ["message-1", "message-2"]
+      assert Map.keys(payload["data"]) == ["message"]
+    end
+
+    names = state.options[:recipient_names] || ["Mme Martin", "M. Dupont"]
+
+    {%{"listeDest" => %{"V" => Enum.map(names, &%{"L" => &1})}}, state, nil, false}
   end
 
   defp data("ListeRessourcesPourCommunication", payload, state) do

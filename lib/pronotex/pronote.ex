@@ -17,6 +17,12 @@ defmodule Pronotex.Pronote do
   def send_message(ids, subject, content, server),
     do: GenServer.call(server, {:send_message, ids, subject, content}, :infinity)
 
+  def reply_context(id, server),
+    do: GenServer.call(server, {:reply_context, id}, :infinity)
+
+  def reply_message(id, content, server),
+    do: GenServer.call(server, {:reply_message, id, content}, :infinity)
+
   def parent_discussions(server), do: GenServer.call(server, {:parent_discussions}, :infinity)
 
   def set_parent_discussion_read(id, read, server) when is_boolean(read),
