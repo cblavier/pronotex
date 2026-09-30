@@ -309,7 +309,7 @@ html { touch-action: manipulation; }
   #responsive-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 0.5rem; row-gap: var(--header-gap); margin-bottom: 1.5rem; }
   #dashboard-navigation { display: contents; }
   #section-navigation { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; width: 100%; border-bottom: 1px solid var(--color-base-300); }
-  .navigation-tab { padding-inline: 0.25rem; font-size: 0.875rem; }
+  .navigation-tab { padding-inline: 0.25rem; }
   #date-navigation { grid-column: 2; grid-row: 1; margin: 0; padding: 0; flex-direction: row; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 0.25rem; }
   .week-navigation-label { font-size: 0.75rem; white-space: nowrap; }
   .week-selector .btn { width: 2rem; height: 2rem; min-height: 2rem; padding: 0; }
@@ -672,7 +672,7 @@ html { touch-action: manipulation; }
 
 
 /* The whole lesson card is a keyboard-accessible link to its published notes. */
-.lesson-with-content { position: relative; }
+.lesson-with-content { position: relative; margin-inline: -1rem; padding-inline: 1rem; }
 .lesson-detail-link { position: absolute; inset: 0; z-index: 1; border-radius: 0.25rem; }
 .lesson-with-content:hover { background-color: var(--day-tint); }
 .lesson-detail-link:focus-visible { outline: 2px solid var(--day-ink); outline-offset: -2px; }
