@@ -811,7 +811,10 @@ html { touch-action: manipulation; }
   .lesson-entry h4, .homework-entry h4 { overflow-wrap: anywhere; }
   .homework-entry > div:first-child { flex-wrap: wrap; }
   .discussion-card[data-view="list"] .discussion-heading { padding-right: 0; }
+  .discussion-card[data-view="list"] .discussion-summary::after { content: ""; position: absolute; inset: 0; }
+  .discussion-card[data-view="list"] .discussion-summary > * { position: relative; z-index: 1; }
   .discussion-card[data-view="list"] .discussion-actions { position: static; padding: 0 1rem 1rem; }
+  .discussion-card[data-view="list"] .discussion-status { position: relative; z-index: 1; }
 }
 
 /* Let the header wrap instead of shrinking its text on the narrowest phones. */
