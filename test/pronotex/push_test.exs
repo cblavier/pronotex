@@ -170,16 +170,67 @@ defmodule Pronotex.PushTest do
     assert [_] = Repo.all(Delivery)
   end
 
-  test "future cancellations alert on their day and children are independent", c do
+  test "future cancellations stay silent on their day despite missing reads and ID rotation", c do
     subscribe()
     lesson = cancelled_lesson(%{start: ~N[2026-09-24 16:00:00], end: ~N[2026-09-24 17:00:00]})
     assert {:ok, 0} = Push.observe_cancellations("family", c.context, c.child, [lesson], @now)
+    assert Repo.all(Delivery) == []
+    assert {:ok, 0} = Push.observe_cancellations("family", c.context, c.child, [], @now)
+
     tomorrow = DateTime.add(@now, 86400)
-    assert {:ok, 1} = Push.observe_cancellations("family", c.context, c.child, [lesson], tomorrow)
+
+    assert {:ok, 0} =
+             Push.observe_cancellations(
+               "family",
+               c.context,
+               c.child,
+               [%{lesson | id: "new-id"}],
+               tomorrow
+             )
+
+    assert Repo.all(Delivery) == []
+
+    new_cancellation = %{lesson | subject: "Anglais"}
+
+    assert {:ok, 1} =
+             Push.observe_cancellations(
+               "family",
+               c.context,
+               c.child,
+               [lesson, new_cancellation],
+               tomorrow
+             )
+
+    assert [_] = Repo.all(Delivery)
     child2 = %{c.child | name: "TEST Victor", first_name: "Victor"}
     assert {:ok, 1} = Push.observe_cancellations("family", c.context, child2, [lesson], tomorrow)
     assert length(Repo.all(Delivery)) == 2
     Push.deliver_pending(fn _, _ -> flunk("expired") end, DateTime.add(tomorrow, 86400))
+    assert Repo.all(Delivery) == []
+  end
+
+  test "mixed reads notify today and remember future cancellations across partial reads", c do
+    subscribe()
+    today = cancelled_lesson()
+    future = %{today | start: ~N[2026-09-24 16:00:00], end: ~N[2026-09-24 17:00:00]}
+    another = %{future | subject: "Anglais"}
+
+    assert {:ok, 1} =
+             Push.observe_cancellations("family", c.context, c.child, [today, future], @now)
+
+    assert [_] = Repo.all(Delivery)
+    Push.deliver_pending(fn _, _ -> :ok end, @now)
+    assert {:ok, 0} = Push.observe_cancellations("family", c.context, c.child, [another], @now)
+
+    assert {:ok, 0} =
+             Push.observe_cancellations(
+               "family",
+               c.context,
+               c.child,
+               [future, another],
+               DateTime.add(@now, 86400)
+             )
+
     assert Repo.all(Delivery) == []
   end
 

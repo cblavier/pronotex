@@ -157,29 +157,46 @@ defmodule Pronotex.Push do
     end
   end
 
-  @doc "Queues newly observed cancellations for today's lessons, once per lesson and profile."
+  @doc "Remembers upcoming cancellations and queues only those first observed on their lesson day."
   def observe_cancellations(account_id, context, child, lessons, now \\ DateTime.utc_now()) do
     if Accounts.get(account_id) do
       local_now = local_datetime(now)
       today = NaiveDateTime.to_date(local_now)
       fingerprint = Accounts.fingerprint(account_id)
 
-      key =
+      key_for_day = fn day ->
         digest(
           {:cancellations, account_id, fingerprint, context.school_url, context.school_year,
-           normalize(child.name), normalize(Map.get(child, :school_name) || ""), today}
+           normalize(child.name), normalize(Map.get(child, :school_name) || ""), day}
         )
+      end
 
-      cancellations =
+      cancellations_by_day =
         lessons
         |> Pronotex.Agenda.without_replaced_cancellations()
-        |> Enum.filter(
-          &(&1.canceled && NaiveDateTime.to_date(&1.start) == today &&
-              NaiveDateTime.compare(&1.end, local_now) == :gt)
-        )
-        |> Map.new(&{digest({&1.start, normalize(&1.subject || "")}), 1})
+        |> Enum.filter(&(&1.canceled && NaiveDateTime.compare(&1.end, local_now) == :gt))
+        |> Enum.group_by(&NaiveDateTime.to_date(&1.start))
+        |> Map.new(fn {day, lessons} ->
+          {day, Map.new(lessons, &{digest({&1.start, normalize(&1.subject || "")}), 1})}
+        end)
+
+      key = key_for_day.(today)
+      cancellations = Map.get(cancellations_by_day, today, %{})
 
       Repo.transaction(fn ->
+        # Keep the existing per-lesson-day keys so deployed baselines stay valid.
+        # Remember future cancellations silently before their day becomes today.
+        for {day, counts} <- cancellations_by_day, Date.compare(day, today) == :gt do
+          future_key = key_for_day.(day)
+          previous = Repo.get(Baseline, future_key)
+          merged = Map.merge((previous && previous.counts) || %{}, counts)
+
+          Repo.insert!(%Baseline{key: future_key, counts: merged},
+            on_conflict: [set: [counts: merged]],
+            conflict_target: :key
+          )
+        end
+
         previous = Repo.get(Baseline, key)
         seen = (previous && previous.counts) || %{}
         added = map_size(Map.drop(cancellations, Map.keys(seen)))
