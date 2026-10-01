@@ -232,6 +232,7 @@ html { touch-action: manipulation; }
 .themed-mini-button { background: var(--surface-background, white); color: var(--day-ink); border-color: var(--day-line); }
 .app-tooltip { position: relative; display: inline-flex; }
 .app-tooltip-content { position: absolute; top: 50%; right: calc(100% + 8px); transform: translateY(-50%); z-index: 50; padding: 6px 10px; border-radius: 6px; background: var(--color-base-content); color: var(--color-base-100); font-size: 12px; font-weight: 400; line-height: 1.4; letter-spacing: normal; text-transform: none; white-space: nowrap; pointer-events: none; visibility: hidden; opacity: 0; }
+.app-tooltip[data-placement="right"] > .app-tooltip-content { left: calc(100% + 8px); right: auto; }
 .app-tooltip:focus-within > .app-tooltip-content { visibility: visible; opacity: 1; }
 @media (hover: hover) {
   .app-tooltip:hover > .app-tooltip-content { visibility: visible; opacity: 1; }
@@ -608,7 +609,7 @@ html { touch-action: manipulation; }
 #messages-content .discussion-status:not(:disabled):hover { color: var(--status-ink); background: var(--status-tint); border-color: var(--status-line); }
 #messages-content .discussion-status:focus-visible { outline-color: var(--status-ink); }
 
-.discussion-card[data-view="list"] .discussion-heading { min-height: 2rem; padding-right: 7.5rem; color: var(--color-base-content); }
+.discussion-card[data-view="list"] .discussion-heading { min-height: 2rem; padding-right: 7.5rem; color: var(--day-ink); }
 .discussion-card[data-view="list"] .discussion-actions { position: absolute; top: 1rem; right: 1rem; padding: 0; }
 .discussion-card[data-view="detail"] .discussion-actions { padding: 1rem; }
 @media (hover: hover) {

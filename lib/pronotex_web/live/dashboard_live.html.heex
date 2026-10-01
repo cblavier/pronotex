@@ -745,7 +745,10 @@
           }
         >
           <span class="discussion-heading communication-heading">
-            <.communication_badge kind={Map.get(discussion, :kind, :discussion)} />
+            <.communication_badge
+              id={"communication-#{discussion.id}"}
+              kind={Map.get(discussion, :kind, :discussion)}
+            />
             <strong>{discussion.subject}</strong>
           </span>
           <span class="discussion-meta">
@@ -768,7 +771,10 @@
           class="lesson-content-title lesson-content-header communication-detail-header"
         >
           <div class="communication-detail-title">
-            <.communication_badge kind={Map.get(discussion, :kind, :discussion)} />
+            <.communication_badge
+              id={"communication-#{discussion.id}"}
+              kind={Map.get(discussion, :kind, :discussion)}
+            />
             <h2 id="messages-title">{discussion.subject}</h2>
           </div>
           <.communication_status_button

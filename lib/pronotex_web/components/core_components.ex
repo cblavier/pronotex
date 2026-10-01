@@ -89,9 +89,11 @@ defmodule PronotexWeb.CoreComponents do
   attr :class, :any, default: nil
   slot :inner_block, required: true
 
+  attr :placement, :string, default: "left", values: ~w(left right)
+
   def tooltip(assigns) do
     ~H"""
-    <span class={["app-tooltip", @class]}>
+    <span class={["app-tooltip", @class]} data-placement={@placement}>
       {render_slot(@inner_block)}
       <span id={@id} role="tooltip" class="app-tooltip-content">{@text}</span>
     </span>
@@ -286,6 +288,7 @@ defmodule PronotexWeb.CoreComponents do
     """
   end
 
+  attr :id, :string, required: true
   attr :kind, :atom, default: :discussion
 
   def communication_badge(assigns) do
@@ -299,9 +302,18 @@ defmodule PronotexWeb.CoreComponents do
     assigns = assign(assigns, label: label, icon: icon)
 
     ~H"""
-    <span class="communication-badge" data-kind={@kind} role="img" aria-label={@label} title={@label}>
-      <.icon name={@icon} class="communication-icon" />
-    </span>
+    <.tooltip id={@id <> "-tooltip"} text={@label} placement="right" class="shrink-0">
+      <span
+        class="communication-badge"
+        data-kind={@kind}
+        role="img"
+        aria-label={@label}
+        aria-describedby={@id <> "-tooltip"}
+        tabindex="0"
+      >
+        <.icon name={@icon} class="communication-icon" />
+      </span>
+    </.tooltip>
     """
   end
 
