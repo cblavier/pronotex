@@ -1,3 +1,4 @@
+import {watchDeploymentVersion} from "./deployment"
 import {MessageComposer} from "./message_composer"
 import {WeekOverview} from "./week_overview"
 import {updatePushWorker, listenForPushNavigation} from "./push"
@@ -177,6 +178,8 @@ document.addEventListener("visibilitychange", () => {
     }
   }
 })
+
+watchDeploymentVersion(liveSocket.socket)
 
 // connect if there are any LiveViews on the page
 if (!restoreLastPage()) liveSocket.connect()

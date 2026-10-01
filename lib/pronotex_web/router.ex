@@ -16,6 +16,7 @@ defmodule PronotexWeb.Router do
 
   scope "/", PronotexWeb do
     pipe_through :browser
+    get "/app-version", DeploymentController, :show
     get "/login", LoginController, :index
     post "/login", LoginController, :create
     post "/logout", LoginController, :delete

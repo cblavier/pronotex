@@ -7,6 +7,11 @@ defmodule Pronotex.Application do
 
   @impl true
   def start(_type, _args) do
+    :persistent_term.put(
+      {PronotexWeb.DeploymentController, :version},
+      Base.url_encode64(:crypto.strong_rand_bytes(18), padding: false)
+    )
+
     children = [
       Pronotex.Repo,
       {Ecto.Migrator, repos: [Pronotex.Repo]},
