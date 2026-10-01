@@ -118,7 +118,7 @@ defmodule PronotexWeb.CoreComponents do
     <nav id={@id} aria-label="Choisir la semaine" class={["week-selector", @class]}>
       <p id={@label_id} class="week-navigation-label">
         <span class="lg:hidden">
-          {if @mode == :today, do: "Aujourd’hui", else: compact_week(@week)}
+          {if @mode == :today, do: "aujourd’hui", else: compact_week(@week)}
         </span>
         <span class="hidden lg:inline">
           <%= if @mode == :today do %>
