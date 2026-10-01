@@ -74,7 +74,7 @@ export const Settings = {
     } else if (!this.ready) {
       this.status.textContent = "Vérification des notifications…"
     } else if (this.notifications.checked) {
-      this.status.textContent = "Vous recevrez une notification pour les nouvelles notes et les cours annulés le jour même."
+      this.status.textContent = "Vous recevrez une notification pour les nouvelles notes, les cours annulés le jour même et les nouveaux messages de votre profil."
     } else {
       this.status.textContent = "Recevoir les nouvelles notes et les annulations de cours du jour sur cet appareil, même quand l’application est fermée."
     }

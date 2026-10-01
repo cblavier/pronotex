@@ -14,7 +14,7 @@ self.addEventListener("push", event => {
       const target = new URL(payload.url, self.location.origin)
       if (target.origin === self.location.origin) url = target.href
     } catch { /* Keep the app's home page. */ }
-    await self.registration.showNotification(payload.title || "Nouvelle notes", {
+    await self.registration.showNotification(payload.title || "Nouvelles notes", {
       body: payload.body ?? "",
       icon: "/images/brand/captain-notes-skull-192.png",
       badge: "/images/brand/captain-notes-skull-192.png",

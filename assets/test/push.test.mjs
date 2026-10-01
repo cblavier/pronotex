@@ -93,10 +93,10 @@ function worker(storage = new Map()) {
 test("push displays a notification and the click opens the child's notes", async () => {
   const {handlers, displayed, opened} = worker()
   let done
-  handlers.push({data: {json: () => ({title: "Nouvelle notes", url: "/edgar/notes?period=semester1", tag: "batch-1"})}, waitUntil: p => {done = p}})
+  handlers.push({data: {json: () => ({title: "Nouvelles notes", url: "/edgar/notes?period=semester1", tag: "batch-1"})}, waitUntil: p => {done = p}})
   await done
   assert.equal(displayed.length, 1)
-  assert.equal(displayed[0].title, "Nouvelle notes")
+  assert.equal(displayed[0].title, "Nouvelles notes")
   handlers.notificationclick({notification: {close() {}, data: displayed[0].options.data}, waitUntil: p => {done = p}})
   await done
   assert.deepEqual(opened, ["https://notes.example/edgar/notes?period=semester1"])
@@ -174,4 +174,19 @@ test("opening a system notification still opens the child's agenda", async () =>
   })
   await done
   assert.deepEqual(instance.opened, ["https://notes.example/basile"])
+})
+
+test("message pushes navigate to the personal inbox of parent and child profiles", async () => {
+  let handler
+  const visited = []
+  navigator.serviceWorker.addEventListener = (_, callback) => { handler = callback }
+  window.location = {origin: "https://notes.example", assign: url => visited.push(url)}
+  listenForPushNavigation()
+  for (const section of ["parent-messages", "messages"]) {
+    const instance = worker()
+    await receive(instance, {title: "Nouveau message", body: "Voir mes messages", kind: "messages", url: `/edgar/${section}`})
+    assert.equal(instance.displayed[0].title, "Nouveau message")
+    handler({data: {type: "OPEN_NOTES", url: instance.displayed[0].options.data.url}})
+  }
+  assert.deepEqual(visited, ["https://notes.example/edgar/parent-messages", "https://notes.example/edgar/messages"])
 })

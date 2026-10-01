@@ -445,6 +445,24 @@ defmodule Pronotex.Pronote.SessionTest do
     assert Enum.find(updated, &(&1.id == notice.id)).unread == 0
   end
 
+  test "only personal inbox reads establish message notification baselines" do
+    alias Pronotex.{Repo, Push.Baseline}
+    Repo.delete_all(Baseline)
+    {server, _} = session(student: true, account: "parent-1")
+    assert {:ok, [_]} = Pronote.discussions("child-a", server)
+    assert Repo.all(Baseline) == []
+    assert {:ok, [_]} = Pronote.parent_discussions(server)
+    assert [_] = Repo.all(Baseline)
+  end
+
+  test "direct child inbox reads establish message notification baselines" do
+    alias Pronotex.{Repo, Push.Baseline}
+    Repo.delete_all(Baseline)
+    {server, _} = session(direct_student: true, account: "child-1")
+    assert {:ok, [_]} = Pronote.discussions("child-a", server)
+    assert [_] = Repo.all(Baseline)
+  end
+
   test "parent inbox is separate from child inbox and requires a parent profile" do
     {server, student_agent} = session(student: true, account: "parent-1")
     assert {:ok, [parent]} = Pronote.parent_discussions(server)

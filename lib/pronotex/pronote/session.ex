@@ -292,7 +292,10 @@ defmodule Pronotex.Pronote.Session do
 
   defp execute({:parent_discussions}, state) do
     authorize_parent!(state)
-    {reply, client} = cached_read(state.client, {:parent_discussions})
+
+    {reply, client} =
+      cached_read(state.client, {:parent_discussions}, Keyword.get(state.options, :account))
+
     {:ok, reply, %{state | client: client}}
   end
 
@@ -332,7 +335,7 @@ defmodule Pronotex.Pronote.Session do
     {reply, client} =
       case operation do
         {:discussions, _} ->
-          cached_read(state.client, operation)
+          cached_read(state.client, operation, Keyword.get(state.options, :account))
 
         {:set_discussion_read, _, id, read} ->
           Client.set_discussion_read(state.client, id, read)
@@ -520,6 +523,28 @@ defmodule Pronotex.Pronote.Session do
     _ ->
       require Logger
       Logger.error("Unable to persist PRONOTE cancellations; next fresh read will retry")
+      :error
+  end
+
+  defp persist_read(client, operation, discussions, account_id)
+       when elem(operation, 0) in [:discussions, :parent_discussions] do
+    mailbox = if elem(operation, 0) == :parent_discussions, do: :parent, else: :child
+    child = List.first(Client.children(client))
+
+    context = %{
+      school_url: client.transport.root,
+      school_year: client.general["PremierLundi"]["V"]
+    }
+
+    if child do
+      {:ok, _} = Pronotex.Push.observe_messages(account_id, context, mailbox, child, discussions)
+    end
+
+    :ok
+  rescue
+    _ ->
+      require Logger
+      Logger.error("Unable to persist PRONOTE message observations; next fresh read will retry")
       :error
   end
 

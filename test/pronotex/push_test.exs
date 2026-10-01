@@ -85,6 +85,95 @@ defmodule Pronotex.PushTest do
     assert Banners.list("family") == []
   end
 
+  defp inbox_message(overrides \\ %{}) do
+    Map.merge(
+      %{id: "m1", author: "Mme Martin", date: "01/10/2026 10:00:00", own: false, seen: false},
+      overrides
+    )
+  end
+
+  defp inbox_thread(messages),
+    do: %{
+      id: "thread",
+      kind: :discussion,
+      subject: "Réunion",
+      author: "Mme Martin",
+      date: "01/10/2026",
+      unread: 1,
+      messages: messages
+    }
+
+  test "message pushes target only the profile's own inbox without activating banners", c do
+    parent = subscribe("parent-1", "parent")
+    subscribe("child-1", "child")
+    subscribe("family", "family")
+    before = Pronotex.NotificationBanners.list("parent-1")
+    assert {:ok, 0} = Push.observe_messages("parent-1", c.context, :parent, c.child, [], @now)
+    thread = inbox_thread([inbox_message()])
+
+    assert {:ok, 0} =
+             Push.observe_messages("parent-1", c.context, :child, c.child, [thread], @now)
+
+    assert {:ok, 0} = Push.observe_messages("family", c.context, :child, c.child, [thread], @now)
+    assert Repo.all(Delivery) == []
+
+    assert {:ok, 1} =
+             Push.observe_messages("parent-1", c.context, :parent, c.child, [thread], @now)
+
+    [delivery] = Repo.all(Delivery)
+    assert delivery.subscription_id == parent.id
+    assert delivery.payload["title"] == "Nouveau message"
+    assert delivery.payload["body"] == "Voir mes messages"
+    assert delivery.payload["url"] == "/edgar/parent-messages"
+    assert Pronotex.NotificationBanners.list("parent-1") == before
+  end
+
+  test "message history is silent and new replies survive identifier rotation and repeated reads",
+       c do
+    child = subscribe("child-1", "child")
+    first = inbox_message()
+
+    assert {:ok, 0} =
+             Push.observe_messages(
+               "child-1",
+               c.context,
+               :child,
+               c.child,
+               [inbox_thread([first])],
+               @now
+             )
+
+    assert Repo.all(Delivery) == []
+    reply = inbox_message(%{id: "m2", date: "01/10/2026 11:00:00"})
+    own = inbox_message(%{id: "own", own: true})
+    thread = inbox_thread([%{first | id: "rotated", seen: true}, reply, own])
+    assert {:ok, 1} = Push.observe_messages("child-1", c.context, :child, c.child, [thread], @now)
+    [delivery] = Repo.all(Delivery)
+    assert delivery.subscription_id == child.id
+    assert delivery.payload["url"] == "/edgar/messages"
+    Push.deliver_pending(fn _, _ -> :ok end, @now)
+    assert {:ok, 0} = Push.observe_messages("child-1", c.context, :child, c.child, [], @now)
+    assert {:ok, 0} = Push.observe_messages("child-1", c.context, :child, c.child, [thread], @now)
+    assert Repo.all(Delivery) == []
+  end
+
+  test "own replies and already read messages do not notify; unread notices do", c do
+    subscribe("parent-1", "parent")
+
+    observe = fn items ->
+      Push.observe_messages("parent-1", c.context, :parent, c.child, items, @now)
+    end
+
+    assert {:ok, 0} = observe.([])
+    assert {:ok, 0} = observe.([inbox_thread([inbox_message(%{own: true})])])
+    assert {:ok, 0} = observe.([inbox_thread([inbox_message(%{seen: true})])])
+    assert {:ok, 0} = observe.([inbox_thread([inbox_message()])])
+    notice = %{inbox_thread([]) | kind: :information}
+    assert {:ok, 1} = observe.([notice])
+    assert {:ok, 0} = observe.([%{notice | id: "rotated", unread: 0}])
+    assert [_] = Repo.all(Delivery)
+  end
+
   test "same-day cancellations notify every device of the matching profile", c do
     subscribe()
     subscribe("family", "second")
@@ -304,7 +393,7 @@ defmodule Pronotex.PushTest do
     assert {:ok, %{queued: 2}} = Push.notify_grades("family", "edgar", server: server)
     assert [first, second] = Repo.all(Delivery)
     assert first.payload == second.payload
-    assert first.payload["title"] == "Nouvelle notes"
+    assert first.payload["title"] == "Nouvelles notes"
     assert first.payload["url"] == "/edgar/notes"
     assert first.payload["body"] == "Voir les notes de Edgar"
     assert Repo.all(Baseline) == []
@@ -351,7 +440,7 @@ defmodule Pronotex.PushTest do
     assert {:ok, 2} = Push.observe("family", c.context, c.child, next, @now)
     deliveries = Repo.all(Delivery)
     assert length(deliveries) == 2
-    assert Enum.all?(deliveries, &(&1.payload["title"] == "Nouvelle notes"))
+    assert Enum.all?(deliveries, &(&1.payload["title"] == "Nouvelles notes"))
     assert Enum.all?(deliveries, &(&1.payload["url"] == "/edgar/notes?period=semester1"))
     assert deliveries |> Enum.map(& &1.payload["tag"]) |> Enum.uniq() |> length() == 1
     assert {:ok, 0} = Push.observe("family", c.context, c.child, next, @now)

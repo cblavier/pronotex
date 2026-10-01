@@ -280,6 +280,93 @@ defmodule Pronotex.Push do
     end
   end
 
+  @doc "Observe only the profile's own inbox; initial reads establish a silent baseline."
+  def observe_messages(
+        account_id,
+        context,
+        mailbox,
+        child,
+        discussions,
+        now \\ DateTime.utc_now()
+      ) do
+    case Accounts.get(account_id) do
+      %{role: role} when role == mailbox and role in [:parent, :child] ->
+        fingerprint = Accounts.fingerprint(account_id)
+
+        key =
+          digest({:messages, account_id, fingerprint, context.school_url, context.school_year})
+
+        observations =
+          Enum.flat_map(discussions, fn discussion ->
+            kind = Map.get(discussion, :kind, :discussion)
+
+            if kind == :discussion do
+              discussion.messages
+              |> Enum.reject(&Map.get(&1, :own, false))
+              |> Enum.map(fn message ->
+                {digest(
+                   {kind, normalize(discussion.subject), normalize(message.author), message.date}
+                 ), !Map.get(message, :seen, discussion.unread == 0)}
+              end)
+            else
+              [
+                {digest(
+                   {kind, normalize(discussion.subject), normalize(discussion.author),
+                    discussion.date}
+                 ), discussion.unread > 0}
+              ]
+            end
+          end)
+
+        counts = Enum.frequencies_by(observations, &elem(&1, 0))
+        unread = observations |> Enum.filter(&elem(&1, 1)) |> MapSet.new(&elem(&1, 0))
+
+        Repo.transaction(fn ->
+          previous = Repo.get(Baseline, key)
+          seen = (previous && previous.counts) || %{}
+
+          added =
+            if previous do
+              Enum.reduce(counts, 0, fn {key, count}, total ->
+                total +
+                  if(MapSet.member?(unread, key),
+                    do: max(count - Map.get(seen, key, 0), 0),
+                    else: 0
+                  )
+              end)
+            else
+              0
+            end
+
+          merged = Map.merge(seen, counts, fn _, a, b -> max(a, b) end)
+
+          Repo.insert!(%Baseline{key: key, counts: merged},
+            on_conflict: [set: [counts: merged]],
+            conflict_target: :key
+          )
+
+          if added > 0 do
+            section = if role == :parent, do: "parent-messages", else: "messages"
+
+            payload = %{
+              "title" => "Nouveau message",
+              "body" => "Voir mes messages",
+              "kind" => "messages",
+              "url" => "/#{child_slug(child)}/#{section}",
+              "tag" => "messages-" <> Ecto.UUID.generate()
+            }
+
+            enqueue(account_id, fingerprint, payload, now, DateTime.add(now, 86400, :second))
+          end
+
+          added
+        end)
+
+      _ ->
+        {:ok, 0}
+    end
+  end
+
   defp activate_banner({:ok, added} = result, account_id, kind, url) when added > 0 do
     Pronotex.Pronote.ReadCache.invalidate(
       {:kind, if(kind == "grades", do: :grades, else: :lessons)}
@@ -371,7 +458,7 @@ defmodule Pronotex.Push do
     name = Pronotex.Family.first_name(child)
 
     payload = %{
-      "title" => "Nouvelle notes",
+      "title" => "Nouvelles notes",
       "kind" => "grades",
       "body" => "Voir les notes de #{name}",
       "url" => grade_url(child, period),
@@ -490,9 +577,20 @@ defmodule Pronotex.Push do
   defp invalidate_notification_cache(payload) do
     kind =
       case payload["kind"] do
-        "grades" -> :grades
-        "cancellation" -> :lessons
-        _ -> nil
+        "grades" ->
+          :grades
+
+        "cancellation" ->
+          :lessons
+
+        "messages" ->
+          if(String.ends_with?(payload["url"], "/parent-messages"),
+            do: :parent_discussions,
+            else: :discussions
+          )
+
+        _ ->
+          nil
       end
 
     if kind, do: Pronotex.Pronote.ReadCache.invalidate({:kind, kind})

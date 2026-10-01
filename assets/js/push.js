@@ -65,7 +65,7 @@ export function listenForPushNavigation() {
     if (event.data?.type !== "OPEN_NOTES") return
     try {
       const target = new URL(event.data.url, window.location.origin)
-      if (target.origin === window.location.origin && /^\/[^/]+(?:\/notes)?$/.test(target.pathname)) {
+      if (target.origin === window.location.origin && /^\/[^/]+(?:\/(?:notes|messages|parent-messages))?$/.test(target.pathname)) {
         window.location.assign(target.href)
       }
     } catch { /* Ignore malformed notification destinations. */ }

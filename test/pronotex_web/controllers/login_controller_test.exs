@@ -23,14 +23,31 @@ defmodule PronotexWeb.LoginControllerTest do
     assert redirected_to(success) == target
   end
 
-  test "post-login destinations cannot redirect outside notes pages" do
+  test "message push destinations survive authentication" do
+    for {account, pin, section} <- [
+          {"parent-1", "23456789", "parent-messages"},
+          {"child-1", "12345678", "messages"}
+        ] do
+      target = "/edgar/" <> section
+      redirected = build_conn() |> get(target)
+      assert redirected_to(redirected) == PronotexWeb.NotesDestination.login_url(target)
+
+      success =
+        build_conn()
+        |> post("/login", %{"account" => account, "pin" => pin, "return_to" => target})
+
+      assert redirected_to(success) == target
+    end
+  end
+
+  test "post-login destinations reject unsupported pages" do
     for target <- [
           "https://evil.test/a/notes",
           "//evil.test/a/notes",
           "/%2Fbad/notes",
           "/a/../notes",
           "/a/notes#bad",
-          "/a/messages"
+          "/a/reglages"
         ] do
       assert PronotexWeb.NotesDestination.validate(target) == nil
     end
