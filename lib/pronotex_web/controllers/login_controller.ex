@@ -15,6 +15,8 @@ defmodule PronotexWeb.LoginController do
   end
 
   def delete(conn, _) do
+    Auth.revoke(get_session(conn))
+
     if socket_id = get_session(conn, "live_socket_id") do
       PronotexWeb.Endpoint.broadcast(socket_id, "disconnect", %{})
     end
@@ -35,6 +37,8 @@ defmodule PronotexWeb.LoginController do
 
     case Auth.attempt(account, params["pin"]) do
       :ok ->
+        Auth.revoke(get_session(conn))
+
         if socket_id = get_session(conn, "live_socket_id") do
           PronotexWeb.Endpoint.broadcast(socket_id, "disconnect", %{})
         end

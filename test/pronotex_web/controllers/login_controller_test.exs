@@ -200,6 +200,39 @@ defmodule PronotexWeb.LoginControllerTest do
     assert logged_out.resp_cookies["_pronotex_key"].max_age == 0
   end
 
+  test "logout rejects a copied persistent cookie without logging out another device" do
+    import Phoenix.LiveViewTest
+
+    login = fn ->
+      build_conn()
+      |> post("/login", %{"account" => "family", "pin" => "01234567", "remember" => "true"})
+    end
+
+    first = login.()
+    second = login.()
+    cookie = first.resp_cookies["_pronotex_key"].value
+    old_session = get_session(first)
+    assert Pronotex.Auth.valid?(old_session)
+
+    first |> recycle() |> post("/logout", %{})
+    refute Pronotex.Auth.valid?(old_session)
+    assert Pronotex.Auth.valid?(get_session(second))
+
+    replayed = build_conn() |> put_req_cookie("_pronotex_key", cookie) |> get("/push/config")
+    assert redirected_to(replayed) == "/login"
+
+    assert {:error, {:redirect, %{to: "/login"}}} =
+             live(build_conn() |> put_req_cookie("_pronotex_key", cookie), "/")
+  end
+
+  test "switching profiles revokes the previous cookie" do
+    first = build_conn() |> post("/login", %{"account" => "family", "pin" => "01234567"})
+    old_session = get_session(first)
+    second = first |> recycle() |> post("/login", %{"account" => "parent-1", "pin" => "23456789"})
+    refute Pronotex.Auth.valid?(old_session)
+    assert Pronotex.Auth.valid?(get_session(second))
+  end
+
   test "three failures block even a correct PIN, and subsequent failures increase the delay" do
     for _ <- 1..2, do: assert({:invalid, 0} = Pronotex.Auth.attempt("family", "11111111"))
     assert {:invalid, 60} = Pronotex.Auth.attempt("family", "11111111")
