@@ -19,7 +19,7 @@ self.addEventListener("push", event => {
       icon: "/images/brand/captain-notes-skull-192.png",
       badge: "/images/brand/captain-notes-skull-192.png",
       tag: payload.tag,
-      data: {url, scope: payload.scope, tag: payload.tag}
+      data: {url}
     })
   })())
 })

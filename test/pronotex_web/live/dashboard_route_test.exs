@@ -1,4 +1,4 @@
-defmodule PronotexWeb.PageControllerTest do
+defmodule PronotexWeb.DashboardRouteTest do
   use PronotexWeb.ConnCase
 
   test "GET /", %{conn: conn} do

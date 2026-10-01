@@ -567,7 +567,7 @@ defmodule PronotexWeb.DashboardLiveTest do
     refute has_element?(second, ".notification-banner", "Nouvelles notes")
     assert has_element?(second, ".notification-banner", "Annulation de cours")
 
-    second |> element("[data-notification-dismiss]") |> render_click()
+    second |> element(~s([phx-click="dismiss-notification"])) |> render_click()
     refute has_element?(first, ".notification-banner")
     {:ok, reconnected, _} = live(conn, "/alice")
     refute has_element?(reconnected, ".notification-banner")

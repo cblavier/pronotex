@@ -36,14 +36,12 @@ defmodule PronotexWeb.NotificationComponents do
         href={@banner.url}
         phx-click="view-notification"
         phx-value-tag={@banner.tag}
-        data-notification-view
         aria-label={"Voir : #{@banner.title} de #{@banner.name}"}
       >
         Voir
       </.button>
       <button
         type="button"
-        data-notification-dismiss
         phx-click="dismiss-notification"
         phx-value-tag={@banner.tag}
         aria-label={"Fermer : #{@banner.title} de #{@banner.name}"}

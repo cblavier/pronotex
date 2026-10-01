@@ -10,10 +10,6 @@ defmodule PronotexWeb.Router do
     plug :put_secure_browser_headers
   end
 
-  pipeline :api do
-    plug :accepts, ["json"]
-  end
-
   pipeline :authenticated do
     plug PronotexWeb.Auth
   end
@@ -43,11 +39,6 @@ defmodule PronotexWeb.Router do
       live "/:child/:section/:discussion", DashboardLive, :index
     end
   end
-
-  # Other scopes may use custom stacks.
-  # scope "/api", PronotexWeb do
-  #   pipe_through :api
-  # end
 
   # Enable LiveDashboard in development
   if Application.compile_env(:pronotex, :dev_routes) do

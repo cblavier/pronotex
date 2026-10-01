@@ -253,7 +253,6 @@ defmodule Pronotex.Push do
 
           payload = %{
             "title" => "Annulation de cours",
-            "scope" => inbox_scope(account_id),
             "kind" => "cancellation",
             "body" => "Voir l'agenda de #{name}",
             "url" => "/#{child_slug(child)}",
@@ -368,22 +367,11 @@ defmodule Pronotex.Push do
     end
   end
 
-  def inbox_scope(account_id) do
-    :crypto.mac(
-      :hmac,
-      :sha256,
-      PronotexWeb.Endpoint.config(:secret_key_base),
-      :erlang.term_to_binary({account_id, Accounts.fingerprint(account_id)})
-    )
-    |> Base.url_encode64(padding: false)
-  end
-
   defp enqueue_grades(account_id, fingerprint, child, period, now) do
     name = Pronotex.Family.first_name(child)
 
     payload = %{
       "title" => "Nouvelle notes",
-      "scope" => inbox_scope(account_id),
       "kind" => "grades",
       "body" => "Voir les notes de #{name}",
       "url" => grade_url(child, period),

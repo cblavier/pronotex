@@ -490,7 +490,6 @@ html { touch-action: manipulation; }
   .child-picker-chevron { width: 1rem; height: 1rem; }
 }
 .page-shell > main { padding-top: var(--header-page-top); }
-.child-picker-check { margin-left: auto; flex-shrink: 0; }
 #child-identity { min-width: 0; }
 .child-picker-name-row { display: flex; align-items: center; gap: var(--header-identity-gap); }
 
@@ -733,7 +732,7 @@ html { touch-action: manipulation; }
 .survey-choices { margin-top: 0.75rem; padding-left: 1.25rem; list-style: disc; }
 
 
-.communication-actions, .discussion-actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.discussion-actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
 .discussion-card[data-view="list"] .discussion-heading { padding-right: 9.5rem; }
 
 #messages-content { --communication-control-height: 2rem; --communication-control-radius: 0.25rem; }
@@ -928,7 +927,6 @@ html { touch-action: manipulation; }
 .week-lesson-canceled .week-subject { text-decoration: line-through; opacity: .6; }
 .week-badges { display: flex; flex-wrap: wrap; gap: 2px; }
 .week-badges .badge { display: block; min-width: 0; max-width: 100%; font-size: 9px; padding-inline: 3px; height: auto; min-height: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.week-overview-message { margin: auto; text-align: center; }
 .week-empty { position: absolute; top: 50%; left: 0; right: 0; text-align: center; }
 @media (max-width: 1023px) {
   .week-overview-header { justify-content: space-between; font-size: 0.875rem; }
