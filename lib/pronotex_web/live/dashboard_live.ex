@@ -6,6 +6,7 @@ defmodule PronotexWeb.DashboardLive do
   @impl true
   def mount(_params, _session, socket) do
     today = today()
+    if connected?(socket), do: Pronotex.NotificationBanners.subscribe(socket.assigns.account.id)
     if connected?(socket), do: Process.send_after(self(), :update_lesson_clock, 30_000)
     if connected?(socket), do: Phoenix.PubSub.subscribe(Pronotex.PubSub, "pronote:refresh")
 
@@ -13,7 +14,7 @@ defmodule PronotexWeb.DashboardLive do
       socket
       |> assign(
         page_title: "Mon agenda",
-        received_notifications: [],
+        notifications: Pronotex.NotificationBanners.list(socket.assigns.account.id),
         section: "agenda",
         discussions: [],
         messages_limit: 10,
@@ -94,6 +95,11 @@ defmodule PronotexWeb.DashboardLive do
     else
       {:noreply, socket}
     end
+  end
+
+  def handle_info(:notification_banners_changed, socket) do
+    {:noreply,
+     assign(socket, :notifications, Pronotex.NotificationBanners.list(socket.assigns.account.id))}
   end
 
   def handle_info(:update_lesson_clock, socket) do
@@ -183,21 +189,21 @@ defmodule PronotexWeb.DashboardLive do
   end
 
   @impl true
-  def handle_event("received-notifications", %{"notifications" => notifications}, socket)
-      when is_list(notifications) do
-    scope = Pronotex.Push.inbox_scope(socket.assigns.account.id)
+  def handle_event("view-notification", %{"tag" => tag}, socket) do
+    banner = Enum.find(socket.assigns.notifications, &(&1["tag"] == tag))
+    Pronotex.NotificationBanners.dismiss(socket.assigns.account.id, tag)
 
-    notifications =
-      Enum.filter(notifications, fn
-        %{"tag" => tag, "scope" => ^scope, "kind" => kind, "url" => url}
-        when is_binary(tag) and is_binary(url) and kind in ["grades", "cancellation"] ->
-          true
+    socket =
+      assign(socket, :notifications, Pronotex.NotificationBanners.list(socket.assigns.account.id))
 
-        _ ->
-          false
-      end)
+    {:noreply, if(banner, do: push_patch(socket, to: banner["url"]), else: socket)}
+  end
 
-    {:noreply, assign(socket, :received_notifications, notifications)}
+  def handle_event("dismiss-notification", %{"tag" => tag}, socket) do
+    Pronotex.NotificationBanners.dismiss(socket.assigns.account.id, tag)
+
+    {:noreply,
+     assign(socket, :notifications, Pronotex.NotificationBanners.list(socket.assigns.account.id))}
   end
 
   def handle_event(_event, _params, %{assigns: %{loading: true}} = socket),

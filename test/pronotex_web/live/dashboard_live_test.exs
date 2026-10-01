@@ -514,6 +514,12 @@ defmodule PronotexWeb.DashboardLiveTest do
   end
 
   setup do
+    for account <- ["family", "parent-1"] do
+      for banner <- Pronotex.NotificationBanners.list(account) do
+        Pronotex.NotificationBanners.dismiss(account, banner["tag"])
+      end
+    end
+
     keys = [:pronote_client, :dashboard_test_pid, :dashboard_test_mode, :today, :now]
     previous = Map.new(keys, &{&1, Application.fetch_env(:pronotex, &1)})
     Application.put_env(:pronotex, :today, fn -> ~D[2026-09-18] end)
@@ -532,52 +538,49 @@ defmodule PronotexWeb.DashboardLiveTest do
     :ok
   end
 
-  test "received banners show the right child and destination and reject foreign profiles", %{
-    conn: conn
-  } do
+  test "server banners are shared across devices and their links use live patches", %{conn: conn} do
+    alias Pronotex.NotificationBanners, as: Banners
+    {:ok, first, _} = live(conn, "/alice")
+    {:ok, second, _} = live(conn, "/alice")
+    render_async(first)
+    render_async(second)
+
+    Banners.activate("family", "grades", "/alice/notes?period=s1")
+    Banners.activate("family", "cancellation", "/basile")
+    Banners.activate("parent-1", "grades", "/basile/notes")
+
+    for view <- [first, second] do
+      assert has_element?(view, "#notification-banners .notification-banner", "Nouvelles notes")
+
+      assert has_element?(
+               view,
+               ~s(a[href="/alice/notes?period=s1"][phx-click="view-notification"])
+             )
+
+      assert has_element?(view, ~s(.notification-banner [aria-label="Basile"]))
+      refute has_element?(view, ~s(.notification-banner a[href="/basile/notes"]))
+    end
+
+    first |> element(~s(.notification-banner a[href="/alice/notes?period=s1"])) |> render_click()
+    assert_patch(first, "/alice/notes?period=s1")
+    render_async(first)
+    refute has_element?(second, ".notification-banner", "Nouvelles notes")
+    assert has_element?(second, ".notification-banner", "Annulation de cours")
+
+    second |> element("[data-notification-dismiss]") |> render_click()
+    refute has_element?(first, ".notification-banner")
+    {:ok, reconnected, _} = live(conn, "/alice")
+    refute has_element?(reconnected, ".notification-banner")
+    assert [_] = Banners.list("parent-1")
+  end
+
+  test "banners detected while disconnected appear on the next visit", %{conn: conn} do
+    Pronotex.NotificationBanners.activate("family", "cancellation", "/basile")
     {:ok, view, _} = live(conn, "/alice")
     render_async(view)
-    scope = Pronotex.Push.inbox_scope("family")
-
-    notes = %{
-      "scope" => scope,
-      "tag" => "notes-1",
-      "kind" => "grades",
-      "url" => "/alice/notes?period=s1"
-    }
-
-    cancellation = %{
-      "scope" => scope,
-      "tag" => "cancel-1",
-      "kind" => "cancellation",
-      "url" => "/basile"
-    }
-
-    render_hook(view, "received-notifications", %{
-      "notifications" => [
-        notes,
-        cancellation,
-        %{notes | "scope" => "other", "tag" => "foreign"},
-        %{notes | "url" => "https://evil.test/alice/notes", "tag" => "external"}
-      ]
-    })
-
-    assert has_element?(view, "#notification-banners .notification-banner", "Nouvelles notes")
-
-    assert has_element?(
-             view,
-             ~s([data-notification-tag="notes-1"] a[href="/alice/notes?period=s1"]),
-             "Voir"
-           )
-
-    assert has_element?(view, ~s([data-notification-tag="cancel-1"] [aria-label="Basile"]))
-    assert has_element?(view, ~s([data-notification-tag="cancel-1"] a[href="/basile"]))
-    refute has_element?(view, ~s([data-notification-tag="foreign"]))
-    refute has_element?(view, ~s([data-notification-tag="external"]))
-
-    render_hook(view, "received-notifications", %{"notifications" => [cancellation]})
-    refute has_element?(view, ~s([data-notification-tag="notes-1"]))
-    assert has_element?(view, ~s([data-notification-tag="cancel-1"]))
+    view |> element(~s(.notification-banner a[href="/basile"])) |> render_click()
+    assert_patch(view, "/basile")
+    assert Pronotex.NotificationBanners.list("family") == []
   end
 
   test "initial HTTP render includes the requested page's content", %{conn: conn} do

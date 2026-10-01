@@ -152,6 +152,7 @@ defmodule Pronotex.Push do
 
         added
       end)
+      |> activate_banner(account_id, "grades", grade_url(child, context.period))
     else
       {:ok, 0}
     end
@@ -274,10 +275,22 @@ defmodule Pronotex.Push do
 
         added
       end)
+      |> activate_banner(account_id, "cancellation", "/#{child_slug(child)}")
     else
       {:ok, 0}
     end
   end
+
+  defp activate_banner({:ok, added} = result, account_id, kind, url) when added > 0 do
+    Pronotex.Pronote.ReadCache.invalidate(
+      {:kind, if(kind == "grades", do: :grades, else: :lessons)}
+    )
+
+    Pronotex.NotificationBanners.activate(account_id, kind, url)
+    result
+  end
+
+  defp activate_banner(result, _account_id, _kind, _url), do: result
 
   defp local_datetime(now) do
     now
@@ -373,13 +386,16 @@ defmodule Pronotex.Push do
       "scope" => inbox_scope(account_id),
       "kind" => "grades",
       "body" => "Voir les notes de #{name}",
-      "url" =>
-        "/#{child_slug(child)}/notes" <>
-          if(period, do: "?" <> URI.encode_query(%{"period" => period}), else: ""),
+      "url" => grade_url(child, period),
       "tag" => "grades-" <> Ecto.UUID.generate()
     }
 
     enqueue(account_id, fingerprint, payload, now, DateTime.add(now, 86400, :second))
+  end
+
+  defp grade_url(child, period) do
+    "/#{child_slug(child)}/notes" <>
+      if(period, do: "?" <> URI.encode_query(%{"period" => period}), else: "")
   end
 
   defp child_slug(child) do

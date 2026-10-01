@@ -73,7 +73,9 @@ defmodule PronotexWeb.PushControllerTest do
     body = build_conn() |> get("/push-sw.js") |> response(200)
     assert body =~ "notificationclick"
     refute body =~ ~s(addEventListener("fetch")
-    assert body =~ ~s(const inboxCache = "received-push-v1")
+    assert body =~ ~s|caches.delete("received-push-v1")|
+    refute body =~ "PUSH_INBOX"
+    refute body =~ "cache.put"
     assert body =~ "target.origin === self.location.origin"
   end
 end

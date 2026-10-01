@@ -5,6 +5,10 @@ defmodule Pronotex.PushTest do
   @now ~U[2026-09-23 10:00:00.000000Z]
 
   setup do
+    for banner <- Pronotex.NotificationBanners.list("family") do
+      Pronotex.NotificationBanners.dismiss("family", banner["tag"])
+    end
+
     Repo.delete_all(Delivery)
     Repo.delete_all(Subscription)
     Repo.delete_all(Baseline)
@@ -57,6 +61,28 @@ defmodule Pronotex.PushTest do
         overrides
       )
     )
+  end
+
+  test "detections activate banners without push subscriptions, and repeated reads do not restore them",
+       c do
+    alias Pronotex.NotificationBanners, as: Banners
+    assert {:ok, 0} = Push.observe("family", c.context, c.child, %{grades: []}, @now)
+    assert Banners.list("family") == []
+    assert {:ok, 1} = Push.observe("family", c.context, c.child, %{grades: [c.grade]}, @now)
+
+    assert {:ok, 1} =
+             Push.observe_cancellations("family", c.context, c.child, [cancelled_lesson()], @now)
+
+    assert Repo.all(Delivery) == []
+    assert Enum.sort(Enum.map(Banners.list("family"), & &1["kind"])) == ["cancellation", "grades"]
+
+    for banner <- Banners.list("family"), do: Banners.dismiss("family", banner["tag"])
+    assert {:ok, 0} = Push.observe("family", c.context, c.child, %{grades: [c.grade]}, @now)
+
+    assert {:ok, 0} =
+             Push.observe_cancellations("family", c.context, c.child, [cancelled_lesson()], @now)
+
+    assert Banners.list("family") == []
   end
 
   test "same-day cancellations notify every device of the matching profile", c do

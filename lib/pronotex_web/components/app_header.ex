@@ -9,7 +9,7 @@ defmodule PronotexWeb.AppHeader do
   attr :loading, :boolean, default: false
   attr :current_url, :string, required: true
   attr :today, :any, required: true
-  attr :received_notifications, :list, default: []
+  attr :notifications, :list, default: []
   attr :messages_unread, :integer, default: 0
   attr :parent_messages_unread, :integer, default: 0
   attr :homework_badge_count, :integer, default: 0
@@ -199,9 +199,8 @@ defmodule PronotexWeb.AppHeader do
       </header>
 
       <.notification_banners
-        notifications={@received_notifications}
+        notifications={@notifications}
         children={@children}
-        scope={Pronotex.Push.inbox_scope(@account.id)}
       />
 
       <div

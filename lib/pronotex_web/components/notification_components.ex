@@ -3,7 +3,6 @@ defmodule PronotexWeb.NotificationComponents do
 
   attr :notifications, :list, required: true
   attr :children, :list, required: true
-  attr :scope, :string, required: true
 
   def notification_banners(assigns) do
     assigns = assign(assigns, :banners, banners(assigns.notifications, assigns.children))
@@ -11,8 +10,6 @@ defmodule PronotexWeb.NotificationComponents do
     ~H"""
     <section
       id="notification-banners"
-      phx-hook="NotificationBanners"
-      data-scope={@scope}
       aria-label="Notifications"
     >
       <.notification_banner :for={banner <- @banners} banner={banner} />
@@ -37,6 +34,8 @@ defmodule PronotexWeb.NotificationComponents do
       <.button
         class="btn btn-sm btn-soft themed-mini-button"
         href={@banner.url}
+        phx-click="view-notification"
+        phx-value-tag={@banner.tag}
         data-notification-view
         aria-label={"Voir : #{@banner.title} de #{@banner.name}"}
       >
@@ -45,6 +44,8 @@ defmodule PronotexWeb.NotificationComponents do
       <button
         type="button"
         data-notification-dismiss
+        phx-click="dismiss-notification"
+        phx-value-tag={@banner.tag}
         aria-label={"Fermer : #{@banner.title} de #{@banner.name}"}
       >
         <.icon name="hero-x-mark" class="size-4" />
