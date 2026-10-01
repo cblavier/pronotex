@@ -34,29 +34,7 @@ defmodule PronotexWeb.Layouts do
   def app(assigns) do
     ~H"""
     <div id="startup-splash" phx-hook="StartupSplash" role="status" aria-label="Connexion en cours">
-      <svg viewBox="40 45 320 320" aria-hidden="true" focusable="false">
-        <defs>
-          <mask
-            id="startup-skull-mask"
-            style="mask-type: alpha"
-            maskUnits="userSpaceOnUse"
-            x="40"
-            y="45"
-            width="320"
-            height="320"
-          >
-            <image href={~p"/images/brand/captain-notes-skull-login.png"} width="1040" height="400" />
-          </mask>
-        </defs>
-        <rect
-          x="40"
-          y="45"
-          width="320"
-          height="320"
-          fill="currentColor"
-          mask="url(#startup-skull-mask)"
-        />
-      </svg>
+      <.brand_logo />
     </div>
     <noscript>
       <style>
@@ -74,29 +52,7 @@ defmodule PronotexWeb.Layouts do
           data-logo-easter-egg
           aria-label="Animer Captain Notes"
         >
-          <svg class="app-brand-logo" viewBox="0 0 1040 400" role="img" aria-label="Captain Notes">
-            <defs>
-              <mask
-                id="footer-logo-mask"
-                style="mask-type: alpha"
-                maskUnits="userSpaceOnUse"
-                x="0"
-                y="0"
-                width="1040"
-                height="400"
-              >
-                <image
-                  href={~p"/images/brand/captain-notes-skull-login.png"}
-                  width="1040"
-                  height="400"
-                />
-              </mask>
-            </defs>
-            <g class="app-brand-skull">
-              <rect width="365" height="400" fill="currentColor" mask="url(#footer-logo-mask)" />
-            </g>
-            <rect x="365" width="675" height="400" fill="currentColor" mask="url(#footer-logo-mask)" />
-          </svg>
+          <.brand_lockup id="footer-logo" class="app-brand-logo" monochrome muted centered />
         </button>
       </footer>
     </div>

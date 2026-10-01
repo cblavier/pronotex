@@ -6,13 +6,7 @@ defmodule PronotexWeb.LoginHTML do
     <main id="login-screen" class="flex min-h-screen items-center justify-center px-6 py-6">
       <section class="login-card w-full max-w-[21rem] rounded-xl border border-base-300 bg-base-100 p-6">
         <h1 class="login-title" aria-label="Captain Notes">
-          <img
-            src={~p"/images/brand/captain-notes-skull-login.png"}
-            alt=""
-            width="260"
-            height="100"
-            class="h-auto max-w-full"
-          />
+          <.brand_lockup id="login-logo" class="login-logo" centered />
         </h1>
         <p class="mt-6 text-sm text-base-content/70">
           Saisissez votre code PIN pour accéder à l’application.

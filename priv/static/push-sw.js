@@ -16,8 +16,8 @@ self.addEventListener("push", event => {
     } catch { /* Keep the app's home page. */ }
     await self.registration.showNotification(payload.title || "Nouvelles notes", {
       body: payload.body ?? "",
-      icon: "/images/brand/captain-notes-skull-192.png",
-      badge: "/images/brand/captain-notes-skull-192.png",
+      icon: "/images/brand/pronotex-icon-192.png?v=2",
+      badge: "/images/brand/pronotex-badge-96.png",
       tag: payload.tag,
       data: {url}
     })

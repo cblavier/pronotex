@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="330" viewBox="110 85 340 330" fill="none">
+<title>Pronotex — logo avec volume</title>
+<desc>Mêmes contours que le logo simple, avec dégradé porcelaine, relief et ombre portée. Fond transparent.</desc>
+<defs>
+  <radialGradient id="porcelain" cx="225" cy="166" r="245" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#FFFFFF"/>
+    <stop offset="0.48" stop-color="#F1F7F5"/>
+    <stop offset="0.82" stop-color="#DEEBE7"/>
+    <stop offset="1" stop-color="#BDD3CC"/>
+  </radialGradient>
+  <filter id="relief" x="-20%" y="-20%" width="140%" height="145%" color-interpolation-filters="sRGB">
+    <!-- Ombre interne sur les bords inférieurs et droits. -->
+    <feComponentTransfer in="SourceAlpha" result="inverse">
+      <feFuncA type="linear" slope="-1" intercept="1"/>
+    </feComponentTransfer>
+    <feOffset in="inverse" dx="-2.5" dy="-3.5" result="shadowOffset"/>
+    <feGaussianBlur in="shadowOffset" stdDeviation="3" result="shadowBlur"/>
+    <feComposite in="shadowBlur" in2="SourceAlpha" operator="in" result="shadowMask"/>
+    <feFlood flood-color="#527D70" flood-opacity="0.48" result="shadowColor"/>
+    <feComposite in="shadowColor" in2="shadowMask" operator="in" result="innerShadow"/>
+    <feComposite in="innerShadow" in2="SourceGraphic" operator="over" result="shaded"/>
+    <!-- Reflet doux sur les bords supérieurs et gauches. -->
+    <feOffset in="inverse" dx="1.5" dy="2" result="lightOffset"/>
+    <feGaussianBlur in="lightOffset" stdDeviation="1.3" result="lightBlur"/>
+    <feComposite in="lightBlur" in2="SourceAlpha" operator="in" result="lightMask"/>
+    <feFlood flood-color="#FFFFFF" flood-opacity="0.95" result="lightColor"/>
+    <feComposite in="lightColor" in2="lightMask" operator="in" result="innerLight"/>
+    <feComposite in="innerLight" in2="shaded" operator="over" result="beveled"/>
+    <!-- Ombre portée, y compris dans les ouvertures des yeux et du nez. -->
+    <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="castBlur"/>
+    <feOffset in="castBlur" dx="4" dy="7" result="castOffset"/>
+    <feFlood flood-color="#143D33" flood-opacity="0.3" result="castColor"/>
+    <feComposite in="castColor" in2="castOffset" operator="in" result="castShadow"/>
+    <feMerge><feMergeNode in="castShadow"/><feMergeNode in="beveled"/></feMerge>
+  </filter>
+</defs>
+<g fill="url(#porcelain)" filter="url(#relief)">
+<path xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" d="M 143,175       L 262,109 C 271,103 281,103 290,108       L 405,160 C 417,166 420,179 410,186       L 364,208       C 369,225 384,249 384,274       C 384,302 369,325 351,335       C 344,339 343,345 343,354       L 343,359 C 343,373 335,381 324,381       C 313,381 305,374 305,363       L 305,362 C 305,353 292,353 292,362       L 292,372 C 292,391 258,391 258,372       L 258,363 C 258,353 245,353 245,363       C 245,375 237,381 226,381       C 215,381 208,373 208,360       L 208,350 C 208,342 205,337 199,333       C 178,321 167,301 167,277       C 167,255 177,238 184,224       L 144,209 C 130,204 130,184 143,175 Z       M 225,254 C 210,254 199,266 199,281       C 199,296 210,309 225,309       C 240,309 252,297 252,282       C 252,266 240,254 225,254 Z       M 328,254 C 313,254 301,266 301,282       C 301,297 313,309 328,309       C 343,309 355,297 355,282       C 355,266 343,254 328,254 Z       M 268,306 C 272,300 278,300 282,306       L 291,320 C 296,328 288,333 282,329       C 278,326 274,326 269,329       C 263,333 255,328 260,320 Z" />
+    
+<path xmlns="http://www.w3.org/2000/svg" d="M 398,189 L 400,209 L 407,209 L 405,186 Z" />
+    
+<circle xmlns="http://www.w3.org/2000/svg" cx="404" cy="218" r="13" />
+    
+<path xmlns="http://www.w3.org/2000/svg" d="M 399,227 C 395,235 391,249 391,260       C 390,277 427,275 427,260       C 426,249 419,234 413,227 Z" />
+  
+</g>
+</svg>

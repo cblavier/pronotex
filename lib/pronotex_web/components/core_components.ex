@@ -334,6 +334,96 @@ defmodule PronotexWeb.CoreComponents do
     """
   end
 
+  @doc "Displays the shared brand mark."
+  attr :variant, :string, default: "detailed", values: ~w(simple detailed)
+  attr :class, :string, default: nil
+
+  def brand_logo(assigns) do
+    ~H"""
+    <span :if={@variant == "simple"} class={["brand-logo-simple", @class]} aria-hidden="true"></span>
+    <svg
+      :if={@variant == "detailed"}
+      class={@class}
+      viewBox="0 0 340 330"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <image
+        class="app-brand-skull"
+        href="/images/brand/pronotex-logo-detailed.svg"
+        width="340"
+        height="330"
+      />
+    </svg>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :class, :string, default: nil
+  attr :monochrome, :boolean, default: false
+  attr :muted, :boolean, default: false
+  attr :centered, :boolean, default: false
+
+  def brand_lockup(assigns) do
+    ~H"""
+    <svg
+      class={@class}
+      viewBox="0 0 1040 400"
+      opacity={if @muted, do: "0.75", else: "1"}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <image
+        :if={!@monochrome}
+        class="app-brand-skull"
+        href="/images/brand/pronotex-app-icon.svg"
+        x="40"
+        y="45"
+        width="320"
+        height="320"
+      />
+      <defs :if={@monochrome}>
+        <mask
+          id={"#{@id}-skull"}
+          style="mask-type: alpha"
+          maskUnits="userSpaceOnUse"
+          x="40"
+          y="45"
+          width="320"
+          height="320"
+        >
+          <image href="/images/brand/pronotex-logo-simple.svg" x="40" y="45" width="320" height="320" />
+        </mask>
+      </defs>
+      <g :if={@monochrome} class="app-brand-skull">
+        <rect x="40" y="45" width="320" height="320" fill="currentColor" mask={"url(##{@id}-skull)"} />
+      </g>
+      <g transform={if @centered, do: "translate(0 -20)"}>
+        <defs>
+          <mask
+            id={"#{@id}-wordmark"}
+            style="mask-type: alpha"
+            maskUnits="userSpaceOnUse"
+            x="365"
+            y="0"
+            width="675"
+            height="400"
+          >
+            <image href="/images/brand/captain-notes-wordmark.png" x="365" width="675" height="400" />
+          </mask>
+        </defs>
+        <rect
+          x="365"
+          width="675"
+          height="400"
+          fill="currentColor"
+          mask={"url(##{@id}-wordmark)"}
+        />
+      </g>
+    </svg>
+    """
+  end
+
   @doc "Displays a centered empty-state message with the decorative skull logo."
   attr :id, :string, required: true
   attr :text, :string, required: true
@@ -342,22 +432,7 @@ defmodule PronotexWeb.CoreComponents do
     ~H"""
     <div id={@id} class="empty-state">
       <p>{@text}</p>
-      <svg class="empty-state-logo" viewBox="40 45 320 320" aria-hidden="true" focusable="false">
-        <defs>
-          <mask
-            id={"#{@id}-mask"}
-            maskUnits="userSpaceOnUse"
-            x="40"
-            y="45"
-            width="320"
-            height="320"
-            style="mask-type: alpha"
-          >
-            <image href="/images/brand/captain-notes-skull-login.png" width="1040" height="400" />
-          </mask>
-        </defs>
-        <rect x="40" y="45" width="320" height="320" fill="currentColor" mask={"url(##{@id}-mask)"} />
-      </svg>
+      <.brand_logo variant="simple" class="empty-state-logo" />
     </div>
     """
   end
