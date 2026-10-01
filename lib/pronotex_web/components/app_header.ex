@@ -95,6 +95,7 @@ defmodule PronotexWeb.AppHeader do
                     <span :if={!avatar_src(child)}>{String.first(first_name(child))}</span>
                   </span>
                   <span>{first_name(child)}</span>
+                  <.icon name="hero-arrows-right-left" class="size-5 justify-self-end text-gray-400" />
                 </button>
               </li>
             </ul>

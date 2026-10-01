@@ -452,6 +452,7 @@ html { touch-action: manipulation; }
 #child-picker-panel { position: absolute; top: calc(100% + 0.5rem); left: 0; z-index: 30; width: 16rem; max-width: calc(100vw - 2rem); padding: 0.5rem; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); box-shadow: 0 12px 32px #163f351a; }
 .child-picker-option { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr) auto; width: 100%; min-height: 3.25rem; align-items: center; gap: 0.875rem; padding: 0.5rem; border: 0; border-radius: 0.25rem; text-align: left; font-size: 1rem; color: var(--muted-ink); background: transparent; cursor: pointer; }
 .child-picker-option:hover:not(:disabled) { background: var(--day-tint); }
+.child-picker-option[aria-current="page"] { border-radius: 0; box-shadow: inset 3px 0 0 var(--day-ink); }
 .child-picker-option:disabled { cursor: wait; }
 .child-picker-option[aria-current] .child-option-avatar { border: 1px solid var(--day-ink); }
 .child-picker-logout { margin: 0.5rem 0.5rem 0; padding-top: 0.5rem; border-top: 1px solid var(--color-base-300); }
