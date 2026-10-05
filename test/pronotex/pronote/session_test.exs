@@ -469,7 +469,7 @@ defmodule Pronotex.Pronote.SessionTest do
 
     {server, student_agent} = session(student: true, account: "parent-1")
     assert {:ok, [parent]} = Pronote.parent_discussions(server)
-    assert Pronotex.AppBadge.count("parent-1") == 2
+    assert Pronotex.AppBadge.count("parent-1") == 1
     assert {:ok, [%{unread: 0}]} = Pronote.set_parent_discussion_read(parent.id, true, server)
     assert Pronotex.AppBadge.count("parent-1") == 0
     assert {:ok, [%{unread: 2}]} = Pronote.discussions("child-a", server)

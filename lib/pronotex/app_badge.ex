@@ -1,5 +1,5 @@
 defmodule Pronotex.AppBadge do
-  @moduledoc "The app icon reflects personal unread messages and outstanding banners."
+  @moduledoc "The app icon counts personal unread conversations and outstanding banners."
   alias Pronotex.{Accounts, NotificationBanners, Repo}
   alias Pronotex.Push.Setting
 
@@ -20,7 +20,7 @@ defmodule Pronotex.AppBadge do
       end
 
     if personal? do
-      value = %{"unread" => Enum.sum(Enum.map(discussions, &max(&1.unread, 0)))}
+      value = %{"unread" => Enum.count(discussions, &(&1.unread > 0))}
 
       Repo.insert!(%Setting{key: key(account_id), value: value},
         on_conflict: [set: [value: value]],

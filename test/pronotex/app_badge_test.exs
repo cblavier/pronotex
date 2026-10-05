@@ -43,19 +43,21 @@ defmodule Pronotex.AppBadgeTest do
     assert AppBadge.count("family") == 1
   end
 
-  test "counts unread messages plus each outstanding banner without accumulating refreshes" do
+  test "counts each unread conversation once plus each banner without accumulating refreshes" do
     inbox = [%{unread: 3}, %{unread: 2}, %{unread: 0}]
     AppBadge.observe("parent-1", {:parent_discussions}, inbox)
     NotificationBanners.activate("parent-1", "grades", "/alice/notes")
     NotificationBanners.activate("parent-1", "cancellation", "/marius")
-    assert AppBadge.count("parent-1") == 7
+    assert AppBadge.count("parent-1") == 4
+    # More replies in the same conversations do not increase the badge.
+    inbox = [%{unread: 5}, %{unread: 4}, %{unread: 0}]
     AppBadge.observe("parent-1", {:parent_discussions}, inbox)
     NotificationBanners.activate("parent-1", "grades", "/alice/notes")
-    assert AppBadge.count("parent-1") == 7
-    AppBadge.observe("parent-1", {:set_parent_discussion_read, "thread", true}, [%{unread: 2}])
     assert AppBadge.count("parent-1") == 4
+    AppBadge.observe("parent-1", {:set_parent_discussion_read, "thread", true}, [%{unread: 2}])
+    assert AppBadge.count("parent-1") == 3
     [banner | _] = NotificationBanners.list("parent-1")
     NotificationBanners.dismiss("parent-1", banner["tag"])
-    assert AppBadge.count("parent-1") == 3
+    assert AppBadge.count("parent-1") == 2
   end
 end
