@@ -15,13 +15,11 @@ defmodule Pronotex.Application do
     children = [
       Pronotex.Repo,
       {Ecto.Migrator, repos: [Pronotex.Repo]},
-      PronotexWeb.Telemetry,
       Pronotex.Auth,
       Pronotex.Pronote.ReadCache,
       Pronotex.Pronote.Session,
       {Registry, keys: :unique, name: Pronotex.Pronote.Registry},
       {DynamicSupervisor, strategy: :one_for_one, name: Pronotex.Pronote.Supervisor},
-      {DNSCluster, query: Application.get_env(:pronotex, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Pronotex.PubSub},
       {Task.Supervisor, name: Pronotex.RefreshTasks},
       Pronotex.NotificationBanners,
