@@ -464,10 +464,16 @@ defmodule Pronotex.Pronote.SessionTest do
   end
 
   test "parent inbox is separate from child inbox and requires a parent profile" do
+    for banner <- Pronotex.NotificationBanners.list("parent-1"),
+        do: Pronotex.NotificationBanners.dismiss("parent-1", banner["tag"])
+
     {server, student_agent} = session(student: true, account: "parent-1")
     assert {:ok, [parent]} = Pronote.parent_discussions(server)
+    assert Pronotex.AppBadge.count("parent-1") == 2
     assert {:ok, [%{unread: 0}]} = Pronote.set_parent_discussion_read(parent.id, true, server)
+    assert Pronotex.AppBadge.count("parent-1") == 0
     assert {:ok, [%{unread: 2}]} = Pronote.discussions("child-a", server)
+    assert Pronotex.AppBadge.count("parent-1") == 0
 
     refute Enum.any?(Agent.get(student_agent, & &1.calls), fn {name, _} ->
              name == "SaisieMessage"

@@ -515,7 +515,10 @@ defmodule Pronotex.Push do
 
             result =
               try do
-                sender.(sub, delivery.payload)
+                payload =
+                  Map.put(delivery.payload, "badge", Pronotex.AppBadge.count(sub.account_id))
+
+                sender.(sub, payload)
               rescue
                 _ -> {:error, :send_failed}
               end

@@ -21,6 +21,12 @@ self.addEventListener("push", event => {
       tag: payload.tag,
       data: {url}
     })
+    try {
+      if (payload.badge === 0) await self.navigator?.clearAppBadge?.()
+      else if (Number.isSafeInteger(payload.badge) && payload.badge > 0) {
+        await self.navigator?.setAppBadge?.(payload.badge)
+      }
+    } catch { /* A denied badge must not prevent the notification. */ }
   })())
 })
 

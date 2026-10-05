@@ -26,6 +26,7 @@ defmodule PronotexWeb.Router do
     pipe_through [:browser, :authenticated]
 
     get "/push/config", PushController, :config
+    get "/push/badge", PushController, :badge
     post "/push/subscription", PushController, :create
     delete "/push/subscription", PushController, :delete
 

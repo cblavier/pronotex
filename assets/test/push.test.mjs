@@ -144,6 +144,21 @@ async function receive(worker, payload) {
   await done
 }
 
+test("background pushes update the icon and a stale notification can clear it", async () => {
+  const instance = worker(), badges = []
+  instance.self.navigator = {
+    setAppBadge: async count => badges.push(count),
+    clearAppBadge: async () => badges.push(0)
+  }
+  await receive(instance, {kind: "messages", badge: 3})
+  await receive(instance, {kind: "grades", badge: 4})
+  await receive(instance, {kind: "messages", badge: 0})
+  assert.deepEqual(badges, [3, 4, 0])
+  instance.self.navigator.setAppBadge = async () => { throw new Error("disabled") }
+  await receive(instance, {kind: "cancellation", badge: 1})
+  assert.equal(instance.displayed.length, 4)
+})
+
 test("push reception and retries display system notifications without storing banners", async () => {
   const storage = new Map()
   const instance = worker(storage)

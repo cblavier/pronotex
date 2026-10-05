@@ -1,4 +1,5 @@
 import {watchDeploymentVersion} from "./deployment"
+import {AppBadge, applyAppBadge} from "./app_badge"
 import {MessageComposer} from "./message_composer"
 import {WeekOverview} from "./week_overview"
 import {updatePushWorker, listenForPushNavigation} from "./push"
@@ -114,7 +115,7 @@ const AgendaScroll = {
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {MessageComposer, WeekOverview, AgendaScroll, StartupSplash, Settings, RememberPage},
+  hooks: {MessageComposer, WeekOverview, AgendaScroll, StartupSplash, Settings, RememberPage, AppBadge},
 })
 
 // Show progress bar on live navigation and form submits
@@ -396,3 +397,4 @@ if (process.env.NODE_ENV === "development") {
 
 listenForPushNavigation()
 updatePushWorker()
+if (document.querySelector("#pin-form")) applyAppBadge(false)

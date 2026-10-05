@@ -25,6 +25,16 @@ defmodule PronotexWeb.AppHeader do
       data-page-url={@current_url}
       data-page-ready={to_string(!@loading)}
     >
+      <span
+        id="app-icon-badge"
+        phx-hook="AppBadge"
+        hidden
+        data-loading={to_string(@loading)}
+        data-messages={@messages_unread}
+        data-parent-messages={@parent_messages_unread}
+        data-banners={length(@notifications)}
+      >
+      </span>
       <header id="child-header" class="pb-8">
         <details
           :if={@child}

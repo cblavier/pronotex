@@ -20,9 +20,22 @@ defmodule PronotexWeb.PushControllerTest do
 
   test "configuration and mutations require authentication" do
     assert build_conn() |> get("/push/config") |> redirected_to() == "/login"
+    assert build_conn() |> get("/push/badge") |> redirected_to() == "/login"
     assert build_conn() |> post("/push/subscription", params()) |> redirected_to() == "/login"
     assert build_conn() |> delete("/push/subscription") |> redirected_to() == "/login"
     assert Repo.all(Subscription) == []
+  end
+
+  test "badge state is private and scoped to the logged-in profile", %{conn: conn} do
+    for banner <- Pronotex.NotificationBanners.list("family"),
+        do: Pronotex.NotificationBanners.dismiss("family", banner["tag"])
+
+    Pronotex.AppBadge.observe("parent-1", {:parent_discussions}, [%{unread: 1}])
+    response = get(conn, "/push/badge?account=parent-1")
+    assert json_response(response, 200) == %{"count" => 0}
+    assert get_resp_header(response, "cache-control") == ["no-store"]
+    Pronotex.NotificationBanners.activate("family", "grades", "/alice/notes")
+    assert conn |> get("/push/badge") |> json_response(200) == %{"count" => 1}
   end
 
   test "subscribe, read status and disable using the signed device cookie", %{conn: conn} do

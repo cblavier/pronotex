@@ -3,6 +3,12 @@ defmodule PronotexWeb.PushController do
   alias Pronotex.Push
   @cookie "captain_push_device"
 
+  def badge(conn, _) do
+    conn
+    |> put_resp_header("cache-control", "no-store")
+    |> json(%{count: Pronotex.AppBadge.count(get_session(conn, "auth_account"))})
+  end
+
   def config(conn, _) do
     conn = fetch_cookies(conn, signed: [@cookie])
     sub = Push.subscription(device_id(conn), get_session(conn, "auth_account"))

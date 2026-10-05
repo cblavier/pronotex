@@ -589,7 +589,7 @@ defmodule Pronotex.PushTest do
 
     Push.deliver_pending(
       fn _, payload ->
-        assert payload == original.payload
+        assert payload == Map.put(original.payload, "badge", 1)
         :ok
       end,
       retry.due_at

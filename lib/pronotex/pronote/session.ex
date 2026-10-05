@@ -51,6 +51,7 @@ defmodule Pronotex.Pronote.Session do
     try do
       result = handle_operation(operation, from, state)
       remember_display(operation, result)
+      remember_badge(operation, result)
 
       if operation == :logout or match?({:reply, {:error, _}, _}, result),
         do: ReadCache.invalidate(self())
@@ -110,6 +111,12 @@ defmodule Pronotex.Pronote.Session do
   end
 
   defp remember_display(_operation, _result), do: :ok
+
+  defp remember_badge(operation, {:reply, {:ok, discussions}, state}) when is_list(discussions) do
+    Pronotex.AppBadge.observe(Keyword.get(state.options, :account), operation, discussions)
+  end
+
+  defp remember_badge(_, _), do: :ok
 
   defp message_write?(operation),
     do: is_tuple(operation) and elem(operation, 0) in [:send_message, :reply_message]
