@@ -769,7 +769,9 @@ html { touch-action: manipulation; scrollbar-gutter: stable; }
 .discussion-card[data-view="detail"] .discussion-messages > .discussion-meta { padding: 1rem 1rem 0; }
 .discussion-card[data-view="list"] .discussion-heading { padding-right: 7.5rem; }
 
-.communication-detail-header .content-card-title { text-transform: none; letter-spacing: normal; }
+.communication-detail-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.communication-detail-header .content-card-title { flex-wrap: nowrap; text-transform: none; letter-spacing: normal; }
+.communication-detail-subject { min-width: 0; overflow-wrap: anywhere; }
 .content-card-header .communication-badge { border: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
 
 /* Immediate touch feedback, without delaying activation or intercepting scrolling. */

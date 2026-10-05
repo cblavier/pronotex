@@ -787,7 +787,7 @@
               id={"communication-#{discussion.id}"}
               kind={Map.get(discussion, :kind, :discussion)}
             />
-            {discussion.subject}
+            <span class="communication-detail-subject">{discussion.subject}</span>
           </:title>
           <:actions>
             <.communication_status_button
