@@ -120,6 +120,12 @@ html { touch-action: manipulation; scrollbar-gutter: stable; }
 }
 #startup-splash svg { width: 8rem; height: 8rem; }
 @media (display-mode: standalone) {
+  /* Keep the logo centered in a stable height while iOS opens the app. */
+  #startup-splash {
+    bottom: auto;
+    height: calc(100vh / var(--app-zoom, 1));
+    height: calc(100lvh / var(--app-zoom, 1));
+  }
   html:not(.app-ready) #startup-splash { display: grid; }
   html:has(#startup-splash):not(.app-ready) { overflow: hidden; }
 }
@@ -182,6 +188,25 @@ html { touch-action: manipulation; scrollbar-gutter: stable; }
 #login-screen #pin:autofill { box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--login-primary) 8%, var(--color-base-100)); -webkit-text-fill-color: var(--color-base-content); }
 #login-screen .login-submit { min-height: 3rem; font-size: 1rem; background: var(--login-primary); border-color: var(--login-primary); color: #fff; font-weight: 700; }
 #login-screen :is(.pin-key, .login-submit, #pin):focus-visible { outline: 2px solid var(--login-primary); outline-offset: 3px; }
+
+/* Shared cartouche typography: homework headings and grade comment text. */
+:root { --cartouche-title-size: 0.875rem; --cartouche-meta-size: 0.75rem; --cartouche-body-size: 0.875rem; }
+.content-card-header { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 1rem; }
+.content-card-title { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; min-width: 0; margin: 0; font-size: var(--cartouche-title-size); line-height: 1.25rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em; overflow-wrap: anywhere; }
+/* Preserve badges and dates; only the subject yields space on compact headers. */
+.content-card-header[data-truncate-title="true"] { flex-wrap: nowrap; }
+.content-card-header[data-truncate-title="true"] .content-card-title { flex: 1; flex-wrap: nowrap; }
+.content-card-title-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.content-card-title-badge { display: inline-flex; flex-shrink: 0; }
+.content-card-header[data-truncate-title="true"] .content-card-date { flex-shrink: 0; flex-wrap: nowrap; }
+.content-card-date { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-left: auto; font-size: var(--cartouche-meta-size); line-height: 1rem; }
+.content-card-date > * { white-space: nowrap; }
+.content-card-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+.content-card-subtitle { flex-basis: 100%; font-size: var(--cartouche-body-size); line-height: 1.25rem; }
+.content-card-body { font-size: var(--cartouche-body-size); line-height: 1.25rem; }
+@media (max-width: 639px) {
+  .lesson-content-card .content-card-date { flex-basis: 100%; margin-left: 0; }
+}
 
 /* Day headings inherit the selected child’s colour palette. */
 .day-group {
@@ -558,6 +583,7 @@ html { touch-action: manipulation; scrollbar-gutter: stable; }
 
 .discussion-summary { display: grid; gap: 0.5rem; width: 100%; padding: 1rem; text-align: left; cursor: pointer; background: transparent; border: 0; }
 
+.discussion-heading, .discussion-message > h3 { font-size: var(--cartouche-title-size); line-height: 1.25rem; }
 .discussion-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; color: var(--day-ink); }
 .discussion-message > .discussion-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
 .discussion-message > .discussion-heading > .discussion-meta { text-align: right; }
@@ -571,7 +597,7 @@ html { touch-action: manipulation; scrollbar-gutter: stable; }
 .discussion-summary:focus-visible, .discussion-status:focus-visible { outline: 2px solid var(--day-ink); outline-offset: -2px; }
 .discussion-card[data-view="detail"] { border: 1px solid var(--day-line); border-radius: 0.6rem; background: var(--surface-background); overflow: hidden; }
 .discussion-message { padding: 1rem; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); }
-.discussion-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 0.75rem; font-size: 0.875rem; }
+.discussion-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 0.75rem; font-size: var(--cartouche-body-size); line-height: 1.25rem; }
 
 /* Keep the retry action distinct from the error alert in both themes. */
 #flash-error .error-retry {
@@ -694,18 +720,7 @@ html { touch-action: manipulation; scrollbar-gutter: stable; }
 .lesson-with-content:hover { background-color: var(--day-tint); }
 .lesson-detail-link:focus-visible { outline: 2px solid var(--day-ink); outline-offset: -2px; }
 
-.lesson-content-card { overflow: hidden; border: 1px solid var(--day-line); border-radius: 0.6rem; background: var(--surface-background); }
-.lesson-content-title { margin: 0; padding: 0.75rem 1rem; background: var(--day-tint); color: var(--day-ink); border-bottom: 1px solid var(--day-line); font-weight: 600; }
-.lesson-content-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem 1rem; }
-.lesson-content-header > h2 { min-width: 0; overflow-wrap: anywhere; }
-.lesson-content-header > p { margin-left: auto; text-align: right; }
-.lesson-content-date { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.25rem; }
-.lesson-content-date > * { white-space: nowrap; }
-@media (max-width: 639px) {
-  .lesson-content-header:has(> .lesson-content-date) { flex-direction: column; align-items: stretch; gap: 0.375rem; }
-  .lesson-content-header > .lesson-content-date { margin-left: 0; text-align: left; justify-content: flex-start; font-size: 0.875rem; line-height: 1.5; }
-}
- .lesson-content-body { padding: 1rem; }
+.lesson-content-body { padding: 1rem; }
 .lesson-content-block + .lesson-content-block { margin-top: 1rem; }
 .lesson-content-block h3 { color: var(--day-ink); margin-bottom: 0.5rem; }
 .lesson-content-text { margin: 0; padding: 0; overflow-wrap: anywhere; }
@@ -748,17 +763,14 @@ html { touch-action: manipulation; scrollbar-gutter: stable; }
   border-radius: var(--communication-control-radius);
 }
 
-.communication-detail-header { border: 0; border-bottom: 1px solid var(--day-line); border-radius: 0; margin-bottom: 0; }
-.communication-detail-title { display: flex; align-items: center; gap: 0.75rem; flex: 1 1 12rem; min-width: 0; }
-.communication-detail-title h2 { min-width: 0; overflow-wrap: anywhere; font-size: 1.125rem; }
-.communication-detail-header .discussion-status { margin-left: auto; }
 .discussion-card[data-view="detail"] .discussion-message { border: 0; border-radius: 0; }
 .discussion-card[data-view="detail"] .discussion-messages { gap: 0; }
 .discussion-card[data-view="detail"] .discussion-message + .discussion-message { border-top: 1px solid var(--day-line); }
 .discussion-card[data-view="detail"] .discussion-messages > .discussion-meta { padding: 1rem 1rem 0; }
 .discussion-card[data-view="list"] .discussion-heading { padding-right: 7.5rem; }
 
-.communication-detail-header .communication-badge { border: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
+.communication-detail-header .content-card-title { text-transform: none; letter-spacing: normal; }
+.content-card-header .communication-badge { border: 1px solid color-mix(in srgb, currentColor 30%, transparent); }
 
 /* Immediate touch feedback, without delaying activation or intercepting scrolling. */
 @media (any-pointer: coarse) {
@@ -984,6 +996,7 @@ html { touch-action: manipulation; scrollbar-gutter: stable; }
 }
 
 /* Temporary captain palette; the saved theme remains untouched. */
+:root body.captain-pink,
 :root body.captain-pink :is(.page-shell, .notification-banner) {
   --day-tint: #fce7f3;
   --day-ink: #be185d;
@@ -996,6 +1009,7 @@ html { touch-action: manipulation; scrollbar-gutter: stable; }
   --color-base-300: #f9a8d4;
   --color-base-content: #701a45;
 }
+:root[data-theme="dark"] body.captain-pink,
 :root[data-theme="dark"] body.captain-pink :is(.page-shell, .notification-banner) {
   --day-tint: #542039;
   --day-ink: #f9a8d4;
@@ -1020,11 +1034,12 @@ body.captain-pink .child-picker-avatar::after {
 
 /* Message composition uses the same page and field colors as the dashboard. */
 .new-message-button { flex-shrink: 0; }
+.message-composer, .message-modal, .message-primary-button { --message-control-height: 2.5rem; }
 .message-composer { display: flex; flex-direction: column; gap: 1.25rem; }
 #message-form fieldset { min-width: 0; display: flex; flex-direction: column; gap: 0.75rem; }
 .message-field-label { font-size: 0.875rem; font-weight: 600; margin-top: 0.5rem; }
 #message-form input, #message-form textarea { width: 100%; padding: 0.75rem 0.875rem; border: 1px solid var(--day-line); border-radius: 0.375rem; background: var(--surface-background); color: var(--color-base-content); font-size: 1rem; }
-#message-form input { height: calc((1lh + 1.5rem + 2px) * 0.75); padding-block: 0; }
+#message-form input { box-sizing: border-box; height: var(--message-control-height); min-height: var(--message-control-height); padding-block: 0; }
 #message-form #message-sender, #message-form input[readonly] { background: color-mix(in srgb, var(--day-ink) 10%, transparent); color: var(--color-base-content); opacity: 1; -webkit-text-fill-color: var(--color-base-content); cursor: default; }
 #message-form input:focus, #message-form textarea:focus { outline: 2px solid var(--day-ink); outline-offset: 2px; }
 #message-form textarea { height: 11.25rem; min-height: 11.25rem; resize: vertical; }
@@ -1046,7 +1061,7 @@ body.captain-pink .child-picker-avatar::after {
 .message-primary-button { background: var(--day-tint); color: var(--day-ink); border-color: var(--day-line); box-shadow: none; }
 .message-composer .btn, .message-modal .btn, .new-message-button, .message-primary-button { box-shadow: none; font-weight: 500; }
 .message-composer .btn, .message-modal .btn, .message-primary-button {
-  min-height: 2.5rem;
+  min-height: var(--message-control-height);
   height: auto;
   max-width: 100%;
   padding: 0.5rem 0.875rem;

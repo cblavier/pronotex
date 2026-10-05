@@ -247,9 +247,20 @@ const captainPixelate = () => {
 let cleanupCaptainPink
 const captainPink = () => {
   cleanupCaptainPink?.()
+  const themeColor = document.querySelector('meta[name="theme-color"]')
+  const previousThemeColor = themeColor?.getAttribute("content")
   document.body.classList.add("captain-pink")
+  const syncThemeColor = () => {
+    themeColor?.setAttribute("content", getComputedStyle(document.body).getPropertyValue("--page-background").trim())
+  }
+  syncThemeColor()
+  const themeObserver = new MutationObserver(syncThemeColor)
+  themeObserver.observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]})
   const cleanup = () => {
+    themeObserver.disconnect()
     document.body.classList.remove("captain-pink")
+    if (previousThemeColor == null) themeColor?.removeAttribute("content")
+    else themeColor?.setAttribute("content", previousThemeColor)
     window.clearTimeout(timer)
     window.removeEventListener("phx:page-loading-start", cleanup)
   }

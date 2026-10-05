@@ -538,7 +538,9 @@ defmodule PronotexWeb.DashboardLiveTest do
     :ok
   end
 
-  test "server banners are shared across devices and their links use live patches", %{conn: conn} do
+  test "server banners are shared across devices and their buttons use live patches", %{
+    conn: conn
+  } do
     alias Pronotex.NotificationBanners, as: Banners
     {:ok, first, _} = live(conn, "/alice")
     {:ok, second, _} = live(conn, "/alice")
@@ -554,14 +556,24 @@ defmodule PronotexWeb.DashboardLiveTest do
 
       assert has_element?(
                view,
-               ~s(a[href="/alice/notes?period=s1"][phx-click="view-notification"])
+               ~s(button[type="button"][phx-click="view-notification"][aria-label="Voir : Nouvelles notes de Alice"])
              )
 
       assert has_element?(view, ~s(.notification-banner [aria-label="Basile"]))
-      refute has_element?(view, ~s(.notification-banner a[href="/basile/notes"]))
+      refute has_element?(view, ~s(.notification-banner [href]))
+
+      refute has_element?(
+               view,
+               ~s(.notification-banner [aria-label="Voir : Nouvelles notes de Basile"])
+             )
     end
 
-    first |> element(~s(.notification-banner a[href="/alice/notes?period=s1"])) |> render_click()
+    first
+    |> element(
+      ~s(button[phx-click="view-notification"][aria-label="Voir : Nouvelles notes de Alice"])
+    )
+    |> render_click()
+
     assert_patch(first, "/alice/notes?period=s1")
     render_async(first)
     refute has_element?(second, ".notification-banner", "Nouvelles notes")
@@ -578,7 +590,11 @@ defmodule PronotexWeb.DashboardLiveTest do
     Pronotex.NotificationBanners.activate("family", "cancellation", "/basile")
     {:ok, view, _} = live(conn, "/alice")
     render_async(view)
-    view |> element(~s(.notification-banner a[href="/basile"])) |> render_click()
+
+    view
+    |> element(~s(.notification-banner button[phx-click="view-notification"]))
+    |> render_click()
+
     assert_patch(view, "/basile")
     assert Pronotex.NotificationBanners.list("family") == []
   end

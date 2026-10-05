@@ -33,7 +33,7 @@ defmodule PronotexWeb.NotificationComponents do
       <span class="notification-title">{@banner.title}</span>
       <.button
         class="btn btn-sm btn-soft themed-mini-button"
-        href={@banner.url}
+        type="button"
         phx-click="view-notification"
         phx-value-tag={@banner.tag}
         aria-label={"Voir : #{@banner.title} de #{@banner.name}"}

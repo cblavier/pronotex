@@ -151,26 +151,25 @@
               text="Aucune note publiée pour cette période."
             />
             <div id="grade-list" phx-update="stream" class="space-y-3">
-              <article
+              <.content_card
                 :for={{dom_id, grade} <- @streams.grades}
+                tag="article"
                 id={dom_id}
-                class="day-group"
+                title_tag="h4"
+                truncate_title
                 data-new={to_string(Pronotex.GradeHistory.new?(grade))}
               >
-                <div class="day-heading flex flex-wrap items-center justify-between gap-2">
-                  <h4 class="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                    {grade.subject}
-                    <span
-                      :if={Pronotex.GradeHistory.new?(grade)}
-                      class="badge badge-sm border-0 bg-[var(--day-ink)] text-[var(--surface-background)]"
-                    >
-                      Nouveau
-                    </span>
-                  </h4>
+                <:title><span title={grade.subject}>{grade.subject}</span></:title>
+                <:title_badge :if={Pronotex.GradeHistory.new?(grade)}>
+                  <span class="badge badge-sm normal-case border-0 bg-[var(--day-ink)] text-[var(--surface-background)]">
+                    Nouveau
+                  </span>
+                </:title_badge>
+                <:date>
                   <time class="text-xs" datetime={Date.to_iso8601(grade.date)}>
                     {Calendar.strftime(grade.date, "%d/%m/%Y")}
                   </time>
-                </div>
+                </:date>
                 <div class="space-y-2 px-4 py-3">
                   <div class="flex flex-wrap items-center justify-between gap-3">
                     <p class="text-xl font-semibold text-[var(--day-ink)]">
@@ -180,7 +179,7 @@
                       Coefficient {grade.coefficient}
                     </span>
                   </div>
-                  <p :if={grade.comment && grade.comment != ""} class="text-sm">
+                  <p :if={grade.comment && grade.comment != ""}>
                     {grade.comment}
                   </p>
                   <div class="flex flex-wrap gap-x-5 gap-y-1 text-xs text-base-content/60">
@@ -189,7 +188,7 @@
                     <span :if={grade.optional} class="badge badge-soft badge-xs">Facultatif</span>
                   </div>
                 </div>
-              </article>
+              </.content_card>
             </div>
             <.show_more_button
               :if={@remaining_grades != []}
@@ -216,10 +215,15 @@
           text="Aucun menu publié pour cette période."
         />
         <div id="menu-days" phx-update="stream" class="space-y-6">
-          <section :for={{dom_id, day} <- @streams.menu_days} id={dom_id} class="day-group">
-            <h3 class="day-heading text-sm font-semibold">
+          <.content_card
+            :for={{dom_id, day} <- @streams.menu_days}
+            tag="section"
+            id={dom_id}
+            title_tag="h3"
+          >
+            <:title>
               {if @mode == :today, do: relative_day(day.date, @today), else: day_label(day.date)}
-            </h3>
+            </:title>
             <article :for={menu <- day.entries} class="space-y-3 p-4">
               <p :if={menu.courses == []} class="text-sm text-base-content/60">
                 Menu non détaillé.
@@ -231,7 +235,7 @@
                 </div>
               </dl>
             </article>
-          </section>
+          </.content_card>
         </div>
       </div>
     </section>
@@ -243,16 +247,14 @@
             <.back_link patch={agenda_url(@current_url)} label="Retour à l’agenda" />
           </nav>
         </div>
-        <article class="lesson-content-card">
-          <header class="lesson-content-title lesson-content-header">
-            <h2 class="text-lg font-semibold uppercase">{lesson.subject || "Cours"}</h2>
-            <p class="lesson-content-date text-sm font-normal">
-              <time datetime={Date.to_iso8601(NaiveDateTime.to_date(lesson.start))}>
-                {Calendar.strftime(lesson.start, "%d/%m/%Y")}
-              </time>
-              <span>· {clock(lesson.start)}–{clock(lesson.end)}</span>
-            </p>
-          </header>
+        <.content_card class="lesson-content-card" title_tag="h2">
+          <:title>{lesson.subject || "Cours"}</:title>
+          <:date>
+            <time datetime={Date.to_iso8601(NaiveDateTime.to_date(lesson.start))}>
+              {Calendar.strftime(lesson.start, "%d/%m/%Y")}
+            </time>
+            <span>· {clock(lesson.start)}–{clock(lesson.end)}</span>
+          </:date>
           <div class="lesson-content-body">
             <div
               :for={content <- lesson.contents}
@@ -270,7 +272,7 @@
               lesson.contents |> Enum.flat_map(& &1.resources) |> Enum.uniq_by(& &1.url) %>
             <.resource_links resources={resources} />
           </div>
-        </article>
+        </.content_card>
       <% else %>
         <div class="messages-header">
           <nav aria-label="Fil d’Ariane" class="messages-breadcrumb">
@@ -323,13 +325,14 @@
               text="Aucun cours cette semaine."
             />
             <div id="lesson-days" phx-update="stream" class="space-y-6">
-              <section
+              <.content_card
                 :for={{dom_id, day} <- @streams.lesson_days}
+                tag="section"
                 id={dom_id}
-                class="day-group"
+                title_tag="h3"
                 data-day={Date.day_of_week(day.date)}
               >
-                <h3 class="day-heading flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+                <:title>
                   {if @mode == :today,
                     do: relative_day(day.date, @today),
                     else: day_label(day.date)}
@@ -339,6 +342,8 @@
                   >
                     Aujourd’hui
                   </span>
+                </:title>
+                <:actions>
                   <.tooltip
                     :if={day.date == @first_lesson_date}
                     id="week-overview-tooltip"
@@ -356,7 +361,7 @@
                       <.icon name="hero-arrows-pointing-out" class="size-4" />
                     </button>
                   </.tooltip>
-                </h3>
+                </:actions>
                 <.empty_state
                   :if={day.entries == []}
                   id="no-lessons-today"
@@ -473,21 +478,21 @@
                     </article>
                   <% end %>
                 </div>
-              </section>
+              </.content_card>
             </div>
           </div>
         </section>
-        <aside
+        <.content_card
+          tag="aside"
+          title_tag="h2"
+          title_id="upcoming-title"
           id="upcoming"
           aria-labelledby="upcoming-title"
-          class="day-group min-w-0"
+          class="min-w-0"
         >
-          <h2
-            id="upcoming-title"
-            class="day-heading text-xs font-semibold uppercase tracking-wide"
-          >
+          <:title>
             Évènements
-          </h2>
+          </:title>
           <div class="space-y-4 px-4 pb-4">
             <.empty_state
               :if={!@loading && !@error && !@event_error && @event_count == 0}
@@ -501,7 +506,9 @@
                 class="space-y-2 py-4 last:pb-0"
                 data-imminent={to_string(Pronotex.Pronote.Event.imminent?(event, @today))}
               >
-                <h3 class="text-base font-semibold text-[var(--day-ink)]">{event.title}</h3>
+                <h3 class="content-card-subtitle font-semibold text-[var(--day-ink)]">
+                  {event.title}
+                </h3>
                 <div>
                   <p class="text-xs font-medium text-[var(--day-ink)]">{event_schedule(event)}</p>
                   <p
@@ -521,7 +528,7 @@
               disabled={@loading}
             />
           </div>
-        </aside>
+        </.content_card>
       </div>
       <div
         id="homework-content"
@@ -541,18 +548,21 @@
               }
             />
             <div id="homework-days" phx-update="stream" class="space-y-6">
-              <section
+              <.content_card
                 :for={{dom_id, day} <- @streams.homework_days}
+                tag="section"
                 id={dom_id}
-                class="day-group"
+                title_tag="h3"
                 data-day={Date.day_of_week(day.date)}
               >
-                <h3 class="day-heading flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-wide">
+                <:title>
                   <span>
                     {if @mode == :today,
                       do: due_label(day.date, @today),
                       else: "Pour " <> String.downcase(day_label(day.date))}
                   </span>
+                </:title>
+                <:actions>
                   <.count_badge
                     id={"homework-count-#{day.date}"}
                     class="homework-day-count"
@@ -572,7 +582,7 @@
                     aria-label={"#{Enum.count(day.entries, & &1.done)} devoirs faits sur #{length(day.entries)}"}
                     count={"#{Enum.count(day.entries, & &1.done)} / #{length(day.entries)}"}
                   />
-                </h3>
+                </:actions>
                 <div class="divide-y divide-base-200 px-4">
                   <article
                     :for={homework <- day.entries}
@@ -641,7 +651,7 @@
                     </div>
                   </article>
                 </div>
-              </section>
+              </.content_card>
             </div>
           </div>
         </section>
@@ -766,23 +776,27 @@
             loading={@messages_loading}
           />
         </div>
-        <header
+        <.content_card_header
           :if={@open_discussion == discussion.id}
-          class="lesson-content-title lesson-content-header communication-detail-header"
+          class="communication-detail-header"
+          title_tag="h2"
+          title_id="messages-title"
         >
-          <div class="communication-detail-title">
+          <:title>
             <.communication_badge
               id={"communication-#{discussion.id}"}
               kind={Map.get(discussion, :kind, :discussion)}
             />
-            <h2 id="messages-title">{discussion.subject}</h2>
-          </div>
-          <.communication_status_button
-            discussion={discussion}
-            saving={@message_saving}
-            loading={@messages_loading}
-          />
-        </header>
+            {discussion.subject}
+          </:title>
+          <:actions>
+            <.communication_status_button
+              discussion={discussion}
+              saving={@message_saving}
+              loading={@messages_loading}
+            />
+          </:actions>
+        </.content_card_header>
         <div
           :if={@open_discussion == discussion.id}
           id={"discussion-body-#{discussion.id}"}

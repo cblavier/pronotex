@@ -1,6 +1,7 @@
 defmodule PronotexWeb.DashboardLive do
   use PronotexWeb, :live_view
   import PronotexWeb.TimetableComponents
+  import PronotexWeb.ContentComponents
   import PronotexWeb.MessageComponents
 
   @impl true
