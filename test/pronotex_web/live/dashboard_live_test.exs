@@ -599,6 +599,45 @@ defmodule PronotexWeb.DashboardLiveTest do
     assert Pronotex.NotificationBanners.list("family") == []
   end
 
+  test "opening notes directly acknowledges only that child's grades across devices", %{
+    conn: conn
+  } do
+    alias Pronotex.NotificationBanners, as: Banners
+    {:ok, agenda, _} = live(conn, "/alice")
+    render_async(agenda)
+    Banners.activate("family", "grades", "/alice/notes?period=s1")
+    Banners.activate("family", "grades", "/basile/notes")
+    Banners.activate("family", "cancellation", "/alice")
+    Banners.activate("parent-1", "grades", "/alice/notes")
+
+    {:ok, notes, _} = live(conn, "/alice/notes")
+    render_async(notes)
+
+    for view <- [agenda, notes] do
+      refute has_element?(view, ~s([aria-label="Voir : Nouvelles notes de Alice"]))
+      assert has_element?(view, ~s([aria-label="Voir : Nouvelles notes de Basile"]))
+      assert has_element?(view, ~s([aria-label="Voir : Annulation de cours de Alice"]))
+    end
+
+    assert [_] = Banners.list("parent-1")
+    render_patch(notes, "/alice")
+    render_async(notes)
+    refute has_element?(notes, ~s([aria-label="Voir : Nouvelles notes de Alice"]))
+
+    render_patch(notes, "/basile/notes")
+    render_async(notes)
+    refute has_element?(agenda, ~s([aria-label="Voir : Nouvelles notes de Basile"]))
+  end
+
+  test "failed notes loading keeps the new grades banner unread", %{conn: conn} do
+    Pronotex.NotificationBanners.activate("family", "grades", "/alice/notes")
+    Application.put_env(:pronotex, :dashboard_test_mode, :grades_failure)
+    {:ok, view, _} = live(conn, "/alice/notes")
+    render_async(view)
+    assert has_element?(view, ~s([aria-label="Voir : Nouvelles notes de Alice"]))
+    assert [_] = Pronotex.NotificationBanners.list("family")
+  end
+
   test "initial HTTP render includes the requested page's content", %{conn: conn} do
     for {path, selector, text} <- [
           {"/alice/notes", "#grade-list", "Maths a"},

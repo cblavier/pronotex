@@ -1150,6 +1150,7 @@ defmodule PronotexWeb.DashboardLive do
 
   defp apply_result(socket, :grades, {:ok, report}) do
     socket
+    |> dismiss_read_grade_banner()
     |> assign(
       grade_period: Pronotex.Pronote.Grades.period_key(report.period),
       grade_periods: Enum.map(report.periods, &{&1, Pronotex.Pronote.Grades.period_key(&1)}),
@@ -1234,6 +1235,20 @@ defmodule PronotexWeb.DashboardLive do
 
   defp apply_result(socket, :homework, {:error, error}),
     do: assign(socket, :homework_error, message(error))
+
+  defp dismiss_read_grade_banner(socket) do
+    account_id = socket.assigns.account.id
+    path = "/#{child_slug(socket.assigns.child)}/notes"
+
+    # Read the current list: fetching grades can itself detect new grades.
+    for banner <- Pronotex.NotificationBanners.list(account_id),
+        banner["kind"] == "grades",
+        URI.parse(banner["url"]).path == path do
+      Pronotex.NotificationBanners.dismiss(account_id, banner["tag"])
+    end
+
+    assign(socket, :notifications, Pronotex.NotificationBanners.list(account_id))
+  end
 
   defp mark(nil, _out_of), do: "Non disponible"
 
