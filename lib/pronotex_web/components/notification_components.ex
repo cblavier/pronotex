@@ -81,7 +81,7 @@ defmodule PronotexWeb.NotificationComponents do
                 else: "Annulation de cours"
               ),
             name: Pronotex.Family.first_name(child),
-            avatar: Pronotex.Family.avatar(child),
+            avatar: Pronotex.Family.avatar_src(child),
             theme: Pronotex.Family.theme(children, child)
           }
         ]

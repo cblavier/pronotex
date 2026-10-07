@@ -5,9 +5,9 @@ import {WeekOverview} from "./week_overview"
 import {updatePushWorker, listenForPushNavigation} from "./push"
 // Establish Phoenix Socket and LiveView configuration.
 import {Socket} from "phoenix"
+import {startFooterCat, footerCatActive} from "./footer_cat"
 import {LiveSocket} from "phoenix_live_view"
 import {Settings} from "./settings"
-import {RememberPage, restoreLastPage} from "./last_page"
 
 // The login form is a regular POST form, outside LiveView.
 document.addEventListener("click", event => {
@@ -88,7 +88,7 @@ const AgendaScroll = {
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {MessageComposer, WeekOverview, AgendaScroll, Settings, RememberPage, AppBadge},
+  hooks: {MessageComposer, WeekOverview, AgendaScroll, Settings, AppBadge},
 })
 
 // Give reconnects a grace period, including after returning to a sleeping tab.
@@ -129,7 +129,7 @@ document.addEventListener("visibilitychange", () => {
 watchDeploymentVersion(liveSocket.socket)
 
 // connect if there are any LiveViews on the page
-if (!restoreLastPage()) liveSocket.connect()
+liveSocket.connect()
 
 // A temporary overlay keeps the celebration independent of LiveView patches.
 const captainConfetti = () => {
@@ -192,13 +192,14 @@ const captainPalette = className => {
     window.clearTimeout(timer)
   }
   cleanupCaptainPalette = cleanup
-  const timer = window.setTimeout(cleanup, 2 * 60 * 1000)
+  const timer = window.setTimeout(cleanup, 1 * 60 * 1000)
 }
 const captainPink = () => captainPalette("captain-pink")
 const captainBrown = () => captainPalette("captain-brown")
 
 // Short surprises from the captain, including keyboard activation.
 const captainAnimations = [
+  {effect: startFooterCat},
   {effect: captainBrown},
   {effect: captainPink},
   {effect: captainMirror},
@@ -225,15 +226,6 @@ const captainAnimations = [
     {transform: "translateX(12px) rotate(4deg)", offset: 0.84},
     {transform: "translateX(0) rotate(0deg)", offset: 1}
   ]},
-  // Gently bob and roll on an imaginary wave.
-  {duration: 2000, frames: [
-    {transform: "translate(0, 0) rotate(0deg)", offset: 0},
-    {transform: "translate(-25px, -25px) rotate(-12deg)", offset: 0.2},
-    {transform: "translate(25px, 15px) rotate(12deg)", offset: 0.4},
-    {transform: "translate(-20px, -20px) rotate(-9deg)", offset: 0.6},
-    {transform: "translate(15px, 10px) rotate(6deg)", offset: 0.8},
-    {transform: "translate(0, 0) rotate(0deg)", offset: 1}
-  ]},
   {duration: 800, frames: [
     {transform: "translateY(0) rotate(0deg)", offset: 0},
     {transform: "translateY(8px) rotate(-8deg)", offset: 0.2},
@@ -255,13 +247,6 @@ const captainAnimations = [
     {transform: "rotate(0deg)"},
     {transform: "rotate(360deg)"}
   ]},
-  {duration: 1100, frames: [
-    {opacity: 1, transform: "scale(1)", offset: 0},
-    {opacity: 0, transform: "scale(0.65)", offset: 0.35},
-    {opacity: 0, transform: "scale(0.65)", offset: 0.55},
-    {opacity: 1, transform: "scale(1.08)", offset: 0.85},
-    {opacity: 1, transform: "scale(1)", offset: 1}
-  ]},
   {duration: 1600, frames: skull => {
     const bounds = skull.getBoundingClientRect()
     // SVG transforms use viewBox units, not screen pixels.
@@ -281,7 +266,7 @@ const captainAnimations = [
 const lastCaptainAnimation = new WeakMap()
 document.addEventListener("click", event => {
   const button = event.target.closest("[data-logo-easter-egg]")
-  if (!button || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+  if (!button || document.body.classList.contains("bahia-touring") || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
   const skull = button.querySelector(".app-brand-skull")
   if (!skull || skull.getAnimations().length) return
   if (!captainAnimations.length) return
@@ -289,12 +274,13 @@ document.addEventListener("click", event => {
   if (typeof navigator.vibrate === "function") {
     try { navigator.vibrate(12) } catch { /* Browser or device policy may block vibration. */ }
   }
-  const choices = captainAnimations.length > 1
-    ? captainAnimations.filter(animation => animation !== lastCaptainAnimation.get(button))
-    : captainAnimations
+  const available = captainAnimations.filter(animation => animation.effect !== startFooterCat || !footerCatActive())
+  const choices = available.length > 1
+    ? available.filter(animation => animation !== lastCaptainAnimation.get(button))
+    : available
   const animation = choices[Math.floor(Math.random() * choices.length)]
   lastCaptainAnimation.set(button, animation)
-  animation.effect?.()
+  animation.effect?.(button)
   if (!animation.frames) return
   const frames = typeof animation.frames === "function" ? animation.frames(skull) : animation.frames
   skull.animate(frames, {duration: animation.duration, easing: "ease-in-out"})

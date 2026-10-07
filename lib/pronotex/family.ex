@@ -64,6 +64,20 @@ defmodule Pronotex.Family do
     end
   end
 
+  # Keep the public path for authorization; embed configured bytes only in rendered pages.
+  def avatar_src(child) do
+    case avatar(child) do
+      "/avatars/" <> index ->
+        case avatar_data(index) do
+          {:ok, type, bytes} -> "data:#{type};base64,#{Base.encode64(bytes)}"
+          :error -> local_avatar(child)
+        end
+
+      path ->
+        path
+    end
+  end
+
   def avatar_data(index) when is_binary(index) do
     with true <- Regex.match?(~r/^[1-9][0-9]{0,5}$/, index),
          encoded when is_binary(encoded) <- System.get_env("PRONOTE_CHILD_#{index}_AVATAR_BASE64"),

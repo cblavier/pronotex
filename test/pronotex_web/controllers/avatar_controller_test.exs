@@ -35,6 +35,11 @@ defmodule PronotexWeb.AvatarControllerTest do
     System.put_env("PRONOTE_CHILD_91_FIRST_NAME", "Camille")
     System.put_env("PRONOTE_CHILD_91_AVATAR_BASE64", Base.encode64(bytes))
     assert Pronotex.Family.avatar(%{name: "Camille"}) == "/avatars/91"
+
+    assert Pronotex.Family.avatar_src(%{name: "Camille"}) ==
+             "data:image/png;base64," <> Base.encode64(bytes)
+
+    assert Pronotex.Family.avatar_src(%{name: "Other child"}) == nil
     conn = get(conn, "/avatars/91")
     assert response(conn, 200) == bytes
     assert get_resp_header(conn, "content-type") == ["image/png; charset=utf-8"]
@@ -63,5 +68,6 @@ defmodule PronotexWeb.AvatarControllerTest do
     System.put_env("PRONOTE_CHILD_91_AVATAR_BASE64", "invalid")
     System.put_env("PRONOTE_CHILD_91_AVATAR", "/images/avatars/local.png")
     assert Pronotex.Family.avatar(%{name: "Camille"}) == "/images/avatars/local.png"
+    assert Pronotex.Family.avatar_src(%{name: "Camille"}) == "/images/avatars/local.png"
   end
 end

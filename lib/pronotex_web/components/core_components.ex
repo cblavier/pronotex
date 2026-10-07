@@ -599,10 +599,9 @@ defmodule PronotexWeb.CoreComponents do
   be applied by using the `-solid` and `-mini` suffix.
 
   You can customize the size and colors of the icons by setting
-  width, height, and background color classes.
+  width, height, and text color classes.
 
-  Icons are extracted from the `deps/heroicons` directory and bundled within
-  your compiled app.css by the plugin in `assets/vendor/heroicons.js`.
+  Icons are embedded from `deps/heroicons` at compile time and rendered as inline SVG.
 
   ## Examples
 
@@ -731,8 +730,13 @@ defmodule PronotexWeb.CoreComponents do
   end
 
   def icon(%{name: "hero-" <> _} = assigns) do
+    {attributes, content} = PronotexWeb.Heroicons.fetch!(assigns.name)
+    assigns = assign(assigns, svg_attributes: attributes, svg_content: content)
+
     ~H"""
-    <span class={[@name, @class]} />
+    <svg {@svg_attributes} class={[@class, "inline-block align-middle"]} focusable="false">
+      {@svg_content}
+    </svg>
     """
   end
 

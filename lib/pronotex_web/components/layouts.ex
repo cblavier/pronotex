@@ -38,10 +38,13 @@ defmodule PronotexWeb.Layouts do
         {render_slot(@inner_block)}
       </main>
       <footer class="app-brand-footer">
+        <div id="footer-cat-stage" class="footer-cat-stage" phx-update="ignore" aria-hidden="true">
+        </div>
         <button
           type="button"
           class="app-brand-button"
           data-logo-easter-egg
+          data-cat-atlas={~p"/images/brand/bahia-atlas.png"}
           aria-label="Animer Captain Notes"
         >
           <.brand_lockup id="footer-logo" class="app-brand-logo" monochrome muted centered />

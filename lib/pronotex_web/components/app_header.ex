@@ -20,10 +20,7 @@ defmodule PronotexWeb.AppHeader do
     ~H"""
     <div
       id="responsive-header"
-      phx-hook="RememberPage"
-      data-page-account={@account.id}
       data-page-url={@current_url}
-      data-page-ready={to_string(!@loading)}
     >
       <span
         id="app-icon-badge"
@@ -46,7 +43,13 @@ defmodule PronotexWeb.AppHeader do
           <summary id="child-picker-toggle" aria-label="Choisir un enfant ou se déconnecter">
             <span class="child-avatar-wrapper">
               <span class="child-picker-avatar">
-                <img :if={avatar_src(@child)} id="child-avatar" src={avatar_src(@child)} alt="" />
+                <img
+                  :if={avatar_src(@child)}
+                  id="child-avatar"
+                  src={avatar_src(@child)}
+                  decoding="sync"
+                  alt=""
+                />
                 <span :if={!avatar_src(@child)} id="child-initials">
                   {String.first(first_name(@child))}
                 </span>
@@ -275,7 +278,7 @@ defmodule PronotexWeb.AppHeader do
     """
   end
 
-  defp avatar_src(child), do: Pronotex.Family.avatar(child)
+  defp avatar_src(child), do: Pronotex.Family.avatar_src(child)
   defp first_name(child), do: Pronotex.Family.first_name(child)
 
   defp messages_label(%{role: :parent, label: name}, _child, "parent-messages"),
