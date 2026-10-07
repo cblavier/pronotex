@@ -5,12 +5,42 @@ defmodule Pronotex.Pronote.GradeTrendTest do
   defp snapshot(id, time, score, scale \\ "20"),
     do: %{id: id, observed_at: time, data: %{"overall" => score, "overall_out_of" => scale}}
 
-  test "uses official values in observation order, including intraday changes" do
+  test "keeps only the latest official values per day in chronological order" do
     first = ~U[2026-09-01 08:00:00Z]
     second = ~U[2026-09-01 12:00:00Z]
+    next_day = ~U[2026-09-02 08:00:00Z]
 
-    assert GradeTrend.points([snapshot(2, second, "7,5", "10"), snapshot(1, first, "14,25")]) ==
-             [{first, 14.25}, {second, 15.0}]
+    assert GradeTrend.points([
+             snapshot(3, next_day, "16"),
+             snapshot(2, second, "7,5", "10"),
+             snapshot(1, first, "14,25")
+           ]) == [{second, 15.0}, {next_day, 16.0}]
+  end
+
+  test "daily replacement keeps the pair together and breaks timestamp ties by id" do
+    first = ~U[2026-09-28 08:00:00Z]
+    latest = ~U[2026-09-28 18:00:00Z]
+
+    snapshots = [
+      put_in(snapshot(3, latest, "19,7"), [:data, "class_overall"], "14,9"),
+      put_in(snapshot(1, first, "18,5"), [:data, "class_overall"], "14,8"),
+      put_in(snapshot(2, latest, "19"), [:data, "class_overall"], "14,9")
+    ]
+
+    assert GradeTrend.points(snapshots) == [{latest, 19.7}]
+    assert GradeTrend.points(snapshots, :class_overall) == [{latest, 14.9}]
+  end
+
+  test "daily replacement happens before deduplicating unchanged pairs" do
+    first = ~U[2026-09-27 08:00:00Z]
+    morning = ~U[2026-09-28 08:00:00Z]
+    evening = ~U[2026-09-28 18:00:00Z]
+
+    assert GradeTrend.points([
+             snapshot(1, first, "18"),
+             snapshot(2, morning, "19"),
+             snapshot(3, evening, "18")
+           ]) == [{first, 18.0}]
   end
 
   test "does not invent values and ignores unchanged averages" do
@@ -44,17 +74,23 @@ defmodule Pronotex.Pronote.GradeTrendTest do
     assert html =~ "588.0"
   end
 
-  test "class evolution is independent from the student's overall average" do
-    first = ~U[2026-09-01 08:00:00Z]
-    later = ~U[2026-09-02 08:00:00Z]
+  test "either average changing retains both points and unchanged pairs are deduplicated" do
+    first = ~U[2026-10-03 08:00:00Z]
+    later = ~U[2026-10-05 08:00:00Z]
+    last = ~U[2026-10-06 08:00:00Z]
 
     snapshots = [
-      put_in(snapshot(1, first, "15"), [:data, "class_overall"], "12,5"),
-      put_in(snapshot(2, later, "15"), [:data, "class_overall"], "13")
+      put_in(snapshot(1, first, "17,7"), [:data, "class_overall"], "14,30"),
+      put_in(snapshot(2, later, "17,7"), [:data, "class_overall"], "14,90"),
+      put_in(snapshot(3, last, "18"), [:data, "class_overall"], "14,90"),
+      put_in(snapshot(4, DateTime.add(last, 86400), "18,0"), [:data, "class_overall"], "14,9")
     ]
 
-    assert GradeTrend.points(snapshots) == [{first, 15.0}]
-    assert GradeTrend.points(snapshots, :class_overall) == [{first, 12.5}, {later, 13.0}]
+    assert GradeTrend.points(snapshots) == [{first, 17.7}, {later, 17.7}, {last, 18.0}]
+
+    assert GradeTrend.points(snapshots, :class_overall) ==
+             [{first, 14.3}, {later, 14.9}, {last, 14.9}]
+
     assert GradeTrend.points([snapshot(3, later, "15")], :class_overall) == []
   end
 

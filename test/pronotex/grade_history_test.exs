@@ -192,6 +192,65 @@ defmodule Pronotex.GradeHistoryTest do
     assert hd(student_change.data["averages"])["score"] == "15"
     assert hd(subject_class_change.data["averages"])["average"] == "12,5"
     assert Enum.all?(GradeHistory.averages(context), &(&1.data["overall"] == "14,5"))
+
+    history = GradeHistory.averages(context)
+
+    assert Pronotex.Pronote.GradeTrend.points(history) == [{@now, 14.5}, {@later, 14.5}]
+
+    assert Pronotex.Pronote.GradeTrend.points(history, :class_overall) ==
+             [{@now, 12.0}, {@later, 13.0}]
+  end
+
+  test "each subject statistic change records the complete quartet without duplicate reads", %{
+    context: context,
+    report: report
+  } do
+    initial = %{
+      id: "maths",
+      subject: "Maths",
+      score: "14,5",
+      out_of: "20",
+      average: "12",
+      min: "8",
+      max: "18"
+    }
+
+    other = %{initial | id: "french", subject: "Français"}
+    report = %{report | averages: [initial, other]}
+
+    for {field, value} <- [score: "15", average: "13", min: "9", max: "19"] do
+      context = %{context | student_id: "#{context.student_id}-#{field}"}
+      updated = Map.put(initial, field, value)
+      revised = %{report | averages: [updated, other]}
+
+      assert {:ok, _} = GradeHistory.record(context, report, @now)
+      assert {:ok, _} = GradeHistory.record(context, revised, @later)
+
+      assert {:ok, _} =
+               GradeHistory.record(context, revised, DateTime.add(@later, 3600))
+
+      assert [before, after_change] = GradeHistory.averages(context)
+      assert before.observed_at == @now
+      assert after_change.observed_at == @later
+
+      for {snapshot, expected} <- [{before, initial}, {after_change, updated}] do
+        assert Enum.find(snapshot.data["averages"], &(&1["id"] == "maths")) ==
+                 Jason.decode!(Jason.encode!(expected))
+
+        assert Enum.find(snapshot.data["averages"], &(&1["id"] == "french")) ==
+                 Jason.decode!(Jason.encode!(other))
+
+        assert snapshot.data["overall"] == report.overall
+        assert snapshot.data["class_overall"] == report.class_overall
+      end
+
+      # Returning to the previous quartet is also a new observation.
+      returned_at = DateTime.add(@later, 7200)
+      assert {:ok, _} = GradeHistory.record(context, report, returned_at)
+      assert [_, _, returned] = GradeHistory.averages(context)
+      assert returned.observed_at == returned_at
+      assert returned.data == before.data
+    end
   end
 
   test "school, student, school year and period isolate observations", %{
