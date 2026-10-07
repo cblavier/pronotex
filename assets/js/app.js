@@ -6,7 +6,6 @@ import {updatePushWorker, listenForPushNavigation} from "./push"
 // Establish Phoenix Socket and LiveView configuration.
 import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
-import topbar from "../vendor/topbar"
 import {Settings} from "./settings"
 import {RememberPage, restoreLastPage} from "./last_page"
 
@@ -118,11 +117,6 @@ const liveSocket = new LiveSocket("/live", Socket, {
   hooks: {MessageComposer, WeekOverview, AgendaScroll, StartupSplash, Settings, RememberPage, AppBadge},
 })
 
-// Show progress bar on live navigation and form submits
-topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
-window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
-window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
-
 // Give reconnects a grace period, including after returning to a sleeping tab.
 const pendingConnectionAlerts = new Map()
 const hideConnectionAlert = element => {
@@ -192,43 +186,24 @@ const captainConfetti = () => {
   Promise.allSettled(animations.map(animation => animation.finished)).then(() => overlay.remove())
 }
 
-// Sample one color per 18px square, then expand it into a chunky pixel.
-let cleanupCaptainPixelate
-const captainPixelate = () => {
-  cleanupCaptainPixelate?.()
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
-  svg.setAttribute("aria-hidden", "true")
-  svg.setAttribute("width", "0")
-  svg.setAttribute("height", "0")
-  svg.style.position = "absolute"
-  svg.innerHTML = `
-    <filter id="captain-pixel-filter" x="0" y="0" width="100%" height="100%"
-            primitiveUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feFlood x="8" y="8" width="2" height="2" />
-      <feComposite in2="SourceGraphic" operator="in" x="0" y="0" width="12" height="12" />
-      <feTile result="samples" />
-      <feComposite in="SourceGraphic" in2="samples" operator="in" />
-      <feMorphology operator="dilate" radius="9" />
-    </filter>`
-  document.body.appendChild(svg)
-  document.body.classList.add("captain-pixelated")
-  const cleanup = () => {
-    document.body.classList.remove("captain-pixelated")
-    svg.remove()
-    window.clearTimeout(timer)
-    window.removeEventListener("phx:page-loading-start", cleanup)
-  }
-  cleanupCaptainPixelate = cleanup
-  const timer = window.setTimeout(cleanup, 5000)
-  window.addEventListener("phx:page-loading-start", cleanup, {once: true})
+let captainMirrorTimer
+const captainMirror = () => {
+  window.clearTimeout(captainMirrorTimer)
+  document.body.classList.add("captain-mirror")
+  captainMirrorTimer = window.setTimeout(() => {
+    document.body.classList.remove("captain-mirror")
+  }, 1 * 60 * 1000)
 }
 
-let cleanupCaptainPink
-const captainPink = () => {
-  cleanupCaptainPink?.()
+let cleanupCaptainPalette
+const captainPalette = className => {
+  if (["captain-pink", "captain-brown"].some(name =>
+    name !== className && document.body.classList.contains(name)
+  )) return
+  cleanupCaptainPalette?.()
   const themeColor = document.querySelector('meta[name="theme-color"]')
   const previousThemeColor = themeColor?.getAttribute("content")
-  document.body.classList.add("captain-pink")
+  document.body.classList.add(className)
   const syncThemeColor = () => {
     themeColor?.setAttribute("content", getComputedStyle(document.body).getPropertyValue("--page-background").trim())
   }
@@ -237,21 +212,22 @@ const captainPink = () => {
   themeObserver.observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]})
   const cleanup = () => {
     themeObserver.disconnect()
-    document.body.classList.remove("captain-pink")
+    document.body.classList.remove(className)
     if (previousThemeColor == null) themeColor?.removeAttribute("content")
     else themeColor?.setAttribute("content", previousThemeColor)
     window.clearTimeout(timer)
-    window.removeEventListener("phx:page-loading-start", cleanup)
   }
-  cleanupCaptainPink = cleanup
-  const timer = window.setTimeout(cleanup, 10000)
-  window.addEventListener("phx:page-loading-start", cleanup, {once: true})
+  cleanupCaptainPalette = cleanup
+  const timer = window.setTimeout(cleanup, 2 * 60 * 1000)
 }
+const captainPink = () => captainPalette("captain-pink")
+const captainBrown = () => captainPalette("captain-brown")
 
 // Short surprises from the captain, including keyboard activation.
 const captainAnimations = [
+  {effect: captainBrown},
   {effect: captainPink},
-  {effect: captainPixelate},
+  {effect: captainMirror},
   {effect: captainConfetti},
   // Spring: squash, jump, then two smaller rebounds.
   {duration: 1300, frames: [
@@ -328,24 +304,20 @@ const captainAnimations = [
     ]
   }}
 ]
-// Safari (including installed iOS apps) cannot reliably render this SVG filter.
-const availableCaptainAnimations = captainAnimations.filter(animation =>
-  animation.effect !== captainPixelate || !/^Apple/.test(navigator.vendor || "")
-)
 const lastCaptainAnimation = new WeakMap()
 document.addEventListener("click", event => {
   const button = event.target.closest("[data-logo-easter-egg]")
   if (!button || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
   const skull = button.querySelector(".app-brand-skull")
   if (!skull || skull.getAnimations().length) return
-  if (!availableCaptainAnimations.length) return
+  if (!captainAnimations.length) return
   // Optional haptic feedback; unsupported or blocked vibration must not interrupt the animation.
   if (typeof navigator.vibrate === "function") {
     try { navigator.vibrate(12) } catch { /* Browser or device policy may block vibration. */ }
   }
-  const choices = availableCaptainAnimations.length > 1
-    ? availableCaptainAnimations.filter(animation => animation !== lastCaptainAnimation.get(button))
-    : availableCaptainAnimations
+  const choices = captainAnimations.length > 1
+    ? captainAnimations.filter(animation => animation !== lastCaptainAnimation.get(button))
+    : captainAnimations
   const animation = choices[Math.floor(Math.random() * choices.length)]
   lastCaptainAnimation.set(button, animation)
   animation.effect?.()

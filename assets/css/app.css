@@ -533,7 +533,10 @@ html { touch-action: manipulation; scrollbar-gutter: stable; }
 .app-brand-button:focus-visible { outline: 2px solid var(--day-ink); outline-offset: 4px; }
 .app-brand-logo { overflow: visible; }
 .app-brand-skull { transform-origin: 200px 205px; }
-.captain-pixelated .page-shell { filter: url("#captain-pixel-filter"); }
+body.captain-mirror,
+body.captain-mirror dialog:modal {
+  transform: scaleX(-1);
+}
 .captain-confetti { position: fixed; inset: 0; z-index: 1000; overflow: hidden; pointer-events: none; }
 .captain-confetti span { position: absolute; top: 0; border-radius: 1px; }
 
@@ -1032,6 +1035,44 @@ body.captain-pink .child-picker-avatar::after {
   position: absolute;
   inset: 0;
   background: url("/images/brand/unicorn-portrait.svg") center / cover;
+}
+
+:root body.captain-brown,
+:root body.captain-brown :is(.page-shell, .notification-banner) {
+  --day-tint: #efdfcc;
+  --day-ink: #795035;
+  --day-line: #c9aa88;
+  --page-background: #faf3e9;
+  --surface-background: #fffaf3;
+  --muted-ink: #826951;
+  --color-base-100: #fffaf3;
+  --color-base-200: #efdfcc;
+  --color-base-300: #c9aa88;
+  --color-base-content: #493021;
+}
+:root[data-theme="dark"] body.captain-brown,
+:root[data-theme="dark"] body.captain-brown :is(.page-shell, .notification-banner) {
+  --day-tint: #493322;
+  --day-ink: #e0b68c;
+  --day-line: #79583e;
+  --page-background: #241a14;
+  --surface-background: #33251b;
+  --muted-ink: #c7ab90;
+  --color-base-100: #33251b;
+  --color-base-200: #493322;
+  --color-base-300: #79583e;
+  --color-base-content: #f5e5d3;
+}
+body.captain-brown .child-picker-avatar { position: relative; }
+body.captain-brown .child-picker-avatar::after {
+  content: "💩";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--day-tint);
+  font-size: calc(var(--header-avatar-size) * 0.65);
+  line-height: 1;
 }
 
 /* Message composition uses the same page and field colors as the dashboard. */
