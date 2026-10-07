@@ -33,14 +33,6 @@ defmodule PronotexWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <div id="startup-splash" phx-hook="StartupSplash" role="status" aria-label="Connexion en cours">
-      <.brand_logo />
-    </div>
-    <noscript>
-      <style>
-        #startup-splash { display: none; }
-      </style>
-    </noscript>
     <div class="page-shell min-h-screen" data-child-theme={@child_theme}>
       <main class="mx-auto max-w-6xl px-4 pt-8 pb-4 sm:px-8 sm:pt-12 sm:pb-6">
         {render_slot(@inner_block)}

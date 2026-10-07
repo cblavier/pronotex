@@ -48,32 +48,6 @@ document.addEventListener("keydown", event => {
 })
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
-// mounted runs after the first successful LiveView join, including transport fallback.
-// Keep readiness for this document so navigation and reconnects never replay the splash.
-const startupSplashStarted = performance.now()
-const startupSplashMinimumMs = 750
-const isStandalone = window.matchMedia("(display-mode: standalone)").matches
-const finishStartupSplash = () => {
-  document.documentElement.classList.add("app-ready")
-  document.querySelector(".page-shell")?.removeAttribute("inert")
-}
-const StartupSplash = {
-  mounted() {
-    const remaining = isStandalone && !document.documentElement.classList.contains("app-ready")
-      ? startupSplashMinimumMs - (performance.now() - startupSplashStarted)
-      : 0
-    if (remaining > 0) this.startupTimer = setTimeout(finishStartupSplash, remaining)
-    else finishStartupSplash()
-  },
-  destroyed() {
-    clearTimeout(this.startupTimer)
-    finishStartupSplash()
-  }
-}
-if (isStandalone &&
-    document.querySelector("#startup-splash") && !document.documentElement.classList.contains("app-ready")) {
-  document.querySelector(".page-shell")?.setAttribute("inert", "")
-}
 const AgendaScroll = {
   mounted() {
     this.savedAgendaScroll = null
@@ -114,7 +88,7 @@ const AgendaScroll = {
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {MessageComposer, WeekOverview, AgendaScroll, StartupSplash, Settings, RememberPage, AppBadge},
+  hooks: {MessageComposer, WeekOverview, AgendaScroll, Settings, RememberPage, AppBadge},
 })
 
 // Give reconnects a grace period, including after returning to a sleeping tab.

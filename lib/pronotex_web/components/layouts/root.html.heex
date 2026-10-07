@@ -7,6 +7,7 @@
     <meta name="color-scheme" content="light dark" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="apple-mobile-web-app-title" content="Captain Notes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="#3c987f" />
     <script>
       (() => {
@@ -44,6 +45,26 @@
       sizes="180x180"
       href={~p"/images/brand/pronotex-icon-180.png?v=2"}
     />
+    <.startup_images />
+    <script id="select-startup-image">
+      (() => {
+        // Resolve the device here so iOS receives one unconditional launch image.
+        const anchor = document.currentScript;
+        const candidates = [...document.querySelectorAll('link[rel="apple-touch-startup-image"]')]
+          .map(link => ({link, query: window.matchMedia(link.media)}));
+        const select = () => {
+          const selected = candidates.find(candidate => candidate.query.matches);
+          if (!selected) return;
+          for (const {link} of candidates) {
+            if (link !== selected.link) link.remove();
+          }
+          selected.link.removeAttribute("media");
+          anchor.before(selected.link);
+        };
+        select();
+        for (const {query} of candidates) query.addEventListener("change", select);
+      })();
+    </script>
     <link rel="manifest" href={~p"/manifest.webmanifest"} />
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title default="Captain Notes">{assigns[:page_title]}</.live_title>
