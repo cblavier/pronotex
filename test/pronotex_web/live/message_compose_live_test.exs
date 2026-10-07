@@ -23,6 +23,21 @@ defmodule PronotexWeb.MessageComposeLiveTest do
         :load_error ->
           {:error, :offline}
 
+        :no_school_office ->
+          {:ok, [%{id: "3:teacher", name: "Mme Martin", type: "Professeur", subjects: []}]}
+
+        :ambiguous_school_office ->
+          {:ok,
+           for(
+             n <- 1..2,
+             do: %{
+               id: "34:staff-#{n}",
+               name: "Vie scolaire #{n}",
+               type: "Personnel",
+               subjects: []
+             }
+           )}
+
         _ ->
           {:ok,
            [
@@ -102,6 +117,139 @@ defmodule PronotexWeb.MessageComposeLiveTest do
     end)
 
     {:ok, conn: build_conn() |> Plug.Test.init_test_session(Pronotex.Auth.session("parent-1"))}
+  end
+
+  test "absence placeholders block sending until the draft is completed", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/alice/carnet/new")
+    render_async(view)
+    view |> form("#message-form") |> render_submit()
+
+    assert has_element?(
+             view,
+             "#message-form-error[role=alert]",
+             "Complétez les éléments entre crochets"
+           )
+
+    refute has_element?(view, "[role=alertdialog]")
+    render_click(view, "confirm-send")
+    refute_received {:sent, _, _, _}
+    assert has_element?(view, "#message-content", "[date]")
+
+    view
+    |> form("#message-form",
+      draft: %{subject: "Absence Alice", content: "Alice sera absente demain matin."}
+    )
+    |> render_submit()
+
+    assert has_element?(view, "[role=alertdialog]", "Envoyer ce message")
+    refute has_element?(view, "#message-form-error")
+    render_click(view, "confirm-send")
+    assert_redirect(view, "/alice/carnet")
+    assert_received {:sent, ["34:staff"], "Absence Alice", "Alice sera absente demain matin."}
+  end
+
+  test "the shared composer also rejects placeholders in subjects and replies", %{conn: conn} do
+    view = compose(conn)
+    draft(view)
+
+    view
+    |> form("#message-form", draft: %{subject: "Question [matière]", content: "Bonjour !"})
+    |> render_submit()
+
+    assert has_element?(view, "#message-form-error", "entre crochets")
+    refute has_element?(view, "[role=alertdialog]")
+    render_click(view, "confirm-send")
+    refute_received {:sent, _, _, _}
+
+    {:ok, reply, _} = live(conn, "/alice/parent-messages/thread-parent/reply")
+    render_async(reply)
+    reply |> form("#message-form", draft: %{content: "Disponible le [date]."}) |> render_submit()
+    assert has_element?(reply, "#message-form-error", "entre crochets")
+    render_click(reply, "confirm-send")
+    refute_received {:replied, _, _}
+  end
+
+  test "absence reporting reuses the composer and prefills the selected child and school office",
+       %{conn: conn} do
+    for {slug, identity} <- [{"alice", "Alice (5B)"}, {"marius", "Marius (3A)"}] do
+      {:ok, view, _} = live(conn, "/#{slug}/carnet/new")
+      render_async(view)
+      assert has_element?(view, "#message-composer", "Retour au carnet de correspondance")
+      assert has_element?(view, "#selected-recipients", "Vie scolaire")
+      assert has_element?(view, "#message-subject[value='Absence de #{identity}']")
+      assert has_element?(view, "#message-content", identity)
+      assert has_element?(view, "#message-composer[data-dirty=false]")
+      render_click(view, "cancel")
+      assert_redirect(view, "/#{slug}/carnet")
+    end
+  end
+
+  test "absence draft edits survive recipient refresh and simulated sending returns to the carnet",
+       %{conn: conn} do
+    Application.put_env(:pronotex, :composer_mode, :simulated)
+    {:ok, view, _} = live(conn, "/alice/carnet/new")
+    render_async(view)
+
+    view
+    |> form("#message-form",
+      draft: %{subject: "Absence Alice", content: "Bonjour, Alice sera absente demain matin."}
+    )
+    |> render_change()
+
+    render_click(view, "refresh")
+    render_async(view)
+    assert has_element?(view, "#message-subject[value='Absence Alice']")
+    assert has_element?(view, "#message-content", "Alice sera absente demain matin.")
+    view |> form("#message-form") |> render_submit()
+    render_click(view, "confirm-send")
+    assert_receive {_, {:redirect, _, redirect}}
+
+    assert_received {:sent, ["34:staff"], "Absence Alice",
+                     "Bonjour, Alice sera absente demain matin."}
+
+    Application.put_env(:pronotex, :pronote_client, PronotexWeb.DashboardLiveTest.API)
+    Application.put_env(:pronotex, :dashboard_test_pid, self())
+
+    {:ok, carnet, _} =
+      follow_redirect({:error, {:live_redirect, redirect}}, conn, "/alice/carnet")
+
+    render_async(carnet)
+    assert has_element?(carnet, "#message-sent", "Envoi simulé")
+  end
+
+  test "absence reports never guess a missing or ambiguous school office recipient", %{conn: conn} do
+    for mode <- [:no_school_office, :ambiguous_school_office] do
+      Application.put_env(:pronotex, :composer_mode, mode)
+      {:ok, view, _} = live(conn, "/alice/carnet/new")
+      render_async(view)
+      refute has_element?(view, "#selected-recipients")
+
+      assert has_element?(
+               view,
+               ".message-form-error",
+               "Sélectionnez le destinataire Vie scolaire"
+             )
+
+      view |> form("#message-form") |> render_submit()
+      refute has_element?(view, "[role=alertdialog]")
+      render_click(view, "confirm-send")
+      refute_received {:sent, _, _, _}
+    end
+  end
+
+  test "a confirmed absence report returns to the carnet with its confirmation", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/alice/carnet/new")
+    render_async(view)
+
+    view
+    |> form("#message-form",
+      draft: %{subject: "Absence Alice", content: "Alice sera absente demain."}
+    )
+    |> render_submit()
+
+    render_click(view, "confirm-send")
+    flash = assert_redirect(view, "/alice/carnet")
+    assert flash["message_sent"] =~ "signalement d’absence a été envoyé"
   end
 
   test "reply composer locks correspondents, omits subject and returns to the conversation", %{

@@ -442,6 +442,34 @@ defmodule Pronotex.Pronote.Client do
     Pronotex.Pronote.DisplayName.correspondent(name, client.sender_name)
   end
 
+  def correspondence(client, child_id) do
+    unless Enum.any?(client.children, &(&1["N"] == child_id)),
+      do: raise(Error.new(:child_not_found))
+
+    unless contains?(client.tabs, 19), do: raise(Error.new(:forbidden))
+
+    {data, transport} =
+      Transport.call(client.transport, "PagePresence", %{
+        "Signature" => signature(client, child_id, 19),
+        "data" => %{
+          "DateDebut" =>
+            Map.put(client.general["PremiereDate"] || client.general["PremierLundi"], "_T", 7),
+          "DateFin" => Map.put(Map.fetch!(client.general, "DerniereDate"), "_T", 7),
+          "periode" => %{"N" => "0", "L" => "Année complète"}
+        }
+      })
+
+    if data["message"] not in [nil, false, ""],
+      do: raise(Error.new(:forbidden))
+
+    entries =
+      (get_in(data, ["listeAbsences", "V"]) || [])
+      |> Enum.map(&Pronotex.Pronote.Correspondence.parse/1)
+      |> Enum.sort_by(&communication_time/1, :desc)
+
+    {entries, %{client | transport: transport}}
+  end
+
   def discussions(client) do
     {threads, client} =
       if contains?(client.tabs, 131),

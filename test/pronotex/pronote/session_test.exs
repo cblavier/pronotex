@@ -47,6 +47,75 @@ defmodule Pronotex.Pronote.SessionTest do
     {server, if(options[:student], do: student_agent, else: agent)}
   end
 
+  test "correspondence includes absences and observations and caches without writes" do
+    {server, agent} = session()
+    assert {:ok, [absence, newer, older]} = Pronote.correspondence("child-a", server)
+    assert absence.category == "Absence aux cours"
+    assert absence.justified == true
+    refute hd(absence.messages).content =~ "Absence justifiée"
+    assert newer.subject == "Encouragement"
+    assert newer.author == "Mme Martin"
+    assert hd(newer.messages).title == "Français"
+    assert newer.unread == 1
+    assert older.subject == "Observation"
+    calls = Agent.get(agent, & &1.calls)
+    assert {:ok, [^absence, ^newer, ^older]} = Pronote.correspondence("child-a", server)
+    assert Agent.get(agent, & &1.calls) == calls
+    assert {:error, %Error{reason: :child_not_found}} = Pronote.correspondence("foreign", server)
+    assert Agent.get(agent, & &1.calls) == calls
+  end
+
+  test "old correspondence caches are replaced before rendering justification badges" do
+    alias Pronotex.Pronote.ReadCache
+    {server, agent} = session(absences_only: true)
+    assert {:ok, [entry]} = Pronote.correspondence("child-a", server)
+    old = [Map.drop(entry, [:justified, :presentation_version])]
+    operation = {:correspondence, "child-a"}
+
+    key =
+      :sys.get_state(ReadCache).entries
+      |> Map.keys()
+      |> Enum.find(fn
+        {^server, {identity, ^operation}} -> identity != :display
+        _ -> false
+      end)
+
+    ReadCache.put(key, old, 300_000, ReadCache.generation(key))
+    ReadCache.remember(server, operation, old)
+    assigns = %{section: "carnet", child: %{id: "child-a"}}
+
+    assert :miss =
+             PronotexWeb.DashboardCache.fetch(
+               ReadCache.display(server),
+               assigns,
+               {:messages_load, nil}
+             )
+
+    calls = Agent.get(agent, & &1.calls)
+    assert {:ok, [updated]} = Pronote.correspondence("child-a", server)
+    assert updated.justified == true
+    refute Agent.get(agent, & &1.calls) == calls
+
+    assert {:ok, [^updated]} =
+             PronotexWeb.DashboardCache.fetch(
+               ReadCache.display(server),
+               assigns,
+               {:messages_load, nil}
+             )
+  end
+
+  test "an absence-only notebook is readable when observations are disabled" do
+    {server, _} = session(absences_only: true)
+    assert {:ok, [absence]} = Pronote.correspondence("child-a", server)
+    assert absence.category == "Absence aux cours"
+    assert absence.preview =~ "Rendez-vous"
+  end
+
+  test "students can read their correspondence book in their own session" do
+    {server, _} = session(direct_student: true)
+    assert {:ok, [_, _, _]} = Pronote.correspondence("child-a", server)
+  end
+
   test "replies preserve the conversation reference and are simulated without HTTP writes" do
     {server, agent} = session(account: "parent-1")
     assert {:ok, context} = Pronote.reply_context("discussion", server)

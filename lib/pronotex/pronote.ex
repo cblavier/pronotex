@@ -83,6 +83,9 @@ defmodule Pronotex.Pronote do
   def events(child_id, server \\ Session),
     do: GenServer.call(server, {:events, child_id}, :infinity)
 
+  def correspondence(child_id, server \\ Session),
+    do: GenServer.call(server, {:correspondence, child_id}, :infinity)
+
   def discussions(child_id, server \\ Session),
     do: GenServer.call(server, {:discussions, child_id}, :infinity)
 

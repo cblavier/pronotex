@@ -75,6 +75,7 @@ defmodule Pronotex.Pronote.Session do
            :homework,
            :menus,
            :events,
+           :correspondence,
            :discussions,
            :parent_discussions
          ])
@@ -252,6 +253,11 @@ defmodule Pronotex.Pronote.Session do
       {homework, client} = cached_read(state.client, {:homework, child_id, from, to})
       {:ok, homework, %{state | client: client}}
     end
+  end
+
+  defp execute({:correspondence, child_id}, state) do
+    {entries, client} = cached_read(state.client, {:correspondence, child_id})
+    {:ok, entries, %{state | client: client}}
   end
 
   defp execute({:menus, child_id, from, to}, state) do
@@ -447,7 +453,12 @@ defmodule Pronotex.Pronote.Session do
 
     case cached do
       {:hit, reply} ->
-        {reply, client}
+        if elem(operation, 0) == :correspondence and
+             not Pronotex.Pronote.Correspondence.current?(reply) do
+          cached_read(client, operation, account_id, true)
+        else
+          {reply, client}
+        end
 
       {:miss, generation} ->
         [kind | args] = Tuple.to_list(operation)

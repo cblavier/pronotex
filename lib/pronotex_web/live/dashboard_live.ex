@@ -139,6 +139,7 @@ defmodule PronotexWeb.DashboardLive do
         "notes" -> "notes"
         "reglages" -> "settings"
         "menu" -> "cantine"
+        "carnet" -> "carnet"
         "messages" -> "messages"
         "parent-messages" when socket.assigns.account.role == :parent -> "parent-messages"
         _ -> "agenda"
@@ -162,7 +163,8 @@ defmodule PronotexWeb.DashboardLive do
         mode: mode,
         section: section,
         open_lesson: if(section == "agenda", do: params["lesson"]),
-        open_discussion: if(section in ["messages", "parent-messages"], do: params["discussion"]),
+        open_discussion:
+          if(section in ["messages", "parent-messages", "carnet"], do: params["discussion"]),
         grade_period: period,
         today: today,
         selected_slug: slug,
@@ -362,6 +364,7 @@ defmodule PronotexWeb.DashboardLive do
              "cantine",
              "messages",
              "parent-messages",
+             "carnet",
              "settings"
            ] do
     {:noreply, push_patch(socket, to: selection_url(socket, section: section))}
@@ -538,14 +541,24 @@ defmodule PronotexWeb.DashboardLive do
                do: :parent_messages_unread,
                else: :messages_unread
              ),
-             Enum.sum(Enum.map(discussions, & &1.unread))
+             if(socket.assigns.section == "carnet",
+               do: socket.assigns.messages_unread,
+               else: Enum.sum(Enum.map(discussions, & &1.unread))
+             )
            )}
 
         _ ->
           text =
             case result do
-              {:ok, {:error, error}} -> message(error)
-              _ -> "Impossible de charger les messages. Réessayez dans un instant."
+              {:ok, {:error, error}} ->
+                message(error)
+
+              _ ->
+                if(socket.assigns.section == "carnet",
+                  do:
+                    "Impossible de charger le carnet de correspondance. Réessayez dans un instant.",
+                  else: "Impossible de charger les messages. Réessayez dans un instant."
+                )
             end
 
           {:noreply, socket |> assign(messages_error: text) |> put_flash(:error, text)}
@@ -790,7 +803,7 @@ defmodule PronotexWeb.DashboardLive do
     synchronous? =
       socket.assigns.initial_load && !socket.private[:cache_render] &&
         (name in [:load, :week_overview] ||
-           socket.assigns.section in ["messages", "parent-messages"])
+           socket.assigns.section in ["messages", "parent-messages", "carnet"])
 
     if synchronous? do
       result =
@@ -837,6 +850,16 @@ defmodule PronotexWeb.DashboardLive do
 
   defp writable?(api, account, child),
     do: account.role == :child or api.homework_writable?(child)
+
+  defp load_messages(%{assigns: %{section: "carnet"}} = socket) do
+    %{api: api, account: account, child: child, messages_generation: generation} = socket.assigns
+
+    socket
+    |> assign(messages_available: true, messages_loading: true)
+    |> start_read({:messages_load, generation}, fn ->
+      api_call(api, account, :correspondence, [child.id])
+    end)
+  end
 
   defp load_messages(socket) do
     account = socket.assigns.account
@@ -1000,6 +1023,7 @@ defmodule PronotexWeb.DashboardLive do
           "notes" => "Notes",
           "settings" => "Réglages",
           "cantine" => "Menu",
+          "carnet" => "Carnet de correspondance",
           "messages" => "Messages",
           "parent-messages" => "Mes messages"
         },
@@ -1053,7 +1077,7 @@ defmodule PronotexWeb.DashboardLive do
         "notes" when not is_nil(child) ->
           ~p"/#{child_slug(child)}/notes"
 
-        inbox when inbox in ["messages", "parent-messages"] and not is_nil(child) ->
+        inbox when inbox in ["messages", "parent-messages", "carnet"] and not is_nil(child) ->
           if discussion,
             do: ~p"/#{child_slug(child)}/#{inbox}/#{discussion}",
             else: ~p"/#{child_slug(child)}/#{inbox}"
@@ -1375,6 +1399,8 @@ defmodule PronotexWeb.DashboardLive do
 
   defp child_theme(_children, nil), do: "blue"
   defp child_theme(children, child), do: Pronotex.Family.theme(children, child)
+
+  defp messages_label(_, _, "carnet"), do: "Carnet de correspondance"
 
   defp messages_label(%{role: :parent, label: name}, _child, "parent-messages"),
     do: "Messages " <> name

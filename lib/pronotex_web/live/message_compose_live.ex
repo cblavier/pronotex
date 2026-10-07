@@ -5,16 +5,24 @@ defmodule PronotexWeb.MessageComposeLive do
 
   def allowed?(%{role: :parent}, "parent-messages"), do: true
   def allowed?(%{role: :child}, "messages"), do: true
+  def allowed?(%{role: role}, "carnet") when role in [:parent, :child, :family], do: true
   def allowed?(_, _), do: false
 
   @impl true
   def mount(%{"child" => slug, "section" => section} = params, _session, socket) do
-    if allowed?(socket.assigns.account, section) do
+    if allowed?(socket.assigns.account, section) and
+         not (section == "carnet" and is_binary(params["discussion"])) do
       reply_id = params["discussion"]
 
       socket =
         assign(socket,
-          page_title: if(reply_id, do: "Répondre à la conversation", else: "Nouveau message"),
+          page_title:
+            if(section == "carnet",
+              do: "Signaler absence",
+              else: if(reply_id, do: "Répondre à la conversation", else: "Nouveau message")
+            ),
+          absence_prefilled: false,
+          initial_draft: nil,
           reply_id: reply_id,
           reply_ready: false,
           slug: slug,
@@ -89,8 +97,11 @@ defmodule PronotexWeb.MessageComposeLive do
         )
 
       case {socket.assigns.reply_id, Map.fetch(entries, {:message_recipients})} do
-        {nil, {:ok, recipients}} -> assign(socket, recipients: recipients, loading: false)
-        _ -> socket
+        {nil, {:ok, recipients}} ->
+          assign(socket, recipients: recipients, loading: socket.assigns.section == "carnet")
+
+        _ ->
+          socket
       end
     else
       _ -> socket
@@ -149,7 +160,10 @@ defmodule PronotexWeb.MessageComposeLive do
          )}
 
       {:ok, recipients} ->
-        {:noreply, assign(socket, loading: false, recipients: recipients, load_error: nil)}
+        {:noreply,
+         socket
+         |> assign(loading: false, recipients: recipients, load_error: nil)
+         |> prepare_absence()}
 
       _ ->
         handle_async(:recipients, :error, socket)
@@ -173,6 +187,9 @@ defmodule PronotexWeb.MessageComposeLive do
            )
        )}
 
+  def handle_async(:send, {:ok, {:ok, {:sent, _}}}, %{assigns: %{section: "carnet"}} = socket),
+    do: handle_async(:send, {:ok, {:ok, :sent}}, socket)
+
   def handle_async(:send, {:ok, {:ok, {:sent, discussion_id}}}, socket) do
     socket =
       assign(socket,
@@ -187,7 +204,11 @@ defmodule PronotexWeb.MessageComposeLive do
       if result == :simulated,
         do:
           "Envoi simulé : aucun message n’a été envoyé à Pronote. Le payload est disponible dans les logs.",
-        else: "Votre message a été envoyé."
+        else:
+          if(socket.assigns.section == "carnet",
+            do: "Votre signalement d’absence a été envoyé à la vie scolaire.",
+            else: "Votre message a été envoyé."
+          )
 
     {:noreply,
      socket
@@ -226,6 +247,7 @@ defmodule PronotexWeb.MessageComposeLive do
              "cantine",
              "settings",
              "messages",
+             "carnet",
              "parent-messages"
            ] do
     if section != "parent-messages" or socket.assigns.account.role == :parent do
@@ -315,12 +337,8 @@ defmodule PronotexWeb.MessageComposeLive do
     else
       {:noreply,
        assign(socket,
-         form_error:
-           if(socket.assigns.reply_id,
-             do: "Renseignez le message (20 000 caractères maximum).",
-             else:
-               "Choisissez au moins un destinataire et renseignez l’objet et le message (200 et 20 000 caractères maximum)."
-           )
+         confirmation: nil,
+         form_error: validation_error(socket.assigns)
        )}
     end
   end
@@ -341,7 +359,7 @@ defmodule PronotexWeb.MessageComposeLive do
            else: call(api, account, :send_message, [ids, subject, content])
        end)}
     else
-      {:noreply, assign(socket, confirmation: nil)}
+      {:noreply, assign(socket, confirmation: nil, form_error: validation_error(socket.assigns))}
     end
   end
 
@@ -399,6 +417,20 @@ defmodule PronotexWeb.MessageComposeLive do
   defp unread({:ok, discussions}), do: Enum.sum(Enum.map(discussions, & &1.unread))
   defp unread(_), do: nil
 
+  defp validation_error(assigns) do
+    cond do
+      Recipient.placeholders?(assigns.content) or
+          (is_nil(assigns.reply_id) and Recipient.placeholders?(assigns.subject)) ->
+        "Complétez les éléments entre crochets (par exemple [date] ou [motif]) dans l’objet et le message avant l’envoi. Aucun message n’a été envoyé."
+
+      assigns.reply_id ->
+        "Renseignez le message (20 000 caractères maximum)."
+
+      true ->
+        "Choisissez au moins un destinataire et renseignez l’objet et le message (200 et 20 000 caractères maximum)."
+    end
+  end
+
   defp valid?(%{reply_id: id} = assigns) when not is_nil(id) do
     !assigns.loading and !assigns.uncertain and is_nil(assigns.load_error) and
       assigns.reply_ready and assigns.recipients != [] and
@@ -410,6 +442,42 @@ defmodule PronotexWeb.MessageComposeLive do
       Recipient.valid_message?(assigns.selected, assigns.subject, assigns.content) and
       Enum.all?(assigns.selected, fn id -> Enum.any?(assigns.recipients, &(&1.id == id)) end)
   end
+
+  defp prepare_absence(%{assigns: %{section: "carnet", absence_prefilled: false}} = socket) do
+    child = socket.assigns.child
+    class = Map.get(child, :class_name)
+    identity = child.name <> if(is_binary(class) and class != "", do: " (#{class})", else: "")
+    subject = "Absence de #{identity}"
+
+    content =
+      "Bonjour,\n\nJe vous informe de l’absence de #{identity}, le [date], de [heure de début] à [heure de fin], pour le motif suivant : [motif].\n\nMerci de votre prise en compte.\n\nCordialement,\n#{socket.assigns.sender_name}"
+
+    matches =
+      Enum.filter(socket.assigns.recipients, &(normalize(&1.name) =~ ~r/\bvie[\s-]+scolaire\b/))
+
+    selected =
+      case matches do
+        [recipient] -> [recipient.id]
+        _ -> []
+      end
+
+    assign(socket,
+      selected: selected,
+      subject: subject,
+      content: content,
+      absence_prefilled: true,
+      initial_draft: {selected, subject, content},
+      form_error:
+        if(selected == [],
+          do: "Sélectionnez le destinataire Vie scolaire dans la liste Pronote avant l’envoi."
+        )
+    )
+  end
+
+  defp prepare_absence(socket), do: socket
+
+  defp dirty?(%{section: "carnet", initial_draft: initial} = assigns) when not is_nil(initial),
+    do: {assigns.selected, assigns.subject, assigns.content} != initial
 
   defp dirty?(%{reply_id: id} = assigns) when not is_nil(id), do: assigns.content != ""
 

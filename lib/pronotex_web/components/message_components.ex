@@ -1,6 +1,80 @@
 defmodule PronotexWeb.MessageComponents do
   use PronotexWeb, :html
 
+  attr :entry, :map, required: true
+
+  def justification_badge(assigns) do
+    assigns = assign(assigns, :justified, Map.get(assigns.entry, :justified))
+
+    ~H"""
+    <span
+      :if={is_boolean(@justified)}
+      class="btn btn-sm btn-ghost gap-2 shrink-0 discussion-status justification-badge"
+      data-unread={to_string(!@justified)}
+    >
+      <.icon name={if @justified, do: "hero-check-circle", else: "hero-minus-circle"} class="size-5" />
+      {if @justified, do: "Justifiée", else: "Non justifiée"}
+    </span>
+    """
+  end
+
+  attr :entry, :map, required: true
+  attr :today, Date, required: true
+
+  def correspondence_summary(assigns) do
+    assigns = assign(assigns, :date_label, correspondence_date(assigns.entry, assigns.today))
+
+    ~H"""
+    <span class="discussion-heading communication-heading correspondence-summary">
+      <.communication_badge
+        id={"communication-#{@entry.id}"}
+        kind={:correspondence}
+        category={Map.get(@entry, :category)}
+      />
+      <span class="correspondence-summary-text">
+        <strong>{Map.get(@entry, :summary_title, @entry.subject)}</strong>
+        <span>{@date_label}</span>
+      </span>
+    </span>
+    """
+  end
+
+  defp correspondence_date(entry, today) do
+    start = Pronotex.Pronote.Lesson.datetime(entry.date)
+    ending = Map.get(entry, :end_date)
+    ending = if is_binary(ending) and ending != "", do: Pronotex.Pronote.Lesson.datetime(ending)
+
+    cond do
+      ending && NaiveDateTime.to_date(start) != NaiveDateTime.to_date(ending) ->
+        "Du #{short_date(start, today)} à #{hour(start)} au #{short_date(ending, today)} à #{hour(ending)}"
+
+      ending && start != ending ->
+        "#{day_label(start, today)} de #{hour(start)} à #{hour(ending)}"
+
+      true ->
+        day_label(start, today)
+    end
+  rescue
+    _ in [Pronotex.Pronote.Error, ArgumentError] -> entry.date
+  end
+
+  defp day_label(date, today) do
+    if NaiveDateTime.to_date(date) == today,
+      do: "Aujourd’hui",
+      else: "Le " <> short_date(date, today)
+  end
+
+  defp short_date(date, today) do
+    month =
+      Enum.at(~w(janv. févr. mars avr. mai juin juil. août sept. oct. nov. déc.), date.month - 1)
+
+    year = if date.year == today.year, do: "", else: " #{date.year}"
+    "#{date.day} #{month}#{year}"
+  end
+
+  defp hour(date),
+    do: "#{date.hour}h#{String.pad_leading(Integer.to_string(date.minute), 2, "0")}"
+
   attr :loading, :boolean, required: true
   slot :inner_block, required: true
 

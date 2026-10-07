@@ -290,10 +290,12 @@ defmodule PronotexWeb.CoreComponents do
 
   attr :id, :string, required: true
   attr :kind, :atom, default: :discussion
+  attr :category, :string, default: nil
 
   def communication_badge(assigns) do
     {label, icon} =
       case assigns.kind do
+        :correspondence -> correspondence_badge(assigns.category)
         :information -> {"Informations", "hero-information-circle"}
         :survey -> {"Sondage", "hero-clipboard-document-check"}
         _ -> {"Discussion", "hero-chat-bubble-left-right"}
@@ -315,6 +317,31 @@ defmodule PronotexWeb.CoreComponents do
       </span>
     </.tooltip>
     """
+  end
+
+  defp correspondence_badge(category) do
+    icon =
+      case category do
+        "Absence aux cours" -> "hero-user-minus"
+        "Retard" -> "hero-clock"
+        "Passage à l’infirmerie" -> "hero-heart"
+        "Absence au repas" -> "hero-cake"
+        "Dispense" -> "hero-document-check"
+        "Punition" -> "hero-no-symbol"
+        "Sanction" -> "hero-scale"
+        "Absence à l’internat" -> "hero-home"
+        "Mesure conservatoire" -> "hero-shield-exclamation"
+        "Incident" -> "hero-exclamation-triangle"
+        "Commission" -> "hero-user-group"
+        "Demande de dispense" -> "hero-document-plus"
+        "Retard à l’internat" -> "hero-clock"
+        "Défaut de carnet" -> "hero-book-open"
+        "Observation" -> "hero-chat-bubble-bottom-center-text"
+        "Encouragement" -> "hero-hand-thumb-up"
+        _ -> "hero-information-circle"
+      end
+
+    {category || "Vie scolaire", icon}
   end
 
   @doc "A shared count badge for unread messages and homework statuses."

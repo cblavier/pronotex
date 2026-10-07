@@ -13,7 +13,7 @@
     homework_badge_count={@homework_badge_count}
   >
     <.week_selector
-      :if={@section not in ["notes", "messages", "parent-messages", "settings"]}
+      :if={@section not in ["notes", "messages", "parent-messages", "carnet", "settings"]}
       id="date-navigation"
       show_cycle={@section == "timetable"}
       cycle={if @child, do: Map.get(@child, :week_cycles, %{})[Date.beginning_of_week(@week)]}
@@ -659,7 +659,7 @@
     </div>
   </div>
   <section
-    :if={@section in ["messages", "parent-messages"]}
+    :if={@section in ["messages", "parent-messages", "carnet"]}
     id="messages-content"
     aria-labelledby="messages-title"
     aria-busy={to_string(@loading || @messages_loading)}
@@ -685,13 +685,21 @@
     <div class="messages-header">
       <nav
         id="messages-breadcrumb"
-        aria-label="Navigation des messages"
+        aria-label={
+          if @section == "carnet",
+            do: "Navigation du carnet de correspondance",
+            else: "Navigation des messages"
+        }
         class="messages-breadcrumb"
       >
         <.back_link
           :if={@open_discussion}
           patch={discussion_url(@selected_slug, @mode, @week, @grade_period, nil, @section)}
-          label="Retour aux messages"
+          label={
+            if @section == "carnet",
+              do: "Retour au carnet de correspondance",
+              else: "Retour aux messages"
+          }
         />
         <.page_title :if={!@open_discussion} id="messages-title">
           {messages_label(@account, @child, @section)}
@@ -702,11 +710,12 @@
           !@open_discussion && @child &&
             PronotexWeb.MessageComposeLive.allowed?(@account, @section)
         }
-        id="new-message"
+        id={if @section == "carnet", do: "report-absence", else: "new-message"}
         navigate={~p"/#{@selected_slug}/#{@section}/new"}
         class="btn btn-sm themed-mini-button new-message-button"
       >
-        <.icon name="hero-pencil-square" class="size-4" /> Nouveau message
+        <.icon name="hero-pencil-square" class="size-4" />
+        {if @section == "carnet", do: "Signaler absence", else: "Nouveau message"}
       </.link>
     </div>
     <p
@@ -716,13 +725,17 @@
       }
       class="messages-empty"
     >
-      Cette discussion n’est plus disponible.
+      {if @section == "carnet",
+        do: "Cette entrée du carnet n’est plus disponible.",
+        else: "Cette discussion n’est plus disponible."}
     </p>
     <p :if={!@loading && !@messages_available} class="messages-empty">
       Les identifiants du compte élève sont nécessaires pour consulter ses messages.
     </p>
     <p :if={@messages_loading} class="messages-empty" role="status">
-      Chargement des messages…
+      {if @section == "carnet",
+        do: "Chargement du carnet de correspondance…",
+        else: "Chargement des messages…"}
     </p>
     <.empty_state
       :if={
@@ -730,7 +743,11 @@
           @discussions == []
       }
       id="no-messages"
-      text="Aucun message."
+      text={
+        if @section == "carnet",
+          do: "Aucun contenu dans le carnet de correspondance.",
+          else: "Aucun message."
+      }
     />
     <div id="discussion-list" class="discussion-list">
       <article
@@ -754,23 +771,30 @@
             discussion_url(@selected_slug, @mode, @week, @grade_period, discussion.id, @section)
           }
         >
-          <span class="discussion-heading communication-heading">
+          <.correspondence_summary :if={@section == "carnet"} entry={discussion} today={@today} />
+          <span :if={@section != "carnet"} class="discussion-heading communication-heading">
             <.communication_badge
               id={"communication-#{discussion.id}"}
               kind={Map.get(discussion, :kind, :discussion)}
+              category={Map.get(discussion, :category)}
             />
             <strong>{discussion.subject}</strong>
           </span>
-          <span class="discussion-meta">
+          <span :if={@section != "carnet"} class="discussion-meta">
             <.message_correspondents message={List.last(discussion.messages, discussion)} />
             · {communication_date(discussion.date)}
           </span>
-          <span :if={@open_discussion != discussion.id} class="discussion-preview">
+          <span
+            :if={@section != "carnet" && @open_discussion != discussion.id}
+            class="discussion-preview"
+          >
             {discussion.preview}
           </span>
         </.link>
         <div :if={!@open_discussion} class="discussion-actions">
+          <.justification_badge :if={@section == "carnet"} entry={discussion} />
           <.communication_status_button
+            :if={@section != "carnet"}
             discussion={discussion}
             saving={@message_saving}
             loading={@messages_loading}
@@ -786,11 +810,14 @@
             <.communication_badge
               id={"communication-#{discussion.id}"}
               kind={Map.get(discussion, :kind, :discussion)}
+              category={Map.get(discussion, :category)}
             />
             <span class="communication-detail-subject">{discussion.subject}</span>
           </:title>
           <:actions>
+            <.justification_badge :if={@section == "carnet"} entry={discussion} />
             <.communication_status_button
+              :if={@section != "carnet"}
               discussion={discussion}
               saving={@message_saving}
               loading={@messages_loading}
@@ -802,6 +829,9 @@
           id={"discussion-body-#{discussion.id}"}
           class="discussion-messages"
         >
+          <p :if={@section == "carnet" && discussion.unread > 0} class="discussion-meta">
+            À prendre connaissance dans Pronote
+          </p>
           <p :if={Map.get(discussion, :kind) == :survey} class="discussion-meta">
             Pour répondre à ce sondage, utilisez Pronote.
           </p>

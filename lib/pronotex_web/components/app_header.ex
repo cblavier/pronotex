@@ -175,6 +175,20 @@ defmodule PronotexWeb.AppHeader do
               />
             </button>
             <button
+              id="open-correspondence"
+              type="button"
+              class="child-picker-option"
+              phx-click={
+                JS.push("section", value: %{section: "carnet"})
+                |> JS.remove_attribute("open", to: "#child-picker")
+              }
+              aria-current={if @section == "carnet", do: "page"}
+              disabled={@loading}
+            >
+              <.icon name="hero-book-open" class="size-6" />
+              <span>{"Carnet " <> first_name(@child)}</span>
+            </button>
+            <button
               id="open-settings"
               type="button"
               class="child-picker-option"

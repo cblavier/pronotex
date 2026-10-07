@@ -39,9 +39,15 @@ defmodule Pronotex.Pronote.Recipient do
   def valid_message?(ids, subject, content) do
     is_list(ids) and ids != [] and length(ids) <= 100 and Enum.all?(ids, &is_binary/1) and
       is_binary(subject) and String.trim(subject) != "" and String.length(subject) <= 200 and
+      not placeholders?(subject) and
       valid_content?(content)
   end
 
   def valid_content?(content),
-    do: is_binary(content) and String.trim(content) != "" and String.length(content) <= 20_000
+    do:
+      is_binary(content) and String.trim(content) != "" and String.length(content) <= 20_000 and
+        not placeholders?(content)
+
+  def placeholders?(text) when is_binary(text), do: Regex.match?(~r/\[[^\[\]]+\]/u, text)
+  def placeholders?(_), do: false
 end

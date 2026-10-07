@@ -3,6 +3,20 @@ defmodule PronotexWeb.MessageComponentsTest do
   import Phoenix.LiveViewTest
   alias PronotexWeb.MessageComponents
 
+  test "justification badges show only known statuses without a write action" do
+    for {value, label} <- [{true, "Justifiée"}, {false, "Non justifiée"}] do
+      html =
+        render_component(&MessageComponents.justification_badge/1, entry: %{justified: value})
+
+      assert html =~ label
+      refute html =~ "phx-click"
+      refute html =~ "<button"
+    end
+
+    html = render_component(&MessageComponents.justification_badge/1, entry: %{})
+    refute html =~ "justification-badge"
+  end
+
   test "sent messages show recipients instead of the current user" do
     html =
       render_component(&MessageComponents.message_correspondents/1,

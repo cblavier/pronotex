@@ -26,7 +26,11 @@
     <.back_link
       :if={!@sent && !@sending}
       event="cancel"
-      label={if @reply_id, do: "Retour à la conversation", else: "Retour aux messages"}
+      label={
+        if @section == "carnet",
+          do: "Retour au carnet de correspondance",
+          else: if(@reply_id, do: "Retour à la conversation", else: "Retour aux messages")
+      }
     />
     <div :if={@load_error} role="alert" class="message-form-error">
       <p>{@load_error}</p>

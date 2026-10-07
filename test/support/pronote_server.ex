@@ -114,6 +114,58 @@ defmodule Pronotex.Test.PronoteServer do
     end
   end
 
+  defp data("PagePresence", payload, state) do
+    assert payload["Signature"]["onglet"] == 19
+
+    if state.options[:space] == 3 do
+      refute Map.has_key?(payload["Signature"], "membre")
+    else
+      assert payload["Signature"]["membre"] == %{"N" => "child-a", "G" => 4}
+    end
+
+    assert payload["data"]["DateDebut"]["V"] == "31/08/2026"
+    assert payload["data"]["DateFin"]["V"] == "04/07/2027"
+
+    rows = [
+      %{
+        "N" => "old",
+        "G" => 46,
+        "genreObservation" => 1,
+        "L" => "Observation",
+        "date" => %{"V" => "28/09/2026"},
+        "commentaire" => "Penser au matériel."
+      },
+      %{
+        "N" => "absence",
+        "G" => 13,
+        "dateDebut" => %{"V" => "07/10/2026 08:10:00"},
+        "dateFin" => %{"V" => "07/10/2026 11:15:00"},
+        "NbrHeures" => "3h00",
+        "justifie" => true,
+        "listeMotifs" => %{"V" => [%{"L" => "Rendez-vous"}]}
+      },
+      %{
+        "N" => "new",
+        "G" => 46,
+        "genreObservation" => 2,
+        "L" => "Encouragement",
+        "date" => %{"V" => "02/10/2026"},
+        "commentaire" => "Très bon travail !",
+        "demandeur" => %{"V" => %{"L" => "Mme Martin"}},
+        "matiere" => %{"V" => %{"L" => "Français"}},
+        "avecARObservation" => true,
+        "estLue" => false
+      }
+    ]
+
+    rows = if state.options[:absences_only], do: Enum.filter(rows, &(&1["G"] == 13)), else: rows
+
+    {%{
+       "listeAbsences" => %{"V" => rows},
+       "autorisations" => %{"observation" => !state.options[:absences_only], "absence" => true}
+     }, state, nil, false}
+  end
+
   defp data("FonctionParametres", payload, state) do
     iv = :crypto.hash(:md5, Base.decode64!(payload["data"]["Uuid"]))
 
@@ -174,6 +226,7 @@ defmodule Pronotex.Test.PronoteServer do
             "G" => 7,
             "Onglets" => [
               %{"G" => 16},
+              %{"G" => 19},
               %{"G" => 88},
               %{"G" => 10},
               %{"G" => 198},

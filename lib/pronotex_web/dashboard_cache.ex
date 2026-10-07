@@ -54,7 +54,7 @@ defmodule PronotexWeb.DashboardCache do
       available? = Enum.any?(cached, fn {_, result} -> match?({:ok, _}, result) end)
 
       if available? or (not is_nil(notes) and assigns.section == "notes") or
-           assigns.section in ["settings", "timetable", "messages", "parent-messages"] do
+           assigns.section in ["settings", "timetable", "messages", "parent-messages", "carnet"] do
         urgent =
           case read(
                  entries,
@@ -91,11 +91,21 @@ defmodule PronotexWeb.DashboardCache do
 
   def fetch(entries, assigns, {:messages_load, _}) do
     operation =
-      if assigns.section == "parent-messages",
-        do: {:parent_discussions},
-        else: {:discussions, assigns.child.id}
+      case assigns.section do
+        "carnet" -> {:correspondence, assigns.child.id}
+        "parent-messages" -> {:parent_discussions}
+        _ -> {:discussions, assigns.child.id}
+      end
 
-    read(entries, operation)
+    result = read(entries, operation)
+
+    case result do
+      {:ok, items} when assigns.section == "carnet" ->
+        if Pronotex.Pronote.Correspondence.current?(items), do: result, else: :miss
+
+      _ ->
+        result
+    end
   end
 
   def fetch(entries, assigns, :week_overview) do

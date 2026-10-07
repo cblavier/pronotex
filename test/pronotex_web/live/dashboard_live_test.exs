@@ -182,6 +182,46 @@ defmodule PronotexWeb.DashboardLiveTest do
       end
     end
 
+    def correspondence(id) do
+      notify({:correspondence, id})
+
+      case Application.get_env(:pronotex, :dashboard_test_mode) do
+        :empty ->
+          {:ok, []}
+
+        :carnet_failure ->
+          {:error, Pronotex.Pronote.Error.new(:network)}
+
+        :carnet_absences ->
+          {:ok,
+           [
+             Pronotex.Pronote.Correspondence.parse(%{
+               "N" => "absence",
+               "G" => 13,
+               "dateDebut" => %{"V" => "28/09/2026 08:10:00"},
+               "dateFin" => %{"V" => "28/09/2026 11:15:00"},
+               "NbrHeures" => "3h00",
+               "justifie" => true,
+               "listeMotifs" => %{"V" => [%{"L" => "Rendez-vous"}]}
+             })
+           ]}
+
+        _ ->
+          {:ok,
+           for n <- 1..12 do
+             Pronotex.Pronote.Correspondence.parse(%{
+               "N" => "#{id}-#{n}",
+               "G" => 46,
+               "genreObservation" => 2,
+               "L" => "Encouragement #{n}",
+               "date" => %{"V" => "28/09/2026"},
+               "commentaire" => "Très bon travail de #{id}.\nContinuez ! <script>unsafe</script>",
+               "demandeur" => %{"L" => "Mme Martin"}
+             })
+           end}
+      end
+    end
+
     def discussions(id) do
       mode = Application.get_env(:pronotex, :dashboard_test_mode)
 
@@ -1565,6 +1605,89 @@ defmodule PronotexWeb.DashboardLiveTest do
     refute has_element?(view, "#discussion-information-a")
     refute has_element?(view, ".discussion-summary")
     assert has_element?(view, ".communication-detail-header .discussion-status", "Non lu")
+  end
+
+  test "an absence-only correspondence book displays an overview and full absence details", %{
+    conn: conn
+  } do
+    Application.put_env(:pronotex, :dashboard_test_mode, :carnet_absences)
+    {:ok, view, _} = live(conn, "/alice/carnet")
+    render_async(view)
+    refute has_element?(view, "#no-messages")
+    assert has_element?(view, ".discussion-summary", "Absence aux cours")
+    assert has_element?(view, ".discussion-actions .justification-badge", "Justifiée")
+    assert has_element?(view, ".correspondence-summary", "Le 28 sept. de 8h10 à 11h15")
+    refute has_element?(view, ".discussion-summary", "Vie scolaire")
+    refute has_element?(view, ".discussion-preview")
+    view |> element(".discussion-summary") |> render_click()
+    assert_patch(view, "/alice/carnet/carnet-13-absence")
+    assert has_element?(view, ".communication-detail-header .justification-badge", "Justifiée")
+
+    assert has_element?(
+             view,
+             ".discussion-text",
+             "Le 28/09/2026 de 8h10 à 11h15 (3h00 de cours manqués)"
+           )
+
+    assert has_element?(view, ".discussion-text", "Motif : Rendez-vous")
+    refute has_element?(view, ".discussion-text", "Absence justifiée")
+  end
+
+  test "correspondence dropdown reuses the message list and details for the selected child", %{
+    conn: conn
+  } do
+    {:ok, view, _} = live(conn, "/alice")
+    render_async(view)
+    view |> element("#open-correspondence") |> render_click()
+    assert_patch(view, "/alice/carnet")
+    render_async(view)
+    assert_receive {:correspondence, "a"}
+    assert has_element?(view, "#messages-title", "Carnet de correspondance")
+    assert has_element?(view, "#report-absence[href='/alice/carnet/new']", "Signaler absence")
+    assert has_element?(view, "#discussion-carnet-a-10")
+    refute has_element?(view, "#discussion-carnet-a-11")
+    refute has_element?(view, "#new-message")
+    refute has_element?(view, "#messages-content [phx-click='mark-discussion']")
+    view |> element("#show-more-messages") |> render_click()
+    assert has_element?(view, "#discussion-carnet-a-12")
+    view |> element("#discussion-carnet-a-1 a.discussion-summary") |> render_click()
+    assert_patch(view, "/alice/carnet/carnet-a-1")
+    assert has_element?(view, ".discussion-text", "Très bon travail de a.")
+    refute has_element?(view, "#messages-content script")
+    refute has_element?(view, "#reply-message")
+    view |> element("#messages-breadcrumb a") |> render_click()
+    assert_patch(view, "/alice/carnet")
+    view |> element(".child-picker-option[data-child-id]") |> render_click()
+    render_async(view)
+    assert_patch(view, "/basile/carnet")
+    assert has_element?(view, "#discussion-carnet-b-1")
+    refute has_element?(view, "#discussion-carnet-a-1")
+  end
+
+  test "correspondence handles direct links, missing entries, empty results and errors", %{
+    conn: conn
+  } do
+    {:ok, view, _} = live(conn, "/alice/carnet/carnet-a-1")
+    render_async(view)
+    assert has_element?(view, ".discussion-text", "Très bon travail")
+    render_patch(view, "/alice/carnet/missing")
+
+    assert has_element?(
+             view,
+             "#messages-content",
+             "Cette entrée du carnet n’est plus disponible."
+           )
+
+    Application.put_env(:pronotex, :dashboard_test_mode, :empty)
+    {:ok, empty, _} = live(conn, "/alice/carnet")
+    render_async(empty)
+    assert has_element?(empty, "#no-messages", "Aucun contenu dans le carnet")
+
+    Application.put_env(:pronotex, :dashboard_test_mode, :carnet_failure)
+    {:ok, failed, _} = live(conn, "/alice/carnet")
+    render_async(failed)
+    refute has_element?(failed, "#no-messages")
+    assert has_element?(failed, "#flash-error")
   end
 
   test "messages are reached from dropdown with explicit read actions and badge updates", %{

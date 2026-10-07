@@ -25,7 +25,10 @@ defmodule Pronotex.Pronote.ReadCache do
   end
 
   def ttl(kind) when kind in [:lessons, :events], do: 300_000
-  def ttl(kind) when kind in [:homework, :discussions, :parent_discussions], do: 300_000
+
+  def ttl(kind) when kind in [:homework, :discussions, :parent_discussions, :correspondence],
+    do: 300_000
+
   def ttl(:grades), do: 300_000
   def ttl(:menus), do: 1_800_000
 

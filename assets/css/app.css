@@ -1138,3 +1138,9 @@ body.captain-brown .child-picker-avatar::after {
 @keyframes recipient-loading-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .recipient-loading-ring { animation: none; } }
 #message-form .recipient-field[data-loading="true"] input { padding-right: 2.75rem; }
+
+.discussion-heading.correspondence-summary { align-items: flex-start; }
+.correspondence-summary-text { display: flex; flex-direction: column; gap: 0.125rem; min-width: 0; }
+.correspondence-summary-text > span { font-weight: 400; }
+
+#messages-content .justification-badge { cursor: default; }
